@@ -59,6 +59,8 @@ export type WebsiteSnapshotHero = {
   variant?: string;
   display?: string;
   value?: number | null;
+  counter_value?: number | null;
+  counter_display?: string | null;
   /** @deprecated Use top-level `verdict`. Kept for saved reports. */
   label?: string;
   /** @deprecated Use top-level `verdict_sub`. Kept for saved reports. */
@@ -68,6 +70,28 @@ export type WebsiteSnapshotHero = {
 export type WebsiteSnapshotBeat = {
   finding?: string;
   so_what?: string;
+  owns_diagnosis?: boolean;
+};
+
+export type WebsiteSnapshotFrameChip = {
+  tone?: "ok" | "warn" | "bad" | "none" | string;
+  text?: string;
+};
+
+export type WebsiteSnapshotPageOneFrameBeat = {
+  n?: number;
+  chip?: WebsiteSnapshotFrameChip;
+  owns_diagnosis?: boolean;
+};
+
+export type WebsiteSnapshotPageOneFrame = {
+  owning_beat?: number;
+  metric?: {
+    variant?: string;
+    value?: number | null;
+    display?: string;
+  };
+  beats?: WebsiteSnapshotPageOneFrameBeat[];
 };
 
 export type WebsiteSnapshotHeadroom = {
@@ -126,7 +150,7 @@ export type WebsiteSnapshotBuyersElsewhere = {
 
 export type WebsiteSnapshotSearch = {
   keywords_count?: number;
-  etv?: number;
+  etv?: string | number;
   top10?: number;
   referring_domains?: number | null;
   brand_share?: number;
@@ -217,6 +241,7 @@ export type WebsiteSnapshotReport = {
   meta?: WebsiteSnapshotMeta;
   diagnosis?: string;
   hero?: WebsiteSnapshotHero;
+  page_one_frame?: WebsiteSnapshotPageOneFrame;
   headroom?: WebsiteSnapshotHeadroom;
   verdict?: string;
   verdict_sub?: string;
@@ -283,6 +308,27 @@ export function formatUncapturedMoneyShare(value?: number | null): string {
   const pct = Math.round(value * 100);
   if (pct <= 0) return "";
   return `${pct}%`;
+}
+
+export function formatSearchEtv(etv?: string | number | null): string {
+  if (etv == null || etv === "") return "";
+  if (typeof etv === "string") return etv.trim();
+  if (!Number.isFinite(etv)) return "";
+  return Math.round(etv).toLocaleString();
+}
+
+export function frameChipTone(tone?: string): "ok" | "warn" | "bad" | "none" {
+  const key = String(tone || "").trim().toLowerCase();
+  if (key === "ok" || key === "warn" || key === "bad" || key === "none") return key;
+  return "none";
+}
+
+export function formatDeliveryMode(delivery?: string | null): string {
+  const key = String(delivery || "").trim().toLowerCase();
+  if (!key) return "";
+  if (key === "place_based") return "Place-based";
+  if (key === "remote") return "Remote";
+  return String(delivery || "").trim();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -355,12 +401,8 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const metaLine = mdList([url, location, phone, reportDate]).join(" · ");
   if (metaLine) lines.push("", metaLine);
 
-  if (report.diagnosis) {
-    lines.push("", `## ${report.diagnosis}`);
-  }
-
-  const verdict = mdLine(report.verdict || report.hero?.label || "");
-  const verdictSub = mdLine(report.verdict_sub || report.hero?.description || "");
+  const verdict = mdLine(report.verdict || "");
+  const verdictSub = mdLine(report.verdict_sub || "");
   const metricLabel = mdLine(report.metric_label || "");
   const metricSub = mdLine(report.metric_sub || "");
   const opening = mdLine(report.opening || "");
@@ -368,6 +410,8 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   if (heroDisplay || verdict || metricLabel) {
     lines.push("", "## Hero");
     if (heroDisplay) lines.push("", `**${heroDisplay}**`);
+    const counterDisplay = mdLine(report.hero?.counter_display || "");
+    if (counterDisplay) lines.push("", `**${counterDisplay}**`);
     if (metricLabel) lines.push("", metricLabel);
     if (metricSub) lines.push("", metricSub);
     if (verdict) lines.push("", verdict);
@@ -378,24 +422,13 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const beats = Array.isArray(report.beats) ? report.beats : [];
   if (beats.length) {
     lines.push("", "## Overview");
-    for (const beat of beats) {
+    for (const [index, beat] of beats.entries()) {
       const finding = mdLine(beat.finding || "");
       const soWhat = mdLine(beat.so_what || "");
-      if (!finding && !soWhat) continue;
-      lines.push("", `### ${soWhat || "Finding"}`);
+      const chip = mdLine(report.page_one_frame?.beats?.[index]?.chip?.text || "");
+      if (!finding && !soWhat && !chip) continue;
+      lines.push("", `### ${[chip, soWhat].filter(Boolean).join(" — ") || "Finding"}`);
       if (finding) lines.push("", finding);
-    }
-  } else {
-    const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
-    if (callouts.length) {
-      lines.push("", "## Overview");
-      for (const c of callouts) {
-        const title = mdLine(c.title || "");
-        const body = mdLine(c.body || "");
-        if (!title && !body) continue;
-        lines.push("", `### ${title || "Callout"}`);
-        if (body) lines.push("", body);
-      }
     }
   }
 
@@ -414,27 +447,20 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     const g = report.goal;
     const inferredGoal = mdLine(g.inferred_goal || "");
     const dominantCta = mdLine(g.dominant_cta || "");
-    const funnelEnd = mdLine(g.funnel_end || "");
-    const goalBody = mdLine(String(g.body ?? ""));
-    const steps = Array.isArray(g.funnel_steps) ? g.funnel_steps.map((s) => mdLine(String(s))) : [];
-    if (inferredGoal || dominantCta || funnelEnd || goalBody || steps.length) {
+    if (inferredGoal || dominantCta) {
       lines.push("", "## Goal");
       if (inferredGoal) lines.push("", inferredGoal);
       if (dominantCta) lines.push("", `Primary CTA: ${dominantCta}`);
-      if (goalBody) lines.push("", goalBody);
-      if (steps.length) {
-        lines.push("", "Funnel:");
-        for (const step of steps.filter(Boolean)) lines.push(`- ${step}`);
-      }
-      if (funnelEnd) lines.push("", `Win: ${funnelEnd}`);
     }
   }
 
   const search = report.search || {};
   const trafficRead = mdLine(search.traffic_read || "");
-  if (trafficRead) {
+  const etvDisplay = formatSearchEtv(search.etv);
+  if (trafficRead || etvDisplay) {
     lines.push("", "## Where you stand in search");
-    lines.push("", trafficRead);
+    if (etvDisplay) lines.push("", `Traffic: ${etvDisplay}`);
+    if (trafficRead) lines.push("", trafficRead);
 
     const trend = search.trend || {};
     const pct = formatPercent(trend.pct_change);
@@ -442,6 +468,14 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     if (pct || window) {
       lines.push("", `Trend: ${[pct, window].filter(Boolean).join(" over ")}`.trim());
     }
+  }
+
+  const scale = report.scale_comparison;
+  if (scale && (scale.you != null || scale.peer != null || scale.ratio != null)) {
+    lines.push("", "## You vs peer");
+    if (scale.you != null) lines.push("", `You: ${scale.you}`);
+    if (scale.peer != null) lines.push("", `Peer: ${scale.peer}`);
+    if (scale.ratio != null) lines.push("", `Ratio: ${scale.ratio}`);
   }
 
   const youWin = Array.isArray(search.you_win) ? search.you_win : [];
@@ -470,11 +504,24 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     }
   }
 
-  const showsUp = report.shows_up || {};
-  const shouldBe = Array.isArray(report.should_be) ? report.should_be : [];
-  if (Object.keys(showsUp).length || shouldBe.length) {
+  const competitorBuckets = report.competitor_buckets || {};
+  const showsUp =
+    (Object.keys(report.shows_up || {}).length ? report.shows_up : null) ||
+    competitorBuckets.shows_up ||
+    {};
+  const shouldBe =
+    (report.should_be?.length ? report.should_be : null) ||
+    (competitorBuckets.should_be?.length ? competitorBuckets.should_be : null) ||
+    [];
+  const shouldBeNote = mdLine(report.should_be_note || competitorBuckets.should_be_note || "");
+  const market = mdLine(competitorBuckets.setup?.market || "");
+  const delivery = formatDeliveryMode(competitorBuckets.setup?.delivery);
+  const gap = mdLine(competitorBuckets.gap || "");
+  if (Object.keys(showsUp).length || shouldBe.length || market || gap) {
     lines.push("", "## Who shows up");
-    
+    if (market) lines.push("", market);
+    if (delivery) lines.push("", delivery);
+
     const directCompetitors = Array.isArray(showsUp.direct_competitors) ? showsUp.direct_competitors : [];
     if (directCompetitors.length) {
       lines.push("", "### Direct competitors");
@@ -495,14 +542,40 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
       if (showsUp.similar_elsewhere_note) lines.push("", mdLine(showsUp.similar_elsewhere_note));
     }
 
+    const directories = Array.isArray(showsUp.directories_tools) ? showsUp.directories_tools : [];
+    if (directories.length) {
+      lines.push("", "### Directories and tools");
+      for (const item of directories) lines.push(`- ${mdLine(String(item || ""))}`);
+      if (showsUp.directories_tools_note) lines.push("", mdLine(showsUp.directories_tools_note));
+    }
+
+    const noise = Array.isArray(showsUp.noise) ? showsUp.noise : [];
+    if (noise.length) {
+      lines.push("", "### Noise");
+      for (const item of noise) lines.push(`- ${mdLine(String(item || ""))}`);
+      if (showsUp.noise_note) lines.push("", mdLine(showsUp.noise_note));
+    }
+
     if (shouldBe.length) {
       lines.push("", "### Who should be there");
+      if (shouldBeNote) lines.push("", shouldBeNote);
       for (const item of shouldBe) {
         const name = mdLine(item.name || "");
         const note = mdLine(item.note || "");
-        if (name) lines.push(`- ${name}${note ? ` - ${note}` : ""}`);
+        const where = mdLine(item.where || "");
+        const inResults =
+          item.shows_up_in_results === true
+            ? "in results"
+            : item.shows_up_in_results === false
+              ? "not in results"
+              : "";
+        if (!name) continue;
+        const bits = [name, where, inResults].filter(Boolean).join(" · ");
+        lines.push(`- ${bits}${note ? ` - ${note}` : ""}`);
       }
     }
+
+    if (gap) lines.push("", `The gap: ${gap}`);
   }
 
   const u = report.under_the_hood || {};
@@ -528,7 +601,7 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
       lines.push("", "### Issues");
       for (const it of issues) {
         const title = mdLine(it.title || "");
-        const finding = mdLine(it.finding || it.body || "");
+        const finding = mdLine(it.finding || "");
         const fix = mdLine(it.fix || "");
         const sev = mdLine(issueSeverityLabel(it.severity) || it.severity || "");
         if (!title && !finding && !fix) continue;
@@ -547,19 +620,19 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     for (const rung of ladder) {
       const title = mdLine(String(rung.headline || rung.title || ""));
       const status = mdLine(ladderStatusLabel(rung.status));
-      const body = mdLine(String(rung.body || rung.example || ""));
+      const body = mdLine(String(rung.body || ""));
+      const example = mdLine(String(rung.example || ""));
       const label = `Rung ${rung.rung ?? ""}`.trim();
       lines.push(`- ${[label, title, status ? `(${status})` : ""].filter(Boolean).join(" ")}`);
+      if (example) lines.push(`  - Example: ${example}`);
       if (body) lines.push(`  - ${body}`);
     }
-    const summary = mdLine(String(report.ladder_summary ?? ""));
-    if (summary) lines.push("", summary);
   }
 
   const tactics = Array.isArray(report.tactics) ? report.tactics : [];
   if (tactics.length) {
     lines.push("", "## The plan, in order");
-    const planIntro = mdLine(report.plan_intro || String(report.goal?.body ?? ""));
+    const planIntro = mdLine(report.plan_intro || "");
     if (planIntro) lines.push("", planIntro);
     const headroom = report.headroom;
     if (headroom) {
@@ -593,7 +666,7 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     }
   }
 
-  const closing = mdLine(report.close || report.takeaway || "");
+  const closing = mdLine(report.close || "");
   if (closing) {
     lines.push("", "## Honest takeaway", "", closing);
   }

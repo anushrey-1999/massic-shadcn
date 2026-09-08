@@ -31,6 +31,9 @@ import {
   ladderStatusKey,
   ladderStatusLabel,
   formatUncapturedMoneyShare,
+  formatSearchEtv,
+  frameChipTone,
+  formatDeliveryMode,
 } from "@/utils/website-snapshot-report";
 
 type WebsiteSnapshotReportViewerProps = {
@@ -131,25 +134,24 @@ export function WebsiteSnapshotReportViewer({
   const shouldBeNote = report.should_be_note || competitorBuckets.should_be_note || "";
   const directNote = String(showsUp.direct_note || "").trim();
   const setupLine = String(competitorBuckets.setup?.market || "").trim();
+  const deliveryLine = formatDeliveryMode(competitorBuckets.setup?.delivery);
+  const directoriesTools = Array.isArray(showsUp.directories_tools) ? showsUp.directories_tools : [];
+  const directoriesNote = String(showsUp.directories_tools_note || "").trim();
+  const trafficRead = String(search.traffic_read || "").trim();
   const underTheHood = report.under_the_hood || {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
   const tactics = Array.isArray(report.tactics) ? report.tactics : [];
   const beats = Array.isArray(report.beats) ? report.beats : [];
-  const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
-  const verdict = String(report.verdict || report.hero?.label || "").trim();
-  const verdictSub = String(report.verdict_sub || report.hero?.description || "").trim();
+  const verdict = String(report.verdict || "").trim();
+  const verdictSub = String(report.verdict_sub || "").trim();
   const metricLabel = String(report.metric_label || "").trim();
   const metricSub = String(report.metric_sub || "").trim();
   const opening = String(report.opening || "").trim();
-  const closing = String(report.close || report.takeaway || "").trim();
-  const planIntro = String(report.plan_intro || goal.body || "").trim();
+  const closing = String(report.close || "").trim();
+  const planIntro = String(report.plan_intro || "").trim();
   const inferredGoal = String(goal.inferred_goal || "").trim();
   const dominantCta = String(goal.dominant_cta || "").trim();
-  const hasLegacyFunnel =
-    !inferredGoal &&
-    !dominantCta &&
-    !!(goal.body || (Array.isArray(goal.funnel_steps) && goal.funnel_steps.length) || goal.funnel_end);
 
   const headroomBits = (() => {
     const headroom = report.headroom;
@@ -171,7 +173,7 @@ export function WebsiteSnapshotReportViewer({
   const STATIC_TIERS = [
     {
       name: "SEO is a growth channel",
-      blurb: "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet.",
+      blurb: "Search can bring real customers. Your next wins are the pages that catch buyers who don't know you yet.",
     },
     {
       name: "SEO is a competitive channel",
@@ -179,12 +181,20 @@ export function WebsiteSnapshotReportViewer({
     },
     {
       name: "SEO is a visibility channel",
-      blurb: "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found.",
+      blurb: "Supports credibility more than acquisition, and is unlikely to be the main source of customers.",
     },
   ] as const;
   
   const hero = report.hero || {};
-  const diagnosis = report.diagnosis || null;
+  const pageOneFrame = report.page_one_frame;
+  const counterDisplay = String(hero.counter_display || "").trim();
+  const leftShare =
+    hero.value != null && Number.isFinite(hero.value) ? Math.max(0, Math.round(hero.value * 100)) : null;
+  const rightShare =
+    hero.counter_value != null && Number.isFinite(hero.counter_value)
+      ? Math.max(0, Math.round(hero.counter_value * 100))
+      : null;
+  const trafficDisplay = formatSearchEtv(search.etv);
 
   const markdownForExport = React.useMemo(() => {
     return websiteSnapshotReportToMarkdown(report);
@@ -320,27 +330,57 @@ export function WebsiteSnapshotReportViewer({
               {render.hero !== false && hero.display && (
                 <>
                   <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
-                  {diagnosis && (
-                    <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                      {diagnosis}
-                    </div>
-                  )}
-                  <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
-                    {hero.display}
-                  </div>
-                  {(metricLabel || metricSub) && (
-                    <div className="mb-4 sm:mb-5">
-                      {metricLabel && (
-                        <p className="text-[14px] sm:text-[15px] font-semibold leading-tight" style={{ color: COLORS.ink }}>
-                          {metricLabel}
-                        </p>
+                  {counterDisplay ? (
+                    <div className="my-4 sm:my-5">
+                      <div className="flex items-end justify-between gap-4 mb-3">
+                        <div>
+                          <div className="text-[40px] sm:text-[56px] lg:text-[72px] font-bold tracking-tight leading-[0.85]" style={{ color: COLORS.green }}>
+                            {hero.display}
+                          </div>
+                          {metricLabel && (
+                            <p className="text-[13px] sm:text-[14px] mt-2 leading-tight" style={{ color: COLORS.muted }}>
+                              {metricLabel}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[28px] sm:text-[36px] lg:text-[44px] font-bold tracking-tight leading-[0.85]" style={{ color: COLORS.ink }}>
+                            {counterDisplay}
+                          </div>
+                          {metricSub && (
+                            <p className="text-[13px] sm:text-[14px] mt-2 leading-tight" style={{ color: COLORS.muted }}>
+                              {metricSub}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {leftShare != null && rightShare != null && (
+                        <div className="flex gap-0.5 h-3 rounded-sm overflow-hidden" style={{ background: COLORS.hair }}>
+                          <div style={{ flex: Math.max(leftShare, 1), background: COLORS.faint }} />
+                          <div style={{ flex: Math.max(rightShare, 1), background: COLORS.green }} />
+                        </div>
                       )}
-                      {metricSub && (
-                        <p className="text-[13px] sm:text-[14px] mt-1 leading-relaxed" style={{ color: COLORS.muted }}>
-                          {metricSub}
-                        </p>
-                      )}
                     </div>
+                  ) : (
+                    <>
+                      <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
+                        {hero.display}
+                      </div>
+                      {(metricLabel || metricSub) && (
+                        <div className="mb-4 sm:mb-5">
+                          {metricLabel && (
+                            <p className="text-[14px] sm:text-[15px] font-semibold leading-tight" style={{ color: COLORS.ink }}>
+                              {metricLabel}
+                            </p>
+                          )}
+                          {metricSub && (
+                            <p className="text-[13px] sm:text-[14px] mt-1 leading-relaxed" style={{ color: COLORS.muted }}>
+                              {metricSub}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                   {verdict && (
                     <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
@@ -362,12 +402,37 @@ export function WebsiteSnapshotReportViewer({
 
               {beats.length > 0 ? (
                 <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
-                  {beats.map((beat, index) => (
+                  {beats.map((beat, index) => {
+                    const frameBeat = pageOneFrame?.beats?.[index];
+                    const chipTone = frameChipTone(frameBeat?.chip?.tone);
+                    const chipText = String(frameBeat?.chip?.text || "").trim();
+                    const ownsDiagnosis = beat.owns_diagnosis === true || frameBeat?.owns_diagnosis === true;
+                    const chipStyle =
+                      chipTone === "ok"
+                        ? { background: COLORS.greenSoft, color: COLORS.green }
+                        : chipTone === "warn"
+                          ? { background: COLORS.amberSoft, color: COLORS.amber }
+                          : chipTone === "bad"
+                            ? { background: COLORS.redSoft, color: COLORS.red }
+                            : { background: COLORS.paper, color: COLORS.faint, border: `1px dashed ${COLORS.hair}` };
+                    return (
                     <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
+                      {chipText && (
+                        <div
+                          className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded mb-2 sm:mb-2.5 leading-snug uppercase"
+                          style={chipStyle}
+                        >
+                          {chipText}
+                        </div>
+                      )}
                       {beat.so_what && (
                         <div
-                          className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded mb-2 sm:mb-2.5 leading-snug"
-                          style={{ background: COLORS.greenSoft, color: COLORS.green }}
+                          className="text-[13px] sm:text-[14px] mb-2 leading-snug"
+                          style={
+                            ownsDiagnosis
+                              ? { color: COLORS.green, fontWeight: 600 }
+                              : { color: COLORS.muted, fontStyle: "italic", fontWeight: 400 }
+                          }
                         >
                           {beat.so_what}
                         </div>
@@ -376,26 +441,6 @@ export function WebsiteSnapshotReportViewer({
                         {beat.finding}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : callouts.length > 0 ? (
-                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
-                  {callouts.map((callout, index) => {
-                    const dotColor = 
-                      callout.tone === "green" ? COLORS.green :
-                      callout.tone === "amber" ? COLORS.amber :
-                      callout.tone === "red" ? COLORS.red : COLORS.faint;
-                    
-                    return (
-                      <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
-                        <div className="flex items-center gap-2.5 text-[14px] sm:text-[15px] font-semibold mb-2 sm:mb-2.5 leading-normal" style={{ color: COLORS.ink }}>
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dotColor }} />
-                          {callout.title}
-                        </div>
-                        <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {callout.body}
-                        </div>
-                      </div>
                     );
                   })}
                 </div>
@@ -403,7 +448,7 @@ export function WebsiteSnapshotReportViewer({
             </div>
 
             {/* PAGE 2: What SEO Can Do */}
-            {(tier.name || inferredGoal || dominantCta || hasLegacyFunnel) && (
+            {(tier.level != null || tier.name || inferredGoal || dominantCta) && (
               <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
                 borderColor: COLORS.hair, 
                 background: COLORS.paper 
@@ -412,7 +457,7 @@ export function WebsiteSnapshotReportViewer({
                   What SEO can do for you
                 </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {tier.name || (tier as any).label || "Your SEO opportunity tier"}
+                  {tier.name || "Your SEO opportunity tier"}
                 </h2>
                 {tier.reasoning && (
                   <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
@@ -452,7 +497,7 @@ export function WebsiteSnapshotReportViewer({
                           {name}
                         </div>
                         <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {defaults.blurb}
+                          {isSelected && tier.reasoning ? tier.reasoning : defaults.blurb}
                         </div>
                       </div>
                     );
@@ -474,47 +519,6 @@ export function WebsiteSnapshotReportViewer({
                       <p className="text-[13px] mt-2 leading-normal" style={{ color: COLORS.muted }}>
                         Primary CTA: {dominantCta}
                       </p>
-                    )}
-                  </div>
-                ) : hasLegacyFunnel ? (
-                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
-                    borderColor: COLORS.green, 
-                    background: COLORS.greenSoft 
-                  }}>
-                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
-                      Your goal, read from your own site
-                    </div>
-                    {goal.body && (
-                      <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
-                    )}
-                    {Array.isArray(goal.funnel_steps) && goal.funnel_steps.length > 0 && (
-                      <div className="flex sm:flex-row flex-col sm:flex-wrap items-center sm:items-center gap-2 text-[12.5px]">
-                        {goal.funnel_steps.map((step, i) => (
-                          <React.Fragment key={i}>
-                            <div className="border rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
-                              background: COLORS.paper, 
-                              borderColor: COLORS.hair,
-                              color: COLORS.ink
-                            }}>
-                              {step}
-                            </div>
-                            {i < goal.funnel_steps!.length - 1 && (
-                              <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
-                            )}
-                          </React.Fragment>
-                        ))}
-                        {goal.funnel_end && (
-                          <>
-                            <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
-                            <div className="font-semibold rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
-                              background: COLORS.green, 
-                              color: COLORS.paper 
-                            }}>
-                              {goal.funnel_end}
-                            </div>
-                          </>
-                        )}
-                      </div>
                     )}
                   </div>
                 ) : null}
@@ -546,13 +550,14 @@ export function WebsiteSnapshotReportViewer({
                       <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
                     </div>
                     <div className="px-0 sm:px-5 sm:border-l pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Traffic</div>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Est. traffic</div>
                       <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
-                        ~{typeof search.etv === 'number' ? Math.round(search.etv).toLocaleString() : search.etv || 0}
+                        {trafficDisplay || "—"}
                       </div>
                       <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>
-                        visits a month
-                        {search.trend?.pct_change ? `, ${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%` : ""}
+                        {search.trend?.pct_change
+                          ? `${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%`.trim()
+                          : "estimated volume"}
                       </div>
                     </div>
                     <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
@@ -566,6 +571,12 @@ export function WebsiteSnapshotReportViewer({
                       <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
                     </div>
                   </div>
+                )}
+
+                {trafficRead && (
+                  <p className="text-[13.5px] sm:text-[14.5px] mt-5 leading-relaxed" style={{ color: COLORS.ink }}>
+                    {trafficRead}
+                  </p>
                 )}
 
                 {/* Trend Chart */}
@@ -744,6 +755,42 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 )}
 
+                {render.scale_comparison !== false &&
+                  scaleComparison &&
+                  (scaleComparison.you != null || scaleComparison.peer != null || scaleComparison.ratio != null) && (
+                  <div className="mt-6 sm:mt-7">
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                      You vs peer
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      {scaleComparison.you != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>You</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.you).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                      {scaleComparison.peer != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Peer</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.peer).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                      {scaleComparison.ratio != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Ratio</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.ratio).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
 
                 {/* You Win vs Missing Columns */}
@@ -813,8 +860,16 @@ export function WebsiteSnapshotReportViewer({
                   Who shows up in your market
                 </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {setupLine || directNote || "Your competitive landscape."}
+                  {setupLine || "Your competitive landscape."}
                 </h2>
+                {deliveryLine && (
+                  <p className="text-[13px] mb-2" style={{ color: COLORS.muted }}>{deliveryLine}</p>
+                )}
+                {directNote && (
+                  <p className="text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                    {directNote}
+                  </p>
+                )}
 
                 {/* Direct Competitors */}
                 {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
@@ -822,11 +877,6 @@ export function WebsiteSnapshotReportViewer({
                     <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
                       Direct Rivals
                     </div>
-                    {setupLine && directNote && (
-                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                        {directNote}
-                      </p>
-                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {showsUp.direct_competitors.map((item: any, i: number) => (
                         <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
@@ -859,7 +909,31 @@ export function WebsiteSnapshotReportViewer({
                           borderColor: COLORS.hair,
                           background: '#fbfbf9'
                         }}>
-                          {item.domain}
+                          {item.domain}{item.where ? ` · ${item.where}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {directoriesTools.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Directories and tools
+                    </div>
+                    {directoriesNote && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {directoriesNote}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {directoriesTools.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item}
                         </span>
                       ))}
                     </div>
@@ -878,7 +952,7 @@ export function WebsiteSnapshotReportViewer({
                       </p>
                     )}
                     <div className="flex flex-wrap gap-1.5">
-                      {showsUp.noise.slice(0, 6).map((item: any, i: number) => (
+                      {showsUp.noise.map((item: any, i: number) => (
                         <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
                           color: COLORS.muted,
                           borderColor: COLORS.hair,
@@ -887,15 +961,6 @@ export function WebsiteSnapshotReportViewer({
                           {item}
                         </span>
                       ))}
-                      {showsUp.noise.length > 6 && (
-                        <span className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
-                          color: COLORS.muted,
-                          borderColor: COLORS.hair,
-                          background: '#fbfbf9'
-                        }}>
-                          + {showsUp.noise.length - 6} more
-                        </span>
-                      )}
                     </div>
                   </div>
                 )}
@@ -906,14 +971,28 @@ export function WebsiteSnapshotReportViewer({
                     <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
                       Who should be there
                     </div>
-                    <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                      {shouldBeNote || "The competitors your customers actually choose between — every one of them in your market."}
-                    </p>
+                    {shouldBeNote && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {shouldBeNote}
+                      </p>
+                    )}
                     <div className="space-y-0">
                       {shouldBe.map((item: any, i: number) => (
                         <div key={i} className="flex justify-between gap-5 py-3 border-t text-[13.5px]" style={{ borderColor: COLORS.hair }}>
                           <div>
-                            <div className="font-semibold mb-0.5" style={{ color: COLORS.ink }}>{item.name}</div>
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <div className="font-semibold" style={{ color: COLORS.ink }}>{item.name}</div>
+                              {item.shows_up_in_results === true && (
+                                <span className="font-mono text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ background: COLORS.greenSoft, color: COLORS.green }}>
+                                  In results
+                                </span>
+                              )}
+                              {item.shows_up_in_results === false && (
+                                <span className="font-mono text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ background: COLORS.redSoft, color: COLORS.red }}>
+                                  Not in results
+                                </span>
+                              )}
+                            </div>
                             {item.where && (
                               <div className="text-[12px]" style={{ color: COLORS.faint }}>{item.where}</div>
                             )}
@@ -1030,7 +1109,7 @@ export function WebsiteSnapshotReportViewer({
                 <div className="mt-3.5 space-y-0">
                   {issues.map((issue, i) => {
                     const tone = issueSeverityTone(issue.severity);
-                    const finding = String(issue.finding || issue.body || "").trim();
+                    const finding = String(issue.finding || "").trim();
                     const fix = String(issue.fix || "").trim();
                     return (
                     <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
@@ -1101,17 +1180,14 @@ export function WebsiteSnapshotReportViewer({
                           </span>
                         </span>
                       </div>
+                      {rung.example && (
+                        <div className="font-mono text-[11px] text-gray-600 pl-0 sm:pl-6 mb-1">{rung.example}</div>
+                      )}
                       <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                     </div>
                     );
                   })}
                 </div>
-
-                {report.ladder_summary && (
-                  <p className="mt-6 text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                    {report.ladder_summary}
-                  </p>
-                )}
               </div>
             )}
 
@@ -1145,41 +1221,38 @@ export function WebsiteSnapshotReportViewer({
                   let currentPhase = "";
                   let stepInPhase = 0;
                   return tactics.map((tactic, i) => {
-                    const isNewPhase = tactic.phase !== currentPhase;
+                    const phase = tactic.phase || "";
+                    const isNewPhase = phase !== currentPhase;
                     if (isNewPhase) {
-                      currentPhase = tactic.phase || "";
-                      stepInPhase = 0;
+                      currentPhase = phase;
+                      stepInPhase = 1;
                     } else {
                       stepInPhase++;
                     }
 
                     return (
                       <React.Fragment key={i}>
-                        {isNewPhase && tactic.phase && (
-                          <>
-                            <div className="flex flex-col items-start gap-2 mt-6 sm:mt-8">
-                              <span className="font-mono text-[10px] sm:text-[11px] tracking-wider text-white px-3 py-1.5 rounded w-fit" style={{ background: COLORS.green }}>
-                                {tactic.phase.toUpperCase()}
-                              </span>
-                              <span className="font-semibold text-[15px] sm:text-[16px]">{tactic.title}</span>
-                            </div>
-                            <hr className="border-0 border-t border-[#e6e8e3] my-3 sm:my-2.5" />
-                          </>
-                        )}
-                        {!isNewPhase && (
-                          <div className="py-3 sm:py-3.5 border-b border-[#e6e8e3]">
-                            <div className="flex items-baseline gap-2 mb-2">
-                              <span 
-                                className="font-mono text-[12px] sm:text-[13px] font-medium" 
-                                style={{ color: COLORS.green }}
-                              >
-                                {stepInPhase}.
-                              </span>
-                              <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
-                            </div>
-                            <div className="text-[12.5px] sm:text-[13px] text-gray-600 leading-relaxed pl-0 sm:pl-6">{tactic.body}</div>
+                        {isNewPhase && phase && (
+                          <div className="flex flex-col items-start gap-2 mt-6 sm:mt-8">
+                            <span className="font-mono text-[10px] sm:text-[11px] tracking-wider text-white px-3 py-1.5 rounded w-fit" style={{ background: COLORS.green }}>
+                              {phase.toUpperCase()}
+                            </span>
                           </div>
                         )}
+                        <div className="py-3 sm:py-3.5 border-b border-[#e6e8e3]">
+                          <div className="flex items-baseline gap-2 mb-2">
+                            <span
+                              className="font-mono text-[12px] sm:text-[13px] font-medium"
+                              style={{ color: COLORS.green }}
+                            >
+                              {stepInPhase}.
+                            </span>
+                            <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
+                          </div>
+                          {tactic.body && (
+                            <div className="text-[12.5px] sm:text-[13px] text-gray-600 leading-relaxed pl-0 sm:pl-6">{tactic.body}</div>
+                          )}
+                        </div>
                       </React.Fragment>
                     );
                   });

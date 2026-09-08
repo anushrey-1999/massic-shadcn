@@ -20,7 +20,10 @@ import {
   type SeoSnapshotReport,
 } from "@/utils/seo-snapshot-report";
 import {
+  formatDeliveryMode,
+  formatSearchEtv,
   formatUncapturedMoneyShare,
+  frameChipTone,
   issueSeverityLabel,
   issueSeverityTone,
   ladderStatusKey,
@@ -895,6 +898,8 @@ const WEBSITE_SNAPSHOT_CSS = `
   /* Hero */
   .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0}
   .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0}
+  .hero-split-left{font-size:72px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:0;padding:0}
+  .hero-split-right{font-size:44px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--ink);margin:0;padding:0}
   .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:16px;padding:0}
   .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0}
   
@@ -1237,40 +1242,31 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   })() : "";
   const reportMonthYear = formatMonthYearFromIso(meta.report_date) || "Website Snapshot";
 
-  const callouts = Array.isArray((report as any)?.overview_callouts) ? (report as any).overview_callouts : [];
   const beats = Array.isArray((report as any)?.beats) ? (report as any).beats : [];
+  const pageOneFrame: any = (report as any)?.page_one_frame || {};
+  const frameBeats = Array.isArray(pageOneFrame?.beats) ? pageOneFrame.beats : [];
   const tier: any = (report as any)?.tier || {};
   const hero: any = (report as any)?.hero || {};
   const goal: any = (report as any)?.goal || {};
-  const diagnosis = String((report as any)?.diagnosis || "").trim();
-  const verdict = String((report as any)?.verdict || hero.label || "").trim();
-  const verdictSub = String((report as any)?.verdict_sub || hero.description || "").trim();
+  const verdict = String((report as any)?.verdict || "").trim();
+  const verdictSub = String((report as any)?.verdict_sub || "").trim();
   const metricLabel = String((report as any)?.metric_label || "").trim();
   const metricSub = String((report as any)?.metric_sub || "").trim();
   const opening = String((report as any)?.opening || "").trim();
-  const planIntro = String((report as any)?.plan_intro || goal.body || "").trim();
+  const planIntro = String((report as any)?.plan_intro || "").trim();
   const inferredGoal = String(goal.inferred_goal || "").trim();
   const dominantCta = String(goal.dominant_cta || "").trim();
-  const goalBody = String(goal.body ?? goal.goal_body ?? "").trim();
-  const funnelSteps: string[] = Array.isArray(goal.funnel_steps)
-    ? goal.funnel_steps.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3)
-    : [];
-  const funnelEnd = String(goal.funnel_end || "").trim();
   const headroom: any = (report as any)?.headroom || null;
 
   const search: any = (report as any)?.search || {};
   const competitorBuckets: any = (report as any)?.competitor_buckets || {};
-  const competitorsIntro = String((report as any)?.competitors_intro || "").trim();
-  const competitorsThroughline = String((report as any)?.competitors_throughline || "").trim();
-  const competitors = Array.isArray((report as any)?.competitors) ? (report as any).competitors : [];
 
   const under: any = (report as any)?.under_the_hood || {};
   const issues = Array.isArray((report as any)?.issues) ? (report as any).issues : [];
   const ladderIntro = String((report as any)?.ladder_intro || "").trim();
-  const ladderSummary = String((report as any)?.ladder_summary || "").trim();
   const ladder = Array.isArray((report as any)?.ladder) ? (report as any).ladder : [];
   const tactics = Array.isArray((report as any)?.tactics) ? (report as any).tactics : [];
-  const takeaway = String((report as any)?.close || (report as any)?.takeaway || "").trim();
+  const takeaway = String((report as any)?.close || "").trim();
 
   const monthYearTop = formatMonthYearFromIso(meta.report_date) || reportMonthYear;
   const metaParts = [website, location].filter(Boolean);
@@ -1292,35 +1288,21 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       <div class="callouts-grid">
         ${beats
           .slice(0, 4)
-          .map((b: any) => {
+          .map((b: any, index: number) => {
             const finding = String(b?.finding || "").trim();
             const soWhat = String(b?.so_what || "").trim();
-            if (!finding && !soWhat) return "";
+            const frameBeat = frameBeats[index] || {};
+            const chipText = String(frameBeat?.chip?.text || "").trim();
+            const tone = frameChipTone(frameBeat?.chip?.tone);
+            const owns = b?.owns_diagnosis === true || frameBeat?.owns_diagnosis === true;
+            const chipBg = tone === "ok" ? "var(--greenSoft)" : tone === "warn" ? "var(--amberSoft)" : tone === "bad" ? "#f6e9ec" : "var(--paper)";
+            const chipColor = tone === "ok" ? "var(--green)" : tone === "warn" ? "var(--amber)" : tone === "bad" ? "var(--red)" : "var(--faint)";
+            const chipBorder = tone === "none" ? "1px dashed var(--line)" : "none";
+            if (!finding && !soWhat && !chipText) return "";
             return `<div class="callout-item">
-              ${soWhat ? `<div class="callout-title" style="display:inline-block;background:var(--greenSoft);color:var(--green);font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;padding:4px 8px;border-radius:4px;margin-bottom:8px">${escapeHtml(soWhat)}</div>` : ""}
+              ${chipText ? `<div style="display:inline-block;background:${chipBg};color:${chipColor};border:${chipBorder};font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;text-transform:uppercase;padding:4px 8px;border-radius:4px;margin-bottom:8px">${escapeHtml(chipText)}</div>` : ""}
+              ${soWhat ? `<div style="font-size:13.5px;margin-bottom:6px;${owns ? "color:var(--green);font-weight:600" : "color:var(--muted);font-style:italic;font-weight:400"}">${escapeHtml(soWhat)}</div>` : ""}
               ${finding ? `<div class="callout-body">${escapeHtml(finding)}</div>` : ""}
-            </div>`;
-          })
-          .filter(Boolean)
-          .join("")}
-      </div>
-    `
-    : callouts.length
-    ? `
-      <div class="callouts-grid">
-        ${callouts
-          .slice(0, 4)
-          .map((c: any) => {
-            const tone = String(c?.tone || "").trim().toLowerCase();
-            const dotColor = tone === "green" ? "var(--green)" : tone === "amber" ? "var(--amber)" : tone === "red" ? "var(--red)" : "var(--faint)";
-            const title = String(c?.title || "").trim();
-            const body = String(c?.body || "").trim();
-            if (!title && !body) return "";
-            return `<div class="callout-item">
-              <div class="callout-title">
-                <span class="callout-dot" style="background:${dotColor}"></span>${escapeHtml(title || "Callout")}
-              </div>
-              ${body ? `<div class="callout-body">${escapeHtml(body)}</div>` : ""}
             </div>`;
           })
           .filter(Boolean)
@@ -1331,7 +1313,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const heroDisplay = String(hero?.display || "").trim();
 
-  const tierLabel = String(tier?.name || tier?.label || "").trim();
+  const tierLabel = String(tier?.name || "").trim();
   const tierReason = String(tier?.reasoning || "").trim();
   const tierLevel = tier?.level != null ? Number(tier.level) : null;
   const tierHtml =
@@ -1343,7 +1325,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           <div class="tier">
             ${tierLabel ? `<span class="tier-k">${escapeHtml(tierLabel)}</span>` : ""}
             ${tierReason ? `<p>${escapeHtml(tierReason)}</p>` : ""}
-            ${String(tier?.tier_caveat || "").trim() ? `<p class="lead" style="margin-top:10px">${escapeHtml(String(tier.tier_caveat))}</p>` : ""}
           </div>
         </div>
       </section>
@@ -1357,24 +1338,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <div class="goal-label">Your goal, read from your own site</div>
         ${inferredGoal ? `<p class="goal-body">${escapeHtml(inferredGoal)}</p>` : ""}
         ${dominantCta ? `<p class="goal-body" style="margin-top:6px;color:var(--muted)">Primary CTA: ${escapeHtml(dominantCta)}</p>` : ""}
-      </div>
-    `
-      : goalBody
-      ? `
-      <div class="goal-box">
-        <div class="goal-label">Your goal, read from your own site</div>
-        <p class="goal-body">${escapeHtml(goalBody)}</p>
-        ${
-          funnelSteps.length || funnelEnd
-            ? `<div class="goal-funnel">
-              ${funnelSteps.map((step, i) => `
-                <div class="funnel-step">${escapeHtml(step)}</div>
-                ${i < funnelSteps.length - 1 || funnelEnd ? `<span class="funnel-arrow">›</span>` : ""}
-              `).join("")}
-              ${funnelEnd ? `<div class="funnel-end">${escapeHtml(funnelEnd)}</div>` : ""}
-            </div>`
-            : ""
-        }
       </div>
     `
       : "";
@@ -1404,9 +1367,9 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           <div class="stat-caption">terms ranked</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Traffic</div>
-          <div class="stat-value stat-green">~${search.etv != null ? escapeHtml(Math.round(Number(search.etv)).toLocaleString()) : "0"}</div>
-          <div class="stat-caption">visits a month${trendPctChange}</div>
+          <div class="stat-label">Est. traffic</div>
+          <div class="stat-value stat-green">${escapeHtml(formatSearchEtv(search.etv) || "—")}</div>
+          <div class="stat-caption">${trendPctChange ? escapeHtml(trendPctChange.replace(/^, /, "")) : "estimated volume"}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Top 10</div>
@@ -1419,6 +1382,11 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           <div class="stat-caption">sites linking to you</div>
         </div>
       </div>
+      ${
+        String(search?.traffic_read || "").trim()
+          ? `<p class="section-lead" style="margin-top:20px">${escapeHtml(String(search.traffic_read).trim())}</p>`
+          : ""
+      }
       
       ${
         Array.isArray(search?.trend?.points) && search.trend.points.length
@@ -1477,12 +1445,30 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                           <span>Nav: ${navigational}%</span>
                         </div>` : ""}
                       </div>
+                      ${
+                        intentMix.local_share != null && Number.isFinite(Number(intentMix.local_share))
+                          ? `<p style="color:#6d726f;font-size:12.5px;margin-top:8px">Local pack share: <b style="color:#1c1f1d">${Math.round(Number(intentMix.local_share) * 100)}%</b> — buyers, not browsers.</p>`
+                          : ""
+                      }
                     </div>`
                   : ""
               }
             </div>`
           : ""
       }
+      ${(() => {
+        const scale = (report as any)?.scale_comparison;
+        if (!scale || (scale.you == null && scale.peer == null && scale.ratio == null)) return "";
+        const cells = [
+          scale.you != null ? `<div><div style="font-size:11px;color:#6d726f">You</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.you).toLocaleString())}</div></div>` : "",
+          scale.peer != null ? `<div><div style="font-size:11px;color:#6d726f">Peer</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.peer).toLocaleString())}</div></div>` : "",
+          scale.ratio != null ? `<div><div style="font-size:11px;color:#6d726f">Ratio</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.ratio).toLocaleString())}</div></div>` : "",
+        ].filter(Boolean);
+        return `<div style="margin-top:28px">
+          <h3 class="mix-title">You vs peer</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${cells.join("")}</div>
+        </div>`;
+      })()}
       
       ${
         (Array.isArray(search?.you_win) && search.you_win.length > 0) || 
@@ -1556,18 +1542,23 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const similarElsewhereNote = String(showsUp?.similar_elsewhere_note || "").trim();
   const noise = Array.isArray(showsUp?.noise) ? showsUp.noise : [];
   const noiseNote = String(showsUp?.noise_note || "").trim();
+  const directoriesTools = Array.isArray(showsUp?.directories_tools) ? showsUp.directories_tools : [];
+  const directoriesNote = String(showsUp?.directories_tools_note || "").trim();
   const setupText = String(competitorBuckets?.setup?.market || "").trim();
+  const deliveryText = formatDeliveryMode(competitorBuckets?.setup?.delivery);
+  const shouldBeNote = String((report as any)?.should_be_note || competitorBuckets?.should_be_note || "").trim();
 
-  const competitorsHtml = directCompetitors.length || similarElsewhere.length || shouldBe.length || noise.length
+  const competitorsHtml = directCompetitors.length || similarElsewhere.length || shouldBe.length || noise.length || directoriesTools.length
     ? `
       <div class="page-card">
         <div class="eyebrow">Who shows up in your market</div>
-        <h2 class="section-title">${escapeHtml(setupText || directNote || "Your competitive landscape.")}</h2>
+        <h2 class="section-title">${escapeHtml(setupText || "Your competitive landscape.")}</h2>
+        ${deliveryText ? `<p class="section-lead">${escapeHtml(deliveryText)}</p>` : ""}
+        ${directNote ? `<p class="section-lead">${escapeHtml(directNote)}</p>` : ""}
         ${
           directCompetitors.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Direct Rivals</div>
-                ${setupText && directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${directCompetitors.map((c: any) => {
                     const domain = String(c?.domain || "").trim();
@@ -1585,7 +1576,23 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${similarElsewhere.map((item: any) => {
                     const domain = String(item?.domain || "").trim();
-                    return domain ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
+                    const where = String(item?.where || "").trim();
+                    const label = [domain, where].filter(Boolean).join(" · ");
+                    return label ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(label)}</span>` : "";
+                  }).filter(Boolean).join("")}
+                </div>
+              </div>`
+            : ""
+        }
+        ${
+          directoriesTools.length
+            ? `<div class="keep" style="margin-top:20px;padding:0">
+                <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Directories and tools</div>
+                ${directoriesNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directoriesNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  ${directoriesTools.map((item: any) => {
+                    const d = String(item || "").trim();
+                    return d ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
               </div>`
@@ -1597,11 +1604,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Noise</div>
                 ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
-                  ${noise.slice(0, 6).map((domain: any) => {
+                  ${noise.map((domain: any) => {
                     const d = String(domain || "").trim();
                     return d ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
                   }).filter(Boolean).join("")}
-                  ${noise.length > 6 ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">+ ${noise.length - 6} more</span>` : ""}
                 </div>
               </div>`
             : ""
@@ -1610,14 +1616,15 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           shouldBe.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Who should be there</div>
-                <p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(String((report as any)?.should_be_note || (competitorBuckets as any)?.should_be_note || "").trim() || "The competitors your customers actually choose between — every one of them in your market.")}</p>
+                ${shouldBeNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(shouldBeNote)}</p>` : ""}
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
                   const where = String(c?.where || "").trim();
                   const note = String(c?.note || "").trim();
+                  const inResults = c?.shows_up_in_results === true ? "In results" : c?.shows_up_in_results === false ? "Not in results" : "";
                   if (!name) return "";
                   return `<div style="margin-bottom:16px;padding:16px;background:#fbfbf9;border-radius:4px;border:1px solid #e6e8e3">
-                    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(name)}</div>
+                    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(name)}${inResults ? ` <span style="font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;padding:2px 6px;border-radius:4px;background:${c.shows_up_in_results ? "#e7efe9" : "#f6e9ec"};color:${c.shows_up_in_results ? "#123c28" : "#b0566b"}">${escapeHtml(inResults)}</span>` : ""}</div>
                     ${where ? `<div style="color:#9aa09c;font-size:12px;margin-bottom:6px">${escapeHtml(where)}</div>` : ""}
                     ${note ? `<p style="color:#6d726f;font-size:13px">${escapeHtml(note)}</p>` : ""}
                   </div>`;
@@ -1700,7 +1707,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           ${issues
             .map((it: any) => {
               const title = String(it?.title || "").trim();
-              const finding = String(it?.finding || it?.body || "").trim();
+              const finding = String(it?.finding || "").trim();
               const fix = String(it?.fix || "").trim();
               const sev = String(it?.severity || "").trim();
               if (!title && !finding && !fix) return "";
@@ -1737,7 +1744,8 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             .map((r: any, idx: number) => {
               const rung = r?.rung ?? idx + 1;
               const heading = String(r?.headline || r?.title || "").trim();
-              const body = String(r?.body || r?.example || "").trim();
+              const body = String(r?.body || "").trim();
+              const example = String(r?.example || "").trim();
               const status = String(r?.status || "").trim();
               
               const statusKey = ladderStatusKey(status);
@@ -1753,13 +1761,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                   <span style="font-size:14.5px;font-weight:600;color:var(--ink);flex:1">${escapeHtml(heading || "Rung")}</span>
                   <span style="background:${statusBg};color:${statusColor};font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 10px;border-radius:4px;font-weight:600">${escapeHtml(statusLabel)}</span>
                 </div>
+                ${example ? `<div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--muted);padding-left:24px;margin-bottom:4px">${escapeHtml(example)}</div>` : ""}
                 ${body ? `<div style="font-size:13.5px;color:var(--muted);line-height:1.5;padding-left:24px">${escapeHtml(body)}</div>` : ""}
               </div>`;
             })
             .filter(Boolean)
             .join("")}
         </div>
-        ${ladderSummary ? `<p class="after">${escapeHtml(ladderSummary)}</p>` : ""}
       </div>
     `
     : "";
@@ -1796,7 +1804,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             
             if (isNewPhase) {
               currentPhase = phase;
-              stepInPhase = 0;
+              stepInPhase = 1;
             } else {
               stepInPhase++;
             }
@@ -1804,30 +1812,23 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             const title = String(tactic?.title || "").trim();
             const body = String(tactic?.body || "").trim();
             
-            if (isNewPhase && phase) {
-              // Phase header
-              return `
+            return `
+              ${isNewPhase && phase ? `
                 ${i > 0 ? '<hr class="divider-thin" />' : ''}
                 <div style="padding:0;margin-top:${i > 0 ? '32px' : '20px'}">
-                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
-                    <span style="background:var(--green);color:var(--paper);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;padding:6px 12px;border-radius:4px;font-weight:600">${escapeHtml(phase.toUpperCase())}</span>
-                    <span style="font-size:15px;font-weight:600;color:var(--ink)">${escapeHtml(title)}</span>
-                  </div>
+                  <span style="background:var(--green);color:var(--paper);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;padding:6px 12px;border-radius:4px;font-weight:600">${escapeHtml(phase.toUpperCase())}</span>
                 </div>
-              `;
-            } else if (!isNewPhase && title) {
-              // Numbered step
-              return `
+              ` : ""}
+              ${title || body ? `
                 <div style="padding:0;border-top:1px solid var(--line);padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:26px 1fr;gap:12px">
                   <div style="font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;color:var(--green)">${stepInPhase}</div>
                   <div>
-                    <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${escapeHtml(title)}</div>
+                    ${title ? `<div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${escapeHtml(title)}</div>` : ""}
                     ${body ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">${escapeHtml(body)}</div>` : ""}
                   </div>
                 </div>
-              `;
-            }
-            return "";
+              ` : ""}
+            `;
           }).filter(Boolean).join("");
         })()}
       </div>
@@ -1874,10 +1875,30 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       
       ${heroDisplay || verdict || metricLabel ? `
         <hr class="divider-thin" />
-        ${diagnosis ? `<div class="eyebrow">${escapeHtml(diagnosis)}</div>` : ""}
-        ${heroDisplay ? `<div class="hero-number">${escapeHtml(heroDisplay)}</div>` : ""}
+        ${
+          String(hero?.counter_display || "").trim()
+            ? `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:16px 0 10px">
+                <div>
+                  <div class="hero-split-left">${escapeHtml(heroDisplay)}</div>
+                  ${metricLabel ? `<p class="hero-desc" style="margin-top:8px">${escapeHtml(metricLabel)}</p>` : ""}
+                </div>
+                <div style="text-align:right">
+                  <div class="hero-split-right">${escapeHtml(String(hero.counter_display))}</div>
+                  ${metricSub ? `<p class="hero-desc" style="margin-top:8px">${escapeHtml(metricSub)}</p>` : ""}
+                </div>
+              </div>
+              ${
+                hero.value != null && Number.isFinite(Number(hero.value))
+                  ? `<div style="display:flex;gap:2px;height:12px;margin:0 0 16px;background:var(--line);border-radius:2px;overflow:hidden">
+                      <div style="flex:${Math.max(Math.round(Number(hero.value) * 100), 1)};background:var(--faint)"></div>
+                      <div style="flex:${hero.counter_value != null && Number.isFinite(Number(hero.counter_value)) ? Math.max(Math.round(Number(hero.counter_value) * 100), 1) : 1};background:var(--green)"></div>
+                    </div>`
+                  : ""
+              }`
+            : `${heroDisplay ? `<div class="hero-number">${escapeHtml(heroDisplay)}</div>` : ""}
         ${metricLabel ? `<p class="hero-label">${escapeHtml(metricLabel)}</p>` : ""}
-        ${metricSub ? `<p class="hero-desc">${escapeHtml(metricSub)}</p>` : ""}
+        ${metricSub ? `<p class="hero-desc">${escapeHtml(metricSub)}</p>` : ""}`
+        }
         ${verdict ? `<p class="hero-label">${escapeHtml(verdict)}</p>` : ""}
         ${verdictSub ? `<p class="hero-desc">${escapeHtml(verdictSub)}</p>` : ""}
         ${opening ? `<p class="hero-desc">${escapeHtml(opening)}</p>` : ""}
@@ -1888,7 +1909,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   `;
 
   // Page 2: What SEO Can Do
-  const page2Html = (tierLabel || tierReason || inferredGoal || dominantCta || goalBody) ? `
+  const page2Html = (tierLabel || tierReason || inferredGoal || dominantCta) ? `
     <div class="page-card">
       <div class="eyebrow">What SEO can do for you</div>
       <h2 class="section-title">${escapeHtml(tierLabel || "Your SEO opportunity tier")}</h2>
@@ -1901,16 +1922,17 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           const isSelected = tierLevel === level;
           const tierNames = ["SEO is a growth channel", "SEO is a competitive channel", "SEO is a visibility channel"];
           const tierDescs = [
-            "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet.",
+            "Search can bring real customers. Your next wins are the pages that catch buyers who don't know you yet.",
             "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months.",
-            "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found."
+            "Supports credibility more than acquisition, and is unlikely to be the main source of customers."
           ];
           const name = isSelected && tierLabel ? tierLabel : tierNames[level - 1];
+          const desc = isSelected && tierReason ? tierReason : tierDescs[level - 1];
           return `<div class="tier-card ${isSelected ? "tier-selected" : ""}">
             ${isSelected ? `<div class="tier-badge">YOUR FIT</div>` : ""}
             <div class="tier-num">Tier ${level}</div>
             <div class="tier-name">${escapeHtml(name)}</div>
-            <div class="tier-desc">${escapeHtml(tierDescs[level - 1])}</div>
+            <div class="tier-desc">${escapeHtml(desc)}</div>
           </div>`;
         }).join("")}
       </div>

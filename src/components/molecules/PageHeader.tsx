@@ -1,14 +1,10 @@
 "use client";
 
-import * as React from "react";
-import { ChevronRight, Download, Settings } from "lucide-react";
+import { Bot, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import Link from "next/link";
 import { Typography } from "../ui/typography";
-import { useAskMassicOverlayOptional } from "@/components/chatbot/ask-massic-overlay-provider";
-import { useParams } from "next/navigation";
-import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { useParams, usePathname } from "next/navigation";
 
 interface BreadcrumbItem {
   label: string;
@@ -20,7 +16,6 @@ interface PageHeaderProps {
   onDownload?: () => void;
   onSettings?: () => void;
   isButton?: boolean;
-  showAskMassic?: boolean;
   trial?: {
     remainingDays?: number;
   };
@@ -32,27 +27,16 @@ export function PageHeader({
   onDownload,
   onSettings,
   isButton = false,
-  showAskMassic,
   trial,
   onUpgrade,
 }: PageHeaderProps) {
-  const askMassic = useAskMassicOverlayOptional();
-  const askMassicButtonRef = React.useRef<HTMLButtonElement | null>(null);
-
   const params = useParams();
+  const pathname = usePathname();
   const rawBusinessId = (params as any)?.id as string | string[] | undefined;
   const businessId = Array.isArray(rawBusinessId)
     ? rawBusinessId[0]
     : rawBusinessId || null;
-
-  const { data: jobDetails } = useJobByBusinessId(
-    showAskMassic === undefined ? businessId : null
-  );
-
-  const effectiveShowAskMassic =
-    typeof showAskMassic === "boolean"
-      ? showAskMassic
-      : Boolean(jobDetails?.job_id);
+  const isBusinessPage = pathname.startsWith("/business/");
 
   return (
     <div className="w-full border-b border-border bg-foreground-light">
@@ -119,37 +103,19 @@ export function PageHeader({
             </div>
           ) : null}
 
-          {askMassic && effectiveShowAskMassic ? (
+          {isBusinessPage && businessId ? (
             <Button
-              ref={askMassicButtonRef}
+              asChild
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => {
-                const rect = askMassicButtonRef.current?.getBoundingClientRect();
-                askMassic.open(
-                  rect
-                    ? {
-                        top: rect.top,
-                        left: rect.left,
-                        right: rect.right,
-                        bottom: rect.bottom,
-                        width: rect.width,
-                        height: rect.height,
-                      }
-                    : undefined
-                );
-              }}
             >
-              <Image
-                src="/massic-icon-green.svg"
-                alt="Massic"
-                width={18}
-                height={18}
-              />
-              <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
-                Ask Massic
-              </span>
+              <Link href={`/business/${businessId}/agent`}>
+                <Bot className="h-4 w-4 text-general-primary" />
+                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
+                  Ask Massic
+                </span>
+              </Link>
             </Button>
           ) : null}
 

@@ -22,7 +22,7 @@ export interface CampaignEvent {
 }
 
 export interface CampaignListPerformance {
-  metricKey: "search_clicks" | "sessions" | "key_events"; label: string; source: "gsc" | "ga4";
+  metricKey: "branded_clicks" | "search_clicks" | "sessions" | "key_events"; label: string; source: "gsc" | "ga4";
   baseline: number; value: number;
   absoluteChange: number | null; liftPercent: number | null;
   reportabilityReason: string | null;
@@ -66,6 +66,14 @@ export interface CampaignImpactSource {
   topEvents?: Array<{ name: string; total: number }>; locations?: Array<{ name: string; status: string }>;
 }
 
+export interface CampaignImpactChartPoint {
+  date: string;
+  phase: "before" | "during" | "after";
+  sessions: number | null;
+  clicks: number | null;
+  keyEvents: number | null;
+}
+
 export type CampaignPresentationTone = "positive" | "negative" | "warning" | "info" | "neutral";
 export interface CampaignPresentationChange { text: string; tone: CampaignPresentationTone }
 export interface CampaignPresentationHighlight {
@@ -84,7 +92,7 @@ export interface CampaignPresentationSource {
   dataThroughText: string; message: string | null; metrics: CampaignPresentationMetric[];
 }
 export interface CampaignImpactPresentation {
-  version: 1; status: { label: string; tone: CampaignPresentationTone }; campaignTypeLabel: string;
+  version: 2; status: { label: string; tone: CampaignPresentationTone }; campaignTypeLabel: string;
   eventKindLabel: string; dateText: string; comparisonDescription: string; primaryColumnLabel: "Impact" | "During";
   hasPostPeriod: boolean;
   highlights: CampaignPresentationHighlight[]; windows: CampaignPresentationWindow[];
@@ -94,7 +102,8 @@ export interface CampaignImpactPresentation {
 
 export interface CampaignImpactReport {
   campaign: CampaignEvent; status: CampaignStatus; lifecycleStatus: CampaignStatus;
-  windows: CampaignPreview["windows"]; dataThrough: string | null; sources: CampaignImpactSource[];
+  windows: CampaignPreview["windows"]; chartSeries: CampaignImpactChartPoint[];
+  dataThrough: string | null; sources: CampaignImpactSource[];
   contamination: CampaignContamination[]; narratives: string[];
   methodology: { postCampaignMaximumDays: number; lowVolumeRule: string; timezoneNote: string; ga4CurrencyNote: string; gscNote: string };
   disclaimer: string; generatedAt: string; presentation: CampaignImpactPresentation;

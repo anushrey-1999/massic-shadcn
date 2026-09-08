@@ -17,6 +17,7 @@ import { getFiltersStateParser } from "@/components/filter-table/parsers";
 import { getValidFilters, tableApplyAdvancedFilters } from "@/utils/data-table-utils";
 import { getWebUnifiedPagesTableColumns } from "./web-unified-pages-table-columns";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 const WEB_UNIFIED_QUERY_KEYS = {
   filters: "webUnifiedFilters",
@@ -226,6 +227,10 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
     setSelectedRowId(rowId);
   }, []);
 
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(filteredRows || [], "web-unified-pages.csv");
+  }, [filteredRows]);
+
   if (isError && !isNoSnapshot(error)) {
     if (isGoogleNotConnected(error)) {
       return (
@@ -313,6 +318,7 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
         onGenerate={handleGenerate}
         isGenerating={isGenerating}
         onRowClick={handleRowClick}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

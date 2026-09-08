@@ -7,6 +7,8 @@ import { useDataTable } from "@/hooks/use-data-table";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getSimplifiedTableColumns } from "./simplified-table-columns";
 import { getKeywordsTableColumns } from "./keywords-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface DigitalAdsSplitViewProps {
   leftTableData: DigitalAdsRow[];
@@ -81,6 +83,9 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
   );
 
   const pageSizeOptions = React.useMemo(() => [10, 30, 50, 100, 200], []);
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(keywordsData, "digital-ads-keywords.csv");
+  }, [keywordsData]);
 
   const leftTableProps = React.useMemo(
     () => ({
@@ -140,6 +145,12 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
       leftTableWidth="30%"
       rightTableWidth="70%"
       onBack={onBack}
+      toolbarActions={
+        <DownloadCsvButton
+          onDownload={handleDownloadCsv}
+          disabled={keywordsData.length === 0}
+        />
+      }
     />
   );
 });

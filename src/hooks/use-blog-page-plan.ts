@@ -70,6 +70,33 @@ export function useBlogPagePlan(businessId: string) {
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
 
+      // Percentage bands (0-100) matching RelevancePill bar thresholds
+      const RELEVANCE_BANDS: Record<string, { min: number; max: number }> = {
+        low: { min: 0, max: 25 },
+        medium: { min: 26, max: 50 },
+        high: { min: 51, max: 100 },
+      };
+
+      const expandRelevanceFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
+        const levels = (Array.isArray(filter.value) ? filter.value : [filter.value])
+          .map((v) => String(v).toLowerCase())
+          .filter((v) => v in RELEVANCE_BANDS);
+
+        if (levels.length === 0 || levels.length === Object.keys(RELEVANCE_BANDS).length) {
+          return [];
+        }
+
+        const minPct = Math.min(...levels.map((l) => RELEVANCE_BANDS[l].min));
+        const maxPct = Math.max(...levels.map((l) => RELEVANCE_BANDS[l].max));
+
+        const rangeFilters: { field: string; value: string | string[]; operator: string }[] = [];
+        if (minPct > 0) rangeFilters.push({ ...filter, operator: "gte", value: String(minPct) });
+        if (maxPct < 100) rangeFilters.push({ ...filter, operator: "lte", value: String(maxPct) });
+        if (rangeFilters.length === 0) return [];
+
+        return rangeFilters.flatMap((f) => normalizePercentageFilter(f));
+      };
+
       const normalizePercentageFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
         const value = filter.value;
         const operator = filter.operator;
@@ -139,6 +166,43 @@ export function useBlogPagePlan(businessId: string) {
         return [filter];
       };
 
+      const volumeFields = new Set(["search_volume"]);
+
+      const parseVolumeValue = (raw: string): number => {
+        const s = raw.trim().toLowerCase();
+        if (s.endsWith("m")) return parseFloat(s) * 1_000_000;
+        if (s.endsWith("k")) return parseFloat(s) * 1_000;
+        return parseFloat(s);
+      };
+
+      const normalizeVolumeFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
+        const value = filter.value;
+        const operator = filter.operator;
+
+        const parseOne = (v: string) => {
+          const n = parseVolumeValue(v);
+          return Number.isNaN(n) ? null : String(Math.round(n));
+        };
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minVal, maxVal] = value;
+          const result: { field: string; value: string | string[]; operator: string }[] = [];
+          const parsedMin = minVal !== "" && minVal !== undefined ? parseOne(minVal) : null;
+          const parsedMax = maxVal !== "" && maxVal !== undefined ? parseOne(maxVal) : null;
+          if (!parsedMin && !parsedMax) return [filter];
+          if (parsedMin) result.push({ ...filter, operator: "gte", value: parsedMin });
+          if (parsedMax) result.push({ ...filter, operator: "lte", value: parsedMax });
+          return result;
+        }
+
+        if (!Array.isArray(value) && value !== "") {
+          const parsed = parseOne(value);
+          return parsed ? [{ ...filter, value: parsed }] : [filter];
+        }
+
+        return [filter];
+      };
+
       if (params.sort && params.sort.length > 0) {
         const mappedSort = params.sort
           .filter(sortItem => sortItem.field !== 'actions') // Exclude actions from backend sort
@@ -163,9 +227,19 @@ export function useBlogPagePlan(businessId: string) {
               operator: filter.operator,
             };
 
-            return percentageFields.has(mappedFilter.field)
-              ? normalizePercentageFilter(mappedFilter)
-              : [mappedFilter];
+            if (percentageFields.has(mappedFilter.field) && mappedFilter.operator === "inArray") {
+              return expandRelevanceFilter(mappedFilter);
+            }
+
+            if (percentageFields.has(mappedFilter.field)) {
+              return normalizePercentageFilter(mappedFilter);
+            }
+
+            if (volumeFields.has(mappedFilter.field)) {
+              return normalizeVolumeFilter(mappedFilter);
+            }
+
+            return [mappedFilter];
           });
 
         if (mappedFilters.length > 0) {

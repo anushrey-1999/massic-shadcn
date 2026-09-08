@@ -28,7 +28,10 @@ import {
   buildBusinessProfilePayload,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
-import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
+import {
+  normalizeProfileCountry,
+  type NormalizedProfileResult,
+} from "@/utils/profile-result";
 import {
   formatPrimaryLocationApiValue,
   parsePrimaryLocationForPayload,
@@ -47,7 +50,7 @@ const updateCreatedBusinessProfile = async (
   businessId: string,
   createdBusiness: BusinessProfile | null,
   payload: BusinessProfilePayload,
-  expectedWebsite: string
+  expectedWebsite: string,
 ) => {
   // Verified write: refuses to run if `businessId` isn't the business we just
   // created (wrong domain, already analytics-linked, or a pitch).
@@ -57,7 +60,7 @@ const updateCreatedBusinessProfile = async (
       ...(createdBusiness ?? {}),
       ...payload,
     },
-    { expectedWebsite, expectedIsPitch: false }
+    { expectedWebsite, expectedIsPitch: false },
   );
 };
 
@@ -73,8 +76,12 @@ export default function CreateBusinessPage() {
   const createJob = useCreateJob();
   const offeringsExtractor = useOfferingsExtractor("create-business");
   const { refetchBusinessProfiles } = useBusinessProfiles();
-  const setLocationOptions = useBusinessStore((state) => state.setLocationOptions);
-  const setLocationsLoading = useBusinessStore((state) => state.setLocationsLoading);
+  const setLocationOptions = useBusinessStore(
+    (state) => state.setLocationOptions,
+  );
+  const setLocationsLoading = useBusinessStore(
+    (state) => state.setLocationsLoading,
+  );
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
 
   const form = useForm({
@@ -87,161 +94,180 @@ export default function CreateBusinessPage() {
   useEffect(() => {
     setLocationOptions(locationOptions);
     setLocationsLoading(locationsLoading);
-  }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
+  }, [
+    locationOptions,
+    locationsLoading,
+    setLocationOptions,
+    setLocationsLoading,
+  ]);
 
-  const handleSubmitCreate = useCallback(async (options?: {
-    values?: FormData;
-    autofillData?: NormalizedProfileResult | null;
-  }) => {
-    if (offeringsExtractor.isExtracting) {
-      toast.error("Please wait for offerings extraction to finish.");
-      return;
-    }
+  const handleSubmitCreate = useCallback(
+    async (options?: {
+      values?: FormData;
+      autofillData?: NormalizedProfileResult | null;
+    }) => {
+      if (offeringsExtractor.isExtracting) {
+        toast.error("Please wait for offerings extraction to finish.");
+        return;
+      }
 
-    const values = options?.values ?? (form.state.values as FormData);
-    const activeAutofillData = options?.autofillData ?? null;
-    const validation = businessInfoSchema.safeParse(values);
+      const values = options?.values ?? (form.state.values as FormData);
+      const activeAutofillData = options?.autofillData ?? null;
+      const validation = businessInfoSchema.safeParse(values);
 
-    formFieldNames.forEach((fieldName) => {
-      const fieldIssue = validation.success
-        ? undefined
-        : validation.error.issues.find((issue) => issue.path[0] === fieldName);
+      formFieldNames.forEach((fieldName) => {
+        const fieldIssue = validation.success
+          ? undefined
+          : validation.error.issues.find(
+              (issue) => issue.path[0] === fieldName,
+            );
 
-      form.setFieldMeta(fieldName, (prev: any) => ({
-        ...prev,
-        isTouched: true,
-        isValid: !fieldIssue,
-        errors: fieldIssue ? [{ message: fieldIssue.message }] : [],
-        errorMap: fieldIssue
-          ? {
-            onChange: [{ message: fieldIssue.message }],
-          }
-          : {},
-        hasValidationErrors: Boolean(fieldIssue),
-      }));
-    });
-
-    if (!validation.success) {
-      toast.error("Please fix the highlighted fields before creating your business.");
-      return;
-    }
-
-    try {
-      const result = await createBusiness.mutateAsync({
-        website: values.website,
-        businessName: values.businessName,
-        primaryLocation: values.primaryLocation,
-        serveCustomers:
-          values.serviceType === "physical"
-            ? "local"
-            : values.serviceType === "both"
-              ? "both"
-              : "online",
-        offerType: values.offerings,
+        form.setFieldMeta(fieldName, (prev: any) => ({
+          ...prev,
+          isTouched: true,
+          isValid: !fieldIssue,
+          errors: fieldIssue ? [{ message: fieldIssue.message }] : [],
+          errorMap: fieldIssue
+            ? {
+                onChange: [{ message: fieldIssue.message }],
+              }
+            : {},
+          hasValidationErrors: Boolean(fieldIssue),
+        }));
       });
 
-      await refetchBusinessProfiles();
-
-      const businessId = result?.createdBusiness?.UniqueId;
-      if (businessId) {
-        const formOfferings = Array.isArray(values.offeringsList)
-          ? values.offeringsList
-            .filter((row: any) => Boolean(row?.name?.trim()))
-            .map((row: any) => ({
-              name: String(row.name || ""),
-              description: String(row.description || ""),
-              link: String(row.link || ""),
-              offering_type: String((row as any).offeringType || ""),
-              price_range: String((row as any).priceRange || row.pricePositioning || ""),
-              duration: String((row as any).duration || ""),
-              inclusions: Array.isArray((row as any).inclusions)
-                ? (row as any).inclusions
-                : typeof (row as any).inclusions === "string"
-                  ? (row as any).inclusions
-                  : [],
-            }))
-          : [];
-        const offerings = formOfferings;
-        const businessProfilePayload = buildBusinessProfilePayload(values, {
-          autofillResult: activeAutofillData,
-          locationOptions,
-          normalizeWebsite: true,
-          ctasMode: "wrapped-json",
-        });
-
-        await updateCreatedBusinessProfile(
-          businessId,
-          result.createdBusiness,
-          businessProfilePayload,
-          values.website
+      if (!validation.success) {
+        toast.error(
+          "Please fix the highlighted fields before creating your business.",
         );
+        return;
+      }
 
-        await createJob.mutateAsync({
-          businessId,
-          businessProfilePayload,
-          offerings,
+      try {
+        const result = await createBusiness.mutateAsync({
+          website: values.website,
+          businessName: values.businessName,
+          primaryLocation: values.primaryLocation,
+          serveCustomers:
+            values.serviceType === "physical"
+              ? "local"
+              : values.serviceType === "both"
+                ? "both"
+                : "online",
+          offerType: values.offerings,
         });
 
         await refetchBusinessProfiles();
 
-        router.push(`/business/${businessId}/profile`);
-      } else {
-        router.push("/");
-      }
-    } catch (error) {
-      console.error("Failed to finish business setup:", error);
-      toast.error("Failed to finish business setup", {
-        description: "Please try again before continuing.",
-      });
-    }
-  }, [
-    form,
-    createBusiness,
-    createJob,
-    refetchBusinessProfiles,
-    router,
-    offeringsExtractor.isExtracting,
-    locationOptions,
-  ]);
+        const businessId = result?.createdBusiness?.UniqueId;
+        if (businessId) {
+          const formOfferings = Array.isArray(values.offeringsList)
+            ? values.offeringsList
+                .filter((row: any) => Boolean(row?.name?.trim()))
+                .map((row: any) => ({
+                  name: String(row.name || ""),
+                  description: String(row.description || ""),
+                  link: String(row.link || ""),
+                  offering_type: String((row as any).offeringType || ""),
+                  price_range: String(
+                    (row as any).priceRange || row.pricePositioning || "",
+                  ),
+                  duration: String((row as any).duration || ""),
+                  inclusions: Array.isArray((row as any).inclusions)
+                    ? (row as any).inclusions
+                    : typeof (row as any).inclusions === "string"
+                      ? (row as any).inclusions
+                      : [],
+                }))
+            : [];
+          const offerings = formOfferings;
+          const businessProfilePayload = buildBusinessProfilePayload(values, {
+            autofillResult: activeAutofillData,
+            locationOptions,
+            normalizeWebsite: true,
+            ctasMode: "wrapped-json",
+          });
 
-  const { autofillProfile: handleAutofillProfile, autofillProfileResult, isAutofillLoading } =
-    useProfileAutofillForm({
-      form,
-      locationOptions,
-      normalizeWebsite: true,
-      onBeforeAutofill: (website) => {
-        offeringsExtractor.clearExtraction();
-        const values = form.state.values as FormData;
-        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
-        const context = trimmedPrimaryLocation
-          ? (() => {
-              const payload = parsePrimaryLocationForPayload(
-                trimmedPrimaryLocation,
-                locationOptions
-              );
-              return {
-                country: normalizeProfileCountry(payload.Country),
-                location: formatPrimaryLocationApiValue(payload),
-              };
-            })()
-          : undefined;
+          await updateCreatedBusinessProfile(
+            businessId,
+            result.createdBusiness,
+            businessProfilePayload,
+            values.website,
+          );
 
-        void offeringsExtractor.startExtraction(website, context).catch(() => {});
-      },
-      onAutofillSuccess: async (profile, nextValues) => {
-        formFieldNames.forEach((fieldName) => {
-          form.setFieldMeta(fieldName, (prev: any) => ({
-            ...prev,
-            isTouched: false,
-            isValid: true,
-            errors: [],
-            errorMap: {},
-            hasValidationErrors: false,
-          }));
+          await createJob.mutateAsync({
+            businessId,
+            businessProfilePayload,
+            offerings,
+          });
+
+          await refetchBusinessProfiles();
+
+          router.push(`/business/${businessId}/profile`);
+        } else {
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("Failed to finish business setup:", error);
+        toast.error("Failed to finish business setup", {
+          description: "Please try again before continuing.",
         });
-        setHasAutofilledProfile(true);
-      },
-    });
+      }
+    },
+    [
+      form,
+      createBusiness,
+      createJob,
+      refetchBusinessProfiles,
+      router,
+      offeringsExtractor.isExtracting,
+      locationOptions,
+    ],
+  );
+
+  const {
+    autofillProfile: handleAutofillProfile,
+    autofillProfileResult,
+    isAutofillLoading,
+  } = useProfileAutofillForm({
+    form,
+    locationOptions,
+    normalizeWebsite: true,
+    onBeforeAutofill: (website) => {
+      offeringsExtractor.clearExtraction();
+      const values = form.state.values as FormData;
+      const trimmedPrimaryLocation = String(
+        values?.primaryLocation ?? "",
+      ).trim();
+      const context = trimmedPrimaryLocation
+        ? (() => {
+            const payload = parsePrimaryLocationForPayload(
+              trimmedPrimaryLocation,
+              locationOptions,
+            );
+            return {
+              country: normalizeProfileCountry(payload.Country),
+              location: formatPrimaryLocationApiValue(payload),
+            };
+          })()
+        : undefined;
+
+      void offeringsExtractor.startExtraction(website, context).catch(() => {});
+    },
+    onAutofillSuccess: async () => {
+      formFieldNames.forEach((fieldName) => {
+        form.setFieldMeta(fieldName, (prev: any) => ({
+          ...prev,
+          isTouched: false,
+          isValid: true,
+          errors: [],
+          errorMap: {},
+          hasValidationErrors: false,
+        }));
+      });
+      setHasAutofilledProfile(true);
+    },
+  });
 
   const handleCancel = () => {
     router.push("/");
@@ -262,7 +288,9 @@ export default function CreateBusinessPage() {
       onAutofillProfile={() => {
         void handleAutofillProfile();
       }}
-      onSubmitCreate={() => handleSubmitCreate({ autofillData: autofillProfileResult })}
+      onSubmitCreate={() =>
+        handleSubmitCreate({ autofillData: autofillProfileResult })
+      }
       onCancel={handleCancel}
     />
   );

@@ -139,7 +139,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
               selected_pages: remainingKeywords,
               user_prompt: "",
               calendar_events: [],
-              page_ideas_required: 30,
+              page_ideas_required: 20,
             })
 
             setPagesOverridePlanItems(extractPlanItemsFromResponse(response))
@@ -150,7 +150,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
           }
 
           const response = await pagePlanner.generatePlan(businessId, {
-            page_ideas_required: 30,
+            page_ideas_required: 20,
             calendar_events: [],
             regenerate: false,
           })

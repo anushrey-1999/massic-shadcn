@@ -27,7 +27,7 @@ function isPlannerFailureResponse(payload: unknown): { ok: boolean; message?: st
 export function usePagePlanner() {
   const withPlannerDefaults = <T extends { page_ideas_required?: number }>(body: T) => {
     return {
-      page_ideas_required: 30,
+      page_ideas_required: 20,
       ...(body || {}),
     }
   }

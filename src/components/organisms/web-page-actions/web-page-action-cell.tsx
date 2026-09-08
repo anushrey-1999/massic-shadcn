@@ -20,9 +20,9 @@ import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -55,9 +55,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getContent, startFinal, startOutline } = useWebPageActions();
-  const { creditsBalance, purchaseCredits } = useExecutionCredits();
   const guardGenerateOutline = useFeatureActionGuard("web.generateOutline");
   const guardGeneratePage = useFeatureActionGuard("web.generatePage");
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const [open, setOpen] = React.useState(false);
   const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);

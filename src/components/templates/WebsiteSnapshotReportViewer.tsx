@@ -26,6 +26,17 @@ import { generatePdfFromWebsiteSnapshotReport } from "@/utils/pdf-generator";
 import {
   type WebsiteSnapshotReport,
   websiteSnapshotReportToMarkdown,
+  issueSeverityTone,
+  issueSeverityLabel,
+  ladderStatusKey,
+  ladderStatusLabel,
+  formatUncapturedMoneyShare,
+  formatSearchEtv,
+  formatSnapshotLocation,
+  frameChipTone,
+  formatDeliveryMode,
+  SNAPSHOT_BEAT_QUESTIONS,
+  SNAPSHOT_INTENT_LABELS,
 } from "@/utils/website-snapshot-report";
 
 type WebsiteSnapshotReportViewerProps = {
@@ -78,7 +89,7 @@ export function WebsiteSnapshotReportViewer({
   const meta = report.meta || {};
   const businessName = meta.business_name || "Business";
   const website = stripUrlProtocol(meta.url || "");
-  const location = meta.location || "";
+  const location = formatSnapshotLocation(meta.location || "");
   const phone = (() => {
     try {
       return meta.phone ? decodeURIComponent(String(meta.phone)) : "";
@@ -107,7 +118,6 @@ export function WebsiteSnapshotReportViewer({
   };
   
   const tier = report.tier || {};
-  const goal = report.goal || {};
   const search = report.search || {};
   const intentMix = report.intent_mix || {};
   const scaleComparison = report.scale_comparison;
@@ -126,55 +136,80 @@ export function WebsiteSnapshotReportViewer({
   const shouldBeNote = report.should_be_note || competitorBuckets.should_be_note || "";
   const directNote = String(showsUp.direct_note || "").trim();
   const setupLine = String(competitorBuckets.setup?.market || "").trim();
+  const deliveryLine = formatDeliveryMode(competitorBuckets.setup?.delivery);
+  const directoriesTools = Array.isArray(showsUp.directories_tools) ? showsUp.directories_tools : [];
+  const directoriesNote = String(showsUp.directories_tools_note || "").trim();
+  const trafficRead = String(search.traffic_read || "").trim();
   const underTheHood = report.under_the_hood || {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
   const tactics = Array.isArray(report.tactics) ? report.tactics : [];
-  const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
+  const beats = Array.isArray(report.beats) ? report.beats : [];
+  const verdict = String(report.verdict || "").trim();
+  const verdictSub = String(report.verdict_sub || "").trim();
+  const metricLabel = String(report.metric_label || "").trim();
+  const metricSub = String(report.metric_sub || "").trim();
+  const opening = String(report.opening || "").trim();
+  const closing = String(report.close || "").trim();
+  const planIntro = String(report.plan_intro || "").trim();
+  const directCompetitors = Array.isArray(showsUp.direct_competitors) ? showsUp.direct_competitors : [];
+  const noCompetitorData = directCompetitors.length === 0 && shouldBe.length === 0;
+  const hasCompetitorSection =
+    report.competitor_buckets != null ||
+    Object.keys(showsUp).length > 0 ||
+    shouldBe.length > 0 ||
+    Boolean(String(competitorBuckets.gap || "").trim()) ||
+    Boolean(setupLine) ||
+    Boolean(deliveryLine);
+
+  const headroomBits = (() => {
+    const headroom = report.headroom;
+    if (!headroom) return [];
+    const uncaptured = formatUncapturedMoneyShare(headroom.uncaptured_money_share);
+    const missingRungs = headroom.missing_rungs;
+    const peerVolume = headroom.peer_exclusive?.volume;
+    return [
+      uncaptured ? `${uncaptured} of commercial demand still uncaptured` : "",
+      typeof missingRungs === "number" && missingRungs > 0
+        ? `${missingRungs} missing content rung${missingRungs === 1 ? "" : "s"}`
+        : "",
+      typeof peerVolume === "number" && peerVolume > 0
+        ? `${peerVolume.toLocaleString()} monthly searches competitors own that you miss`
+        : "",
+    ].filter(Boolean);
+  })();
+
+  const STATIC_TIERS = [
+    {
+      name: "SEO is a growth channel",
+      blurb: "Search can bring real customers. Your next wins are the pages that catch buyers who don't know you yet.",
+    },
+    {
+      name: "SEO is a competitive channel",
+      blurb: "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months.",
+    },
+    {
+      name: "SEO is a visibility channel",
+      blurb: "Supports credibility more than acquisition, and is unlikely to be the main source of customers.",
+    },
+  ] as const;
   
-  // Derive hero from search.brand_share if hero object is missing
-  const hero = React.useMemo(() => {
-    if (report.hero && report.hero.display) {
-      return report.hero;
-    }
-    
-    // Fallback: derive from brand_share if available
-    if (search.brand_share !== undefined) {
-      const brandSharePct = Math.round(search.brand_share * 100);
-      return {
-        display: `${brandSharePct}%`,
-        label: "of your traffic is people already searching for you by name.",
-        description: `Most of your organic visitors already know ${businessName} and look you up directly — which means strangers in your market searching for your services aren't finding you yet. That gap is the whole opportunity.`,
-      };
-    }
-    
-    return {};
-  }, [report.hero, search.brand_share, businessName]);
-  
-  // Generate diagnosis (eyebrow text) if missing
-  const diagnosis = React.useMemo(() => {
-    // Use existing diagnosis if provided
-    if (report.diagnosis) {
-      return report.diagnosis;
-    }
-    
-    // Fallback: generate based on brand_share
-    if (search.brand_share !== undefined) {
-      const brandSharePct = search.brand_share * 100;
-      
-      if (brandSharePct >= 60) {
-        return "Beloved but invisible";
-      } else if (brandSharePct >= 40) {
-        return "Known locally, but not widely";
-      } else if (brandSharePct >= 20) {
-        return "Building awareness";
-      } else {
-        return "Discovery opportunity";
-      }
-    }
-    
-    return null;
-  }, [report.diagnosis, search.brand_share]);
+  const hero = report.hero || {};
+  const pageOneFrame = report.page_one_frame;
+  const counterDisplay = String(hero.counter_display || "").trim();
+  const leftShare =
+    hero.value != null && Number.isFinite(hero.value) ? Math.max(0, Math.round(hero.value * 100)) : null;
+  const rightShare =
+    hero.counter_value != null && Number.isFinite(hero.counter_value)
+      ? Math.max(0, Math.round(hero.counter_value * 100))
+      : null;
+  const trafficDisplay = formatSearchEtv(search.etv);
+  const intentRows = [
+    { key: "transactional" as const, color: COLORS.green, label: SNAPSHOT_INTENT_LABELS.transactional },
+    { key: "commercial" as const, color: "#4a7c59", label: SNAPSHOT_INTENT_LABELS.commercial },
+    { key: "informational" as const, color: "#7a8c7e", label: SNAPSHOT_INTENT_LABELS.informational },
+    { key: "navigational" as const, color: "#9aa8a0", label: SNAPSHOT_INTENT_LABELS.navigational },
+  ];
 
   const markdownForExport = React.useMemo(() => {
     return websiteSnapshotReportToMarkdown(report);
@@ -286,8 +321,9 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 </div>
                 <div className="text-left sm:text-right font-mono text-[11px] sm:text-[11.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                  {website && <div className="break-all">{website}</div>}
-                  {location && <div>{location}</div>}
+                  {(website || location) && (
+                    <div className="break-all">{[website, location].filter(Boolean).join(" · ")}</div>
+                  )}
                   {phone && <div>{phone}</div>}
                 </div>
               </div>
@@ -307,589 +343,152 @@ export function WebsiteSnapshotReportViewer({
               {render.hero !== false && hero.display && (
                 <>
                   <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
-                  {/* Eyebrow label - diagnostic headline (e.g., "Beloved but invisible") */}
-                  {diagnosis && (
-                    <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                      {diagnosis}
+                  {counterDisplay ? (
+                    <div className="my-4 sm:my-5">
+                      <div className="flex items-end justify-between gap-4 mb-3">
+                        <div>
+                          <div className="text-[40px] sm:text-[56px] lg:text-[72px] font-bold tracking-tight leading-[0.85]" style={{ color: COLORS.green }}>
+                            {hero.display}
+                          </div>
+                          {metricLabel && (
+                            <p className="text-[13px] sm:text-[14px] mt-2 leading-tight" style={{ color: COLORS.muted }}>
+                              {metricLabel}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[28px] sm:text-[36px] lg:text-[44px] font-bold tracking-tight leading-[0.85]" style={{ color: COLORS.ink }}>
+                            {counterDisplay}
+                          </div>
+                          {metricSub && (
+                            <p className="text-[13px] sm:text-[14px] mt-2 leading-tight" style={{ color: COLORS.muted }}>
+                              {metricSub}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {leftShare != null && rightShare != null && (
+                        <div className="flex gap-0.5 h-3 rounded-sm overflow-hidden" style={{ background: COLORS.hair }}>
+                          <div style={{ flex: Math.max(leftShare, 1), background: COLORS.faint }} />
+                          <div style={{ flex: Math.max(rightShare, 1), background: COLORS.green }} />
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <>
+                      <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
+                        {hero.display}
+                      </div>
+                      {(metricLabel || metricSub) && (
+                        <div className="mb-4 sm:mb-5">
+                          {metricLabel && (
+                            <p className="text-[14px] sm:text-[15px] font-semibold leading-tight" style={{ color: COLORS.ink }}>
+                              {metricLabel}
+                            </p>
+                          )}
+                          {metricSub && (
+                            <p className="text-[13px] sm:text-[14px] mt-1 leading-relaxed" style={{ color: COLORS.muted }}>
+                              {metricSub}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
-                  {/* Hero number - make it REALLY BIG as in mockup */}
-                  <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
-                    {hero.display}
-                  </div>
-                  {/* Hero label - what the number means */}
-                  {hero.label && (
+                  {verdict && (
                     <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
-                      {hero.label}
+                      {verdict}
                     </p>
                   )}
-                  {/* Hero description - the deeper explanation */}
-                  {hero.description && (
+                  {verdictSub && (
                     <p className="text-[14px] sm:text-[15px] leading-relaxed" style={{ color: COLORS.muted }}>
-                      {hero.description}
+                      {verdictSub}
                     </p>
+                  )}
+                  {opening && (
+                    <div
+                      className="mt-4 sm:mt-5 border-l-[3px] px-4 py-3 sm:px-5 sm:py-4"
+                      style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}
+                    >
+                      <p className="text-[14px] sm:text-[15px] leading-relaxed" style={{ color: COLORS.ink }}>
+                        {opening}
+                      </p>
+                    </div>
                   )}
                 </>
               )}
 
-              {/* Quick Overview Callouts */}
-              {callouts.length > 0 && (
-                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
-                  {callouts.map((callout, index) => {
-                    const dotColor = 
-                      callout.tone === "green" ? COLORS.green :
-                      callout.tone === "amber" ? COLORS.amber :
-                      callout.tone === "red" ? COLORS.red : COLORS.faint;
-                    
+              <div className="mt-6 sm:mt-8">
+                {SNAPSHOT_BEAT_QUESTIONS.map((question, index) => {
+                    const beat = beats[index] || {};
+                    const frameBeat = pageOneFrame?.beats?.[index];
+                    const chipTone = frameChipTone(frameBeat?.chip?.tone);
+                    const chipText = String(frameBeat?.chip?.text || "").trim();
+                    const ownsDiagnosis = beat.owns_diagnosis === true || frameBeat?.owns_diagnosis === true;
+                    const chipStyle =
+                      chipTone === "ok"
+                        ? { background: COLORS.greenSoft, color: COLORS.green }
+                        : chipTone === "warn"
+                          ? { background: COLORS.amberSoft, color: COLORS.amber }
+                          : chipTone === "bad"
+                            ? { background: COLORS.redSoft, color: COLORS.red }
+                            : { background: COLORS.paper, color: COLORS.faint, border: `1px dashed ${COLORS.hair}` };
                     return (
-                      <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
-                        <div className="flex items-center gap-2.5 text-[14px] sm:text-[15px] font-semibold mb-2 sm:mb-2.5 leading-normal" style={{ color: COLORS.ink }}>
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dotColor }} />
-                          {callout.title}
-                        </div>
-                        <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {callout.body}
-                        </div>
+                    <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 mb-2">
+                        <span className="font-mono text-[12px] sm:text-[13px] font-medium" style={{ color: COLORS.green }}>
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="text-[14px] sm:text-[15px] font-semibold leading-snug" style={{ color: COLORS.ink }}>
+                          {question}
+                        </span>
+                        {chipText && (
+                          <span
+                            className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded leading-snug uppercase"
+                            style={chipStyle}
+                          >
+                            {chipText}
+                          </span>
+                        )}
                       </div>
+                      {beat.finding && (
+                        <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {beat.finding}
+                        </div>
+                      )}
+                      {beat.so_what && (
+                        <div
+                          className="text-[13px] sm:text-[14px] mt-2 leading-snug"
+                          style={
+                            ownsDiagnosis
+                              ? { color: COLORS.green, fontWeight: 600 }
+                              : { color: COLORS.muted, fontStyle: "italic", fontWeight: 400 }
+                          }
+                        >
+                          {beat.so_what}
+                        </div>
+                      )}
+                    </div>
                     );
-                  })}
-                </div>
+                })}
+              </div>
+              {closing && (
+                <p className="text-[14px] sm:text-[15px] mt-6 sm:mt-8 leading-relaxed" style={{ color: COLORS.ink }}>
+                  {closing}
+                </p>
               )}
             </div>
 
-            {/* PAGE 2: What SEO Can Do */}
-            {(tier.name || goal.body) && (
-              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
-                borderColor: COLORS.hair, 
-                background: COLORS.paper 
-              }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  What SEO can do for you
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {tier.name || (tier as any).label || "Your SEO opportunity tier"}
-                </h2>
-                {tier.reasoning && (
-                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
-                    {tier.reasoning}
-                  </p>
-                )}
-
-                <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
-
-                {/* Tier Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
-                  {[1, 2, 3].map((level) => {
-                    // API provides tier.level
-                    const isSelected = tier.level === level;
-                    return (
-                      <div 
-                        key={level} 
-                        className="border rounded p-4.5 relative" 
-                        style={{ 
-                          borderColor: isSelected ? COLORS.green : COLORS.hair,
-                          background: isSelected ? '#fbfdfb' : COLORS.paper
-                        }}
-                      >
-                        {isSelected && (
-                          <div 
-                            className="absolute top-3.5 right-3.5 font-mono text-[9.5px] tracking-wider px-2 py-1 rounded-sm" 
-                            style={{ background: COLORS.green, color: COLORS.paper }}
-                          >
-                            YOUR FIT
-                          </div>
-                        )}
-                        <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                          Tier {level}
-                        </div>
-                        <div className="font-semibold text-[15px] my-2.5" style={{ color: COLORS.ink }}>
-                          {level === 1 ? "A growth channel" : level === 2 ? "A competitive channel" : "A visibility channel"}
-                        </div>
-                        <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {level === 1 ? "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet." :
-                           level === 2 ? "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months." :
-                           "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found."}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Goal Box */}
-                {goal.body && (
-                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
-                    borderColor: COLORS.green, 
-                    background: COLORS.greenSoft 
-                  }}>
-                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
-                      Your goal, read from your own site
-                    </div>
-                    <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
-                    {Array.isArray(goal.funnel_steps) && goal.funnel_steps.length > 0 && (
-                      <div className="flex sm:flex-row flex-col sm:flex-wrap items-center sm:items-center gap-2 text-[12.5px]">
-                        {goal.funnel_steps.map((step, i) => (
-                          <React.Fragment key={i}>
-                            <div className="border rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
-                              background: COLORS.paper, 
-                              borderColor: COLORS.hair,
-                              color: COLORS.ink
-                            }}>
-                              {step}
-                            </div>
-                            {i < goal.funnel_steps!.length - 1 && (
-                              <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
-                            )}
-                          </React.Fragment>
-                        ))}
-                        {goal.funnel_end && (
-                          <>
-                            <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
-                            <div className="font-semibold rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
-                              background: COLORS.green, 
-                              color: COLORS.paper 
-                            }}>
-                              {goal.funnel_end}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PAGE 3: Where You Stand */}
-            {(render.stats_row !== false || search.traffic_read) && (
-              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
-                borderColor: COLORS.hair, 
-                background: COLORS.paper 
-              }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  Where you stand in search today
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  Real organic search data, from the U.S. Google index.
-                </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
-                  Organic positions only · six months of available history · {formatReportDate(reportDate) || "2026"}.
-                </p>
-
-                {/* Stats Row */}
-                {render.stats_row !== false && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-0 mt-6 sm:mt-7">
-                    <div className="px-0 sm:px-5 border-l-0 sm:border-l sm:first:pl-0 sm:first:border-l-0 pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Keywords</div>
-                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.keywords_count || 0}</div>
-                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
-                    </div>
-                    <div className="px-0 sm:px-5 sm:border-l pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Traffic</div>
-                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
-                        ~{typeof search.etv === 'number' ? Math.round(search.etv).toLocaleString() : search.etv || 0}
-                      </div>
-                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>
-                        visits a month
-                        {search.trend?.pct_change ? `, ${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%` : ""}
-                      </div>
-                    </div>
-                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
-                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.top10 || 0}</div>
-                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>in Google's top 10</div>
-                    </div>
-                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
-                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.referring_domains || 0}</div>
-                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Trend Chart */}
-                {search.trend?.points && search.trend.points.length > 0 && (
-                  <div className="mt-8">
-                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
-                      Traffic trend · {search.trend.window || "6 months"}
-                    </div>
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart 
-                          data={search.trend.points.map((point) => ({
-                            label: `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][point.month - 1]} '${String(point.year).slice(-2)}`,
-                            etv: Math.round(point.etv)
-                          }))}
-                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                        >
-                          <XAxis 
-                            dataKey="label" 
-                            tick={{ fill: COLORS.muted, fontSize: 11 }}
-                            axisLine={{ stroke: COLORS.hair }}
-                            tickLine={false}
-                          />
-                          <YAxis 
-                            tick={{ fill: COLORS.muted, fontSize: 11 }}
-                            axisLine={{ stroke: COLORS.hair }}
-                            tickLine={false}
-                            tickFormatter={(value) => `${(value / 1000).toFixed(1)}k`}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              background: COLORS.paper, 
-                              border: `1px solid ${COLORS.hair}`,
-                              borderRadius: '6px',
-                              fontSize: '13px'
-                            }}
-                            labelStyle={{ color: COLORS.ink, fontWeight: 600 }}
-                            formatter={(value: number) => [`${value.toLocaleString()} visits`, 'Traffic']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="etv" 
-                            stroke={COLORS.green} 
-                            strokeWidth={2.5}
-                            dot={{ fill: COLORS.green, r: 4 }}
-                            activeDot={{ r: 6 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                    {search.trend.pct_change && (
-                      <div className="mt-3 text-[13px]" style={{ color: COLORS.muted }}>
-                        {search.trend.direction === "growing" ? "↑" : search.trend.direction === "declining" ? "↓" : "→"}{" "}
-                        <span style={{ color: COLORS.ink, fontWeight: 600 }}>
-                          {Math.abs(search.trend.pct_change).toFixed(1)}%
-                        </span>
-                        {" "}{search.trend.direction === "growing" ? "growth" : search.trend.direction === "declining" ? "decline" : "change"} over the period
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Brand vs Non-brand & Intent Mix */}
-                {(search.brand_share != null || Object.keys(intentMix).length > 0) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10 mt-6 sm:mt-7">
-                    {search.brand_share != null && (
-                      <div>
-                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
-                          Brand vs non-brand
-                        </div>
-                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
-                          <div 
-                            className="flex items-center justify-center"
-                            style={{ 
-                              background: COLORS.green,
-                              width: `${Math.round(search.brand_share * 100)}%` 
-                            }}
-                          >
-                            {Math.round(search.brand_share * 100)}%
-                          </div>
-                          <div 
-                            className="flex items-center justify-center"
-                            style={{ 
-                              background: '#7a9d8a',
-                              width: `${Math.round((1 - search.brand_share) * 100)}%` 
-                            }}
-                          >
-                            {Math.round((1 - search.brand_share) * 100)}%
-                          </div>
-                        </div>
-                        <div className="flex gap-4 text-[11px] mt-2" style={{ color: COLORS.muted }}>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
-                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
-                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {Object.keys(intentMix).length > 0 && (
-                      <div>
-                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
-                          Search intent mix
-                        </div>
-                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
-                          {intentMix.transactional != null && intentMix.transactional > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: COLORS.green, 
-                              width: `${Math.round(intentMix.transactional * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.transactional * 100)}%
-                            </div>
-                          )}
-                          {intentMix.commercial != null && intentMix.commercial > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#4a7c59', 
-                              width: `${Math.round(intentMix.commercial * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.commercial * 100)}%
-                            </div>
-                          )}
-                          {intentMix.informational != null && intentMix.informational > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#7a8c7e', 
-                              width: `${Math.round(intentMix.informational * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.informational * 100)}%
-                            </div>
-                          )}
-                          {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#9aa8a0', 
-                              width: `${Math.round(intentMix.navigational * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.navigational * 100)}%
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-3 text-[11px] mt-2" style={{ color: COLORS.muted }}>
-                          {intentMix.transactional != null && intentMix.transactional > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
-                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.commercial != null && intentMix.commercial > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
-                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.informational != null && intentMix.informational > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
-                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
-                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
-                            </div>
-                          )}
-                        </div>
-                        {intentMix.local_share != null && (
-                          <div className="text-[12.5px] mt-2" style={{ color: COLORS.muted }}>
-                            Local pack share: <b style={{ color: COLORS.ink }}>{Math.round(intentMix.local_share * 100)}%</b> — buyers, not browsers.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
-
-                {/* You Win vs Missing Columns */}
-                {(search.you_win?.length || search.buyers_elsewhere?.length) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10">
-                    <div>
-                      <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.green }}>
-                        ▲ You win
-                      </div>
-                      {Array.isArray(search.you_win) && search.you_win.map((group, i) => (
-                        <div key={i} className="mb-5">
-                          {group.cluster && (
-                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
-                          )}
-                          {Array.isArray(group.examples) && group.examples.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                              {group.examples.map((ex, j) => (
-                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
-                                  {ex}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {group.blurb && (
-                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div>
-                      <div className="font-mono text-[11px] tracking-wider text-red-600 uppercase mb-4">
-                        ▼ What you're missing
-                      </div>
-                      {Array.isArray(search.buyers_elsewhere) && search.buyers_elsewhere.map((group, i) => (
-                        <div key={i} className="mb-5">
-                          {group.cluster && (
-                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
-                          )}
-                          {Array.isArray(group.examples) && group.examples.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                              {group.examples.map((ex, j) => (
-                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
-                                  {ex}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {group.blurb && (
-                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PAGE 4: Who Shows Up */}
-            {(Object.keys(showsUp).length > 0 || shouldBe.length > 0) && (
+            {/* 01: Can search engines use the site? */}
+            {Boolean(underTheHood.rows?.length || underTheHood.pills?.length || issues.length) && (
               <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
                 borderColor: COLORS.hair,
                 background: COLORS.paper
               }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  Who shows up in your market
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {setupLine || directNote || "Your competitive landscape."}
+                  Can search engines use the site?
                 </h2>
 
-                {/* Direct Competitors */}
-                {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
-                  <div className="mt-7">
-                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Direct Rivals
-                    </div>
-                    {setupLine && directNote && (
-                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                        {directNote}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {showsUp.direct_competitors.map((item: any, i: number) => (
-                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
-                          color: COLORS.muted,
-                          borderColor: COLORS.hair,
-                          background: '#fbfbf9'
-                        }}>
-                          {item.domain}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Similar Elsewhere */}
-                {Array.isArray(showsUp.similar_elsewhere) && showsUp.similar_elsewhere.length > 0 && (
-                  <div className="mt-7">
-                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Similar, elsewhere
-                    </div>
-                    {showsUp.similar_elsewhere_note && (
-                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                        {showsUp.similar_elsewhere_note}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {showsUp.similar_elsewhere.map((item: any, i: number) => (
-                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
-                          color: COLORS.muted,
-                          borderColor: COLORS.hair,
-                          background: '#fbfbf9'
-                        }}>
-                          {item.domain}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Noise */}
-                {Array.isArray(showsUp.noise) && showsUp.noise.length > 0 && (
-                  <div className="mt-7">
-                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Noise
-                    </div>
-                    {showsUp.noise_note && (
-                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                        {showsUp.noise_note}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {showsUp.noise.slice(0, 6).map((item: any, i: number) => (
-                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
-                          color: COLORS.muted,
-                          borderColor: COLORS.hair,
-                          background: '#fbfbf9'
-                        }}>
-                          {item}
-                        </span>
-                      ))}
-                      {showsUp.noise.length > 6 && (
-                        <span className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
-                          color: COLORS.muted,
-                          borderColor: COLORS.hair,
-                          background: '#fbfbf9'
-                        }}>
-                          + {showsUp.noise.length - 6} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Who Should Be There */}
-                {shouldBe.length > 0 && (
-                  <div className="mt-7">
-                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Who should be there
-                    </div>
-                    <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                      {shouldBeNote || "The competitors your customers actually choose between — every one of them in your market."}
-                    </p>
-                    <div className="space-y-0">
-                      {shouldBe.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between gap-5 py-3 border-t text-[13.5px]" style={{ borderColor: COLORS.hair }}>
-                          <div>
-                            <div className="font-semibold mb-0.5" style={{ color: COLORS.ink }}>{item.name}</div>
-                            {item.where && (
-                              <div className="text-[12px]" style={{ color: COLORS.faint }}>{item.where}</div>
-                            )}
-                          </div>
-                          <div className="text-right max-w-[52%]" style={{ color: COLORS.muted }}>{item.note}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Gap Box */}
-                {competitorBuckets.gap && (
-                  <div className="mt-6 border-l-[3px] p-4 text-[14px] leading-relaxed" style={{
-                    borderColor: COLORS.red,
-                    background: COLORS.redSoft,
-                    color: COLORS.ink
-                  }}>
-                    <b>The gap:</b> {competitorBuckets.gap}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PAGE 5: Under the Hood */}
-            {Boolean(underTheHood.rows?.length || underTheHood.pills?.length) && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  Under the hood
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  What the site runs on, and how it's set up to be found.
-                </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.
-                </p>
-
-                {/* Table */}
                 {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
                   <div className="mt-6 overflow-x-auto -mx-6 sm:-mx-10 lg:-mx-14 px-6 sm:px-10 lg:px-14">
                     <table className="w-full text-[12.5px] sm:text-[13.5px] min-w-[600px]">
@@ -935,7 +534,6 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 )}
 
-                {/* Tech Pills */}
                 {Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
                   <div className="mt-5.5 flex flex-wrap gap-2">
                     {underTheHood.pills.map((pill, i) => (
@@ -949,51 +547,323 @@ export function WebsiteSnapshotReportViewer({
                     ))}
                   </div>
                 )}
+
+                {issues.length > 0 && (
+                  <div className="mt-6 space-y-0">
+                    {issues.map((issue, i) => {
+                      const tone = issueSeverityTone(issue.severity);
+                      const finding = String(issue.finding || "").trim();
+                      const fix = String(issue.fix || "").trim();
+                      return (
+                      <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
+                        <div className={cn(
+                          "font-mono text-[10px] tracking-wider text-center py-1 px-1.5 rounded h-fit leading-snug",
+                          tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
+                          tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
+                          "bg-[#eef0eb] text-gray-600"
+                        )}>
+                          {issueSeverityLabel(issue.severity)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
+                          {finding && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
+                          )}
+                          {fix && (
+                            <div className="mt-2">
+                              <div className="text-[13px] font-semibold leading-relaxed" style={{ color: COLORS.ink }}>Fix:</div>
+                              <div className="text-[13px] leading-relaxed" style={{ color: COLORS.ink }}>{fix}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* PAGE 6: What's Holding Back */}
-            {issues.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  What's holding the site back
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  Concrete, fixable items — none of them hard.
+            {/* 02: Who is actually finding you? */}
+            {(render.stats_row !== false || search.traffic_read) && (
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
+                borderColor: COLORS.hair, 
+                background: COLORS.paper 
+              }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  Who is actually finding you?
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  Separate from the plumbing. These are what's capping your momentum, in priority order.
-                </p>
 
-                <div className="mt-3.5 space-y-0">
-                  {issues.map((issue, i) => (
-                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[56px_1fr] sm:grid-cols-[64px_1fr] gap-3 sm:gap-4">
-                      <div className={cn(
-                        "font-mono text-[10px] tracking-wider text-center py-1 rounded h-fit",
-                        issue.severity === "high" ? "bg-[#f6e9ec] text-red-600" :
-                        issue.severity === "med" ? "bg-[#f5eeda] text-amber-700" :
-                        "bg-[#eef0eb] text-gray-600"
-                      )}>
-                        {issue.severity?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
-                        <div className="text-[13.5px] text-gray-600 leading-relaxed">{issue.body}</div>
-                      </div>
+                {/* Stats Row */}
+                {render.stats_row !== false && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-0 mt-6 sm:mt-7">
+                    <div className="px-0 sm:px-5 border-l-0 sm:border-l sm:first:pl-0 sm:first:border-l-0 pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Keywords</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.keywords_count || 0}</div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
                     </div>
-                  ))}
-                </div>
+                    <div className="px-0 sm:px-5 sm:border-l pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Est. traffic</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
+                        {trafficDisplay || "—"}
+                      </div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>estimated volume</div>
+                    </div>
+                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.top10 || 0}</div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>in Google's top 10</div>
+                    </div>
+                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>
+                        {search.referring_domains != null ? search.referring_domains : "—"}
+                      </div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
+                    </div>
+                  </div>
+                )}
+
+                {trafficRead && (
+                  <p className="text-[13.5px] sm:text-[14.5px] mt-5 leading-relaxed" style={{ color: COLORS.ink }}>
+                    {trafficRead}
+                  </p>
+                )}
+
+                {/* Trend Chart */}
+                {search.trend?.points && search.trend.points.length > 0 && (
+                  <div className="mt-8">
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                      Traffic trend · {search.trend.window || "6 months"}
+                    </div>
+                    <div className="h-[200px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                          data={search.trend.points.map((point) => ({
+                            label: `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][point.month - 1]} '${String(point.year).slice(-2)}`,
+                            etv: Math.round(point.etv)
+                          }))}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        >
+                          <XAxis 
+                            dataKey="label" 
+                            tick={{ fill: COLORS.muted, fontSize: 11 }}
+                            axisLine={{ stroke: COLORS.hair }}
+                            tickLine={false}
+                          />
+                          <YAxis 
+                            tick={{ fill: COLORS.muted, fontSize: 11 }}
+                            axisLine={{ stroke: COLORS.hair }}
+                            tickLine={false}
+                            tickFormatter={(value) => `${(value / 1000).toFixed(1)}k`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              background: COLORS.paper, 
+                              border: `1px solid ${COLORS.hair}`,
+                              borderRadius: '6px',
+                              fontSize: '13px'
+                            }}
+                            labelStyle={{ color: COLORS.ink, fontWeight: 600 }}
+                            formatter={(value: number) => [Number(value).toLocaleString(), "Traffic"]}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="etv" 
+                            stroke={COLORS.green} 
+                            strokeWidth={2.5}
+                            dot={{ fill: COLORS.green, r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Brand vs Non-brand & Intent Mix */}
+                {(search.brand_share != null || Object.keys(intentMix).length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10 mt-6 sm:mt-7">
+                    {search.brand_share != null && (
+                      <div>
+                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                          Brand vs non-brand
+                        </div>
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
+                          <div 
+                            className="flex items-center justify-center"
+                            style={{ 
+                              background: COLORS.green,
+                              width: `${Math.round(search.brand_share * 100)}%` 
+                            }}
+                          >
+                            {Math.round(search.brand_share * 100)}%
+                          </div>
+                          <div 
+                            className="flex items-center justify-center"
+                            style={{ 
+                              background: '#7a9d8a',
+                              width: `${Math.round((1 - search.brand_share) * 100)}%` 
+                            }}
+                          >
+                            {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
+                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(render.intent_mix !== false || Object.keys(intentMix).length > 0) && (
+                      <div>
+                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                          Search intent mix
+                        </div>
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
+                          {intentRows.map((row) => {
+                            const value = intentMix[row.key];
+                            if (value == null || value <= 0) return null;
+                            return (
+                              <div
+                                key={row.key}
+                                className="flex items-center justify-center"
+                                style={{ background: row.color, width: `${Math.round(value * 100)}%` }}
+                              >
+                                {Math.round(value * 100)}%
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          {intentRows.map((row) => {
+                            const value = intentMix[row.key];
+                            const pct = value != null ? Math.round(value * 100) : 0;
+                            return (
+                              <div key={row.key} className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 rounded-full" style={{ background: row.color }} />
+                                <span>{row.label}: {pct}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {intentMix.local_share != null && (
+                          <div className="text-[12.5px] mt-2" style={{ color: COLORS.muted }}>
+                            Local pack share: <b style={{ color: COLORS.ink }}>{Math.round(intentMix.local_share * 100)}%</b> — buyers, not browsers.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {render.scale_comparison !== false &&
+                  scaleComparison &&
+                  (scaleComparison.you != null || scaleComparison.peer != null || scaleComparison.ratio != null) && (
+                  <div className="mt-6 sm:mt-7">
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                      You vs peer
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      {scaleComparison.you != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>You</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.you).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                      {scaleComparison.peer != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Peer</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.peer).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                      {scaleComparison.ratio != null && (
+                        <div>
+                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Ratio</div>
+                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
+                            {Number(scaleComparison.ratio).toLocaleString()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+
+                {/* You Win vs Missing Columns */}
+                {(search.you_win?.length || search.buyers_elsewhere?.length) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10">
+                    <div>
+                      <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.green }}>
+                        Who already knows you
+                      </div>
+                      {Array.isArray(search.you_win) && search.you_win.map((group, i) => (
+                        <div key={i} className="mb-5">
+                          {group.cluster && (
+                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
+                          )}
+                          {Array.isArray(group.examples) && group.examples.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {group.examples.map((ex, j) => (
+                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
+                                  {ex}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {group.blurb && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.red }}>
+                        Who doesn't
+                      </div>
+                      {Array.isArray(search.buyers_elsewhere) && search.buyers_elsewhere.map((group, i) => (
+                        <div key={i} className="mb-5">
+                          {group.cluster && (
+                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
+                          )}
+                          {Array.isArray(group.examples) && group.examples.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {group.examples.map((ex, j) => (
+                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
+                                  {ex}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {group.blurb && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* PAGE 7: Content Map */}
+            {/* 03: What is not on the site? */}
             {ladder.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  Where your content should grow
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  The full opportunity map.
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  What is not on the site?
                 </h2>
                 {report.ladder_intro && (
                   <p className="text-[14.5px] text-gray-600 leading-normal">
@@ -1002,119 +872,330 @@ export function WebsiteSnapshotReportViewer({
                 )}
 
                 <div className="mt-3 space-y-0">
-                  {ladder.map((rung, i) => (
+                  {ladder.map((rung, i) => {
+                    const statusKey = ladderStatusKey(rung.status);
+                    return (
                     <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                         <div className="flex items-center gap-2 sm:gap-3">
                           <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
-                          <span className="font-semibold text-[14px] sm:text-[14.5px]">{rung.headline || rung.title}</span>
+                          <span className="font-semibold text-[14px] sm:text-[14.5px]">{rung.headline || rung.title || ""}</span>
                         </div>
                         <span className="sm:ml-auto">
                           <span className={cn(
                             "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded",
-                            rung.status === "in_place" ? "bg-[#e7efe9]" :
-                            rung.status === "partly" || rung.status === "needs_work" ? "bg-[#f5eeda]" :
+                            statusKey === "in_place" ? "bg-[#e7efe9]" :
+                            statusKey === "partly" ? "bg-[#f5eeda]" :
                             "bg-[#f6e9ec]"
                           )}
                           style={{
-                            color: rung.status === "in_place" ? COLORS.green :
-                                   rung.status === "partly" || rung.status === "needs_work" ? COLORS.amber :
+                            color: statusKey === "in_place" ? COLORS.green :
+                                   statusKey === "partly" ? COLORS.amber :
                                    COLORS.red
                           }}>
-                            {rung.status === "in_place" ? "In place" :
-                             rung.status === "partly" ? "Thin" :
-                             rung.status === "needs_work" ? "Needs work" :
-                             "Missing"}
+                            {ladderStatusLabel(rung.status)}
                           </span>
                         </span>
                       </div>
+                      {rung.example && (
+                        <div className="font-mono text-[11px] text-gray-600 pl-0 sm:pl-6 mb-1">{rung.example}</div>
+                      )}
                       <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+            )}
 
-                {report.ladder_summary && (
-                  <p className="mt-6 text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                    {report.ladder_summary}
+            {/* 04: Who is taking that demand? */}
+            {hasCompetitorSection && (
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
+                borderColor: COLORS.hair,
+                background: COLORS.paper
+              }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  Who is taking that demand?
+                </h2>
+                {setupLine && (
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                    {setupLine}
+                  </p>
+                )}
+                {deliveryLine && (
+                  <p className="text-[13px] mb-2" style={{ color: COLORS.muted }}>{deliveryLine}</p>
+                )}
+                {directNote && (
+                  <p className="text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                    {directNote}
+                  </p>
+                )}
+
+                {/* Direct Competitors */}
+                {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Direct Rivals
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.direct_competitors.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item.domain}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Similar Elsewhere */}
+                {Array.isArray(showsUp.similar_elsewhere) && showsUp.similar_elsewhere.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Similar, elsewhere
+                    </div>
+                    {showsUp.similar_elsewhere_note && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {showsUp.similar_elsewhere_note}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.similar_elsewhere.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item.domain}{item.where ? ` · ${item.where}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {directoriesTools.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Directories and tools
+                    </div>
+                    {directoriesNote && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {directoriesNote}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {directoriesTools.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Noise */}
+                {Array.isArray(showsUp.noise) && showsUp.noise.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Noise
+                    </div>
+                    {showsUp.noise_note && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {showsUp.noise_note}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.noise.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {shouldBe.length > 0 && (
+                  <div className="mt-7">
+                    {shouldBeNote && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {shouldBeNote}
+                      </p>
+                    )}
+                    <div className="space-y-0">
+                      {shouldBe.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between gap-5 py-3 border-t text-[13.5px]" style={{ borderColor: COLORS.hair }}>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <div className="font-semibold" style={{ color: COLORS.ink }}>{item.name}</div>
+                              {item.shows_up_in_results === true && (
+                                <span className="font-mono text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ background: COLORS.greenSoft, color: COLORS.green }}>
+                                  In results
+                                </span>
+                              )}
+                              {item.shows_up_in_results === false && (
+                                <span className="font-mono text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ background: COLORS.redSoft, color: COLORS.red }}>
+                                  Not in results
+                                </span>
+                              )}
+                            </div>
+                            {item.where && (
+                              <div className="text-[12px]" style={{ color: COLORS.faint }}>{item.where}</div>
+                            )}
+                          </div>
+                          <div className="text-right max-w-[52%]" style={{ color: COLORS.muted }}>{item.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Gap Box */}
+                {competitorBuckets.gap && (
+                  <div className="mt-6 border-l-[3px] p-4 text-[14px] leading-relaxed" style={{
+                    borderColor: COLORS.red,
+                    background: COLORS.redSoft,
+                    color: COLORS.ink
+                  }}>
+                    <b>The gap:</b> {competitorBuckets.gap}
+                  </div>
+                )}
+                {noCompetitorData && (
+                  <p className="mt-6 text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                    No competitor data this run
                   </p>
                 )}
               </div>
             )}
 
-            {/* PAGE 8: Tactics */}
+            {/* 05: What SEO can do for you */}
+            {(tier.level != null || tier.name) && (
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
+                borderColor: COLORS.hair,
+                background: COLORS.paper
+              }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  What SEO can do for you
+                </h2>
+                {tier.reasoning && (
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                    {tier.reasoning}
+                  </p>
+                )}
+
+                <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
+                  {[1, 2, 3].map((level) => {
+                    const isSelected = tier.level === level;
+                    const defaults = STATIC_TIERS[level - 1];
+                    const name = isSelected && tier.name ? tier.name : defaults.name;
+                    return (
+                      <div
+                        key={level}
+                        className="border rounded p-4.5 relative"
+                        style={{
+                          borderColor: isSelected ? COLORS.green : COLORS.hair,
+                          background: isSelected ? "#fbfdfb" : COLORS.paper
+                        }}
+                      >
+                        {isSelected && (
+                          <div
+                            className="absolute top-3.5 right-3.5 font-mono text-[9.5px] tracking-wider px-2 py-1 rounded-sm"
+                            style={{ background: COLORS.green, color: COLORS.paper }}
+                          >
+                            YOUR FIT
+                          </div>
+                        )}
+                        <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                          Tier {level}
+                        </div>
+                        <div className="font-semibold text-[15px] my-2.5 pr-16" style={{ color: COLORS.ink }}>
+                          {name}
+                        </div>
+                        <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {isSelected && tier.reasoning ? tier.reasoning : defaults.blurb}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 06: The plan */}
             {tactics.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  The plan, in order
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  Where we would start, and why.
+                  The plan
                 </h2>
                 <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  A focused route through the map, sequenced for your stage. Everything you rank for sits on one page today — so we build pages first, then optimize.
+                  {planIntro || "A focused route through the map, sequenced for your stage."}
                 </p>
+                {headroomBits.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {headroomBits.map((bit) => (
+                      <span
+                        key={bit}
+                        className="font-mono text-[10.5px] sm:text-[11px] tracking-wide px-2.5 py-1.5 rounded"
+                        style={{ background: COLORS.greenSoft, color: COLORS.green }}
+                      >
+                        {bit}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {(() => {
                   let currentPhase = "";
-                  let stepInPhase = 0;
+                  let stepNumber = 0;
                   return tactics.map((tactic, i) => {
-                    const isNewPhase = tactic.phase !== currentPhase;
+                    const phase = tactic.phase || "";
+                    const isNewPhase = phase !== currentPhase;
                     if (isNewPhase) {
-                      currentPhase = tactic.phase || "";
-                      stepInPhase = 0;
-                    } else {
-                      stepInPhase++;
+                      currentPhase = phase;
+                    }
+                    if (tactic.title || tactic.body) {
+                      stepNumber += 1;
                     }
 
                     return (
                       <React.Fragment key={i}>
-                        {isNewPhase && tactic.phase && (
-                          <>
-                            <div className="flex flex-col items-start gap-2 mt-6 sm:mt-8">
-                              <span className="font-mono text-[10px] sm:text-[11px] tracking-wider text-white px-3 py-1.5 rounded w-fit" style={{ background: COLORS.green }}>
-                                {tactic.phase.toUpperCase()}
-                              </span>
-                              <span className="font-semibold text-[15px] sm:text-[16px]">{tactic.title}</span>
-                            </div>
-                            <hr className="border-0 border-t border-[#e6e8e3] my-3 sm:my-2.5" />
-                          </>
-                        )}
-                        {!isNewPhase && (
-                          <div className="py-3 sm:py-3.5 border-b border-[#e6e8e3]">
-                            <div className="flex items-baseline gap-2 mb-2">
-                              <span 
-                                className="font-mono text-[12px] sm:text-[13px] font-medium" 
-                                style={{ color: COLORS.green }}
-                              >
-                                {stepInPhase}.
-                              </span>
-                              <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
-                            </div>
-                            <div className="text-[12.5px] sm:text-[13px] text-gray-600 leading-relaxed pl-0 sm:pl-6">{tactic.body}</div>
+                        {isNewPhase && phase && (
+                          <div className="flex flex-col items-start gap-2 mt-6 sm:mt-8">
+                            <span className="font-mono text-[10px] sm:text-[11px] tracking-wider text-white px-3 py-1.5 rounded w-fit" style={{ background: COLORS.green }}>
+                              {phase.toUpperCase()}
+                            </span>
                           </div>
                         )}
+                        <div className="py-3 sm:py-3.5 border-b border-[#e6e8e3]">
+                          <div className="flex items-baseline gap-2 mb-2">
+                            <span
+                              className="font-mono text-[12px] sm:text-[13px] font-medium"
+                              style={{ color: COLORS.green }}
+                            >
+                              {stepNumber}.
+                            </span>
+                            <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
+                          </div>
+                          {tactic.body && (
+                            <div className="text-[12.5px] sm:text-[13px] text-gray-600 leading-relaxed pl-0 sm:pl-6">{tactic.body}</div>
+                          )}
+                        </div>
                       </React.Fragment>
                     );
                   });
                 })()}
-              </div>
-            )}
-
-            {/* PAGE 9: Takeaway */}
-            {report.takeaway && (
-              <div className="rounded-lg p-6 sm:p-8 lg:p-11 border-0" style={{ 
-                background: COLORS.green,
-                color: '#eaf1ec'
-              }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: '#8fb8a1' }}>
-                  The honest takeaway
-                </div>
-                <p className="text-[14px] sm:text-[15.5px] leading-relaxed">
-                  {report.takeaway.split('.')[0] && (
-                    <span style={{ color: COLORS.paper, fontWeight: 600 }}>{report.takeaway.split('.')[0]}.</span>
-                  )}
-                  {report.takeaway.substring(report.takeaway.indexOf('.') + 1)}
-                </p>
               </div>
             )}
 

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { X, Loader2, Plus } from "lucide-react";
-import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 
 import {
@@ -39,6 +38,14 @@ interface AutoScheduleDialogProps {
   existingSchedule?: AutoSchedule | null;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeRecipients(values: string[]) {
+  return Array.from(
+    new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))
+  );
+}
+
 export function AutoScheduleDialog({
   isOpen,
   onClose,
@@ -56,9 +63,6 @@ export function AutoScheduleDialog({
   const [recipients, setRecipients] = React.useState<string[]>([]);
   const [newEmail, setNewEmail] = React.useState("");
   const [emailError, setEmailError] = React.useState("");
-
-  const user = useAuthStore((s) => s.user);
-  const userEmail = user?.email || "";
 
   const guardScheduleReport = useFeatureActionGuard("reports.schedule");
   const createAutoSchedule = useCreateAutoSchedule();
@@ -78,7 +82,7 @@ export function AutoScheduleDialog({
         setReportPerspective(existingSchedule.perspective || "full_picture");
         setCustomInstructions(existingSchedule.customInstructions || "");
         setIsActive(existingSchedule.isActive);
-        setRecipients(existingSchedule.recipients?.length ? existingSchedule.recipients : []);
+        setRecipients(normalizeRecipients(existingSchedule.recipients || []));
       } else {
         setPeriod("3 months");
         setFrequency("weekly");
@@ -111,24 +115,16 @@ export function AutoScheduleDialog({
     }
   };
 
-  const allRecipients = React.useMemo(() => {
-    if (!userEmail) return recipients;
-    const lower = userEmail.toLowerCase();
-    if (recipients.some((r) => r.toLowerCase() === lower)) return recipients;
-    return [userEmail, ...recipients];
-  }, [userEmail, recipients]);
-
   const handleAddEmail = () => {
     const trimmed = newEmail.trim().toLowerCase();
     if (!trimmed) return;
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmed)) {
+    if (!EMAIL_REGEX.test(trimmed)) {
       setEmailError("Please enter a valid email address");
       return;
     }
 
-    if (allRecipients.some((r) => r.toLowerCase() === trimmed)) {
+    if (recipients.includes(trimmed)) {
       setEmailError("This email is already added");
       return;
     }
@@ -139,8 +135,8 @@ export function AutoScheduleDialog({
   };
 
   const handleRemoveEmail = (email: string) => {
-    if (email.toLowerCase() === userEmail.toLowerCase()) return;
-    setRecipients((prev) => prev.filter((r) => r.toLowerCase() !== email.toLowerCase()));
+    setRecipients((prev) => prev.filter((recipient) => recipient !== email));
+    setEmailError("");
   };
 
   const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -154,6 +150,25 @@ export function AutoScheduleDialog({
     if (!guardScheduleReport()) return;
     if (!businessId) return;
 
+    const pendingEmail = newEmail.trim().toLowerCase();
+    if (pendingEmail && !EMAIL_REGEX.test(pendingEmail)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    const recipientsToSave = normalizeRecipients([
+      ...recipients,
+      ...(pendingEmail ? [pendingEmail] : []),
+    ]);
+    if (recipientsToSave.length === 0) {
+      setEmailError("Add at least one recipient email address");
+      return;
+    }
+
+    setRecipients(recipientsToSave);
+    setNewEmail("");
+    setEmailError("");
+
     try {
       if (isEditMode && existingSchedule) {
         await updateAutoSchedule.mutateAsync({
@@ -166,7 +181,7 @@ export function AutoScheduleDialog({
             perspective: reportPerspective,
             customInstructions: customInstructions.trim(),
             isActive,
-            recipients: allRecipients,
+            recipients: recipientsToSave,
           },
           businessId,
         });
@@ -181,7 +196,7 @@ export function AutoScheduleDialog({
           scope: reportScope,
           perspective: reportPerspective,
           customInstructions: customInstructions.trim(),
-          recipients: allRecipients,
+          recipients: recipientsToSave,
         });
 
         toast.success("Auto-schedule created successfully", {
@@ -384,30 +399,29 @@ export function AutoScheduleDialog({
               Recipients
             </p>
             <div className="flex flex-wrap gap-2 w-full">
-              {allRecipients.map((email) => {
-                const isOwner = email.toLowerCase() === userEmail.toLowerCase();
-                return (
+              {recipients.length > 0 ? (
+                recipients.map((email) => (
                   <span
                     key={email}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-md shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] text-[12px] leading-[1.5] tracking-[0.18px] text-[#404040]"
+                    className="inline-flex min-w-0 items-center gap-1 rounded-md bg-white px-2 py-1 text-[12px] leading-[1.5] tracking-[0.18px] text-[#404040] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
                   >
-                    {email}
-                    {isOwner && (
-                      <span className="text-[10px] text-[#737373] ml-0.5">(you)</span>
-                    )}
-                    {!isOwner && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveEmail(email)}
-                        disabled={isLoading}
-                        className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity disabled:opacity-30"
-                      >
-                        <X className="h-3 w-3 text-[#525252]" strokeWidth={2} />
-                      </button>
-                    )}
+                    <span className="break-all">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEmail(email)}
+                      disabled={isLoading}
+                      className="ml-0.5 shrink-0 cursor-pointer rounded-sm opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E6A56] disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label={`Remove ${email}`}
+                    >
+                      <X className="h-3 w-3 text-[#525252]" strokeWidth={2} />
+                    </button>
                   </span>
-                );
-              })}
+                ))
+              ) : (
+                <p className="text-[12px] leading-[1.5] text-[#737373]">
+                  No recipients added yet.
+                </p>
+              )}
             </div>
             <div className="flex gap-2 items-start w-full">
               <div className="flex-1 flex flex-col">
@@ -421,10 +435,14 @@ export function AutoScheduleDialog({
                   onKeyDown={handleEmailKeyDown}
                   placeholder="Add recipient email"
                   disabled={isLoading}
-                  className="w-full h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] px-3 py-[7.5px] border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-[#0A0A0A] placeholder:text-[#A3A3A3] outline-none disabled:opacity-50"
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? "recipient-error" : "recipient-help"}
+                  className="w-full h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] px-3 py-[7.5px] border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-[#0A0A0A] placeholder:text-[#A3A3A3] outline-none focus-visible:ring-2 focus-visible:ring-[#2E6A56] aria-invalid:ring-1 aria-invalid:ring-red-500 disabled:opacity-50"
                 />
                 {emailError && (
-                  <p className="text-[11px] text-red-500 mt-1 ml-1">{emailError}</p>
+                  <p id="recipient-error" className="text-[11px] text-red-500 mt-1 ml-1" role="alert">
+                    {emailError}
+                  </p>
                 )}
               </div>
               <button
@@ -432,10 +450,16 @@ export function AutoScheduleDialog({
                 onClick={handleAddEmail}
                 disabled={isLoading || !newEmail.trim()}
                 className="flex items-center justify-center h-9 w-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.03)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                aria-label="Add recipient"
               >
                 <Plus className="h-4 w-4 text-[#525252]" strokeWidth={1.5} />
               </button>
             </div>
+            {!emailError && (
+              <p id="recipient-help" className="text-[11px] leading-[1.5] text-[#737373]">
+                Only the email addresses listed here will receive this report.
+              </p>
+            )}
           </div>
         </div>
 

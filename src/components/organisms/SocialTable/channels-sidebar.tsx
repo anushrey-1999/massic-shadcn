@@ -9,6 +9,7 @@ import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { DataTable } from "../../filter-table/index";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { cn } from "@/lib/utils";
+import { getChannelIconSource } from "@/components/ui/channel-icon";
 
 interface ChannelRow {
   id: string;
@@ -38,26 +39,6 @@ const STATIC_CHANNELS = [
   { name: "Reddit", icon: "/icons/reddit.png", relevance: 0.68 },
 ];
 
-function getChannelIcon(channelName: string): string | null {
-  if (!channelName) return null;
-  
-  const normalized = channelName.toLowerCase().trim();
-  const iconMap: Record<string, string> = {
-    facebook: "/icons/facebook.png",
-    "facebook group": "/icons/facebook.png",
-    "facebook groups": "/icons/facebook.png",
-    instagram: "/icons/instagram.png",
-    linkedin: "/icons/linkedin.png",
-    quora: "/icons/quora.svg",
-    x: "/icons/twitter.png",
-    youtube: "/icons/youtube.png",
-    tiktok: "/icons/tiktok.png",
-    reddit: "/icons/reddit.png",
-  };
-  
-  return iconMap[normalized] || null;
-}
-
 function getChannelsTableColumns(
   selectedChannel: string | null,
   onChannelSelect: (channel: string | null) => void
@@ -71,7 +52,7 @@ function getChannelsTableColumns(
       ),
       cell: ({ row }) => {
         const channel = row.original;
-        const iconPath = channel.icon || (channel.isAllChannels ? null : getChannelIcon(channel.name));
+        const iconPath = channel.icon || (channel.isAllChannels ? null : getChannelIconSource(channel.name));
 
         return (
           <div className={"flex items-center gap-1 min-h-10 h-10 " + styles.channelsSidebarCell}>

@@ -1,12 +1,9 @@
 "use client";
 
-import * as React from "react";
-import { ChevronRight, Download, Settings } from "lucide-react";
+import { Bot, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import Link from "next/link";
 import { Typography } from "../ui/typography";
-import { useAskMassicOverlayOptional } from "@/components/chatbot/ask-massic-overlay-provider";
 import { useParams } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 
@@ -36,9 +33,6 @@ export function PageHeader({
   trial,
   onUpgrade,
 }: PageHeaderProps) {
-  const askMassic = useAskMassicOverlayOptional();
-  const askMassicButtonRef = React.useRef<HTMLButtonElement | null>(null);
-
   const params = useParams();
   const rawBusinessId = (params as any)?.id as string | string[] | undefined;
   const businessId = Array.isArray(rawBusinessId)
@@ -119,37 +113,12 @@ export function PageHeader({
             </div>
           ) : null}
 
-          {askMassic && effectiveShowAskMassic ? (
-            <Button
-              ref={askMassicButtonRef}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => {
-                const rect = askMassicButtonRef.current?.getBoundingClientRect();
-                askMassic.open(
-                  rect
-                    ? {
-                        top: rect.top,
-                        left: rect.left,
-                        right: rect.right,
-                        bottom: rect.bottom,
-                        width: rect.width,
-                        height: rect.height,
-                      }
-                    : undefined
-                );
-              }}
-            >
-              <Image
-                src="/massic-icon-green.svg"
-                alt="Massic"
-                width={18}
-                height={18}
-              />
-              <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
-                Ask Massic
-              </span>
+          {businessId && effectiveShowAskMassic ? (
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <Link href={`/business/${businessId}/agent`}>
+                <Bot className="h-4 w-4 text-general-primary" />
+                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">Massic Agent</span>
+              </Link>
             </Button>
           ) : null}
 

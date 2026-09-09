@@ -12,6 +12,7 @@ export default function LayoutWrapper({
 }) {
   const pathname = usePathname()
   const shouldUseEmptyLayout =
+    /^\/business\/[^/]+\/agent\/?$/.test(pathname) ||
     routesWithoutSidebar.includes(pathname) ||
     routePrefixesWithoutSidebar.some((prefix) => pathname.startsWith(prefix))
 
@@ -21,4 +22,3 @@ export default function LayoutWrapper({
 
   return <Layout>{children}</Layout>
 }
-

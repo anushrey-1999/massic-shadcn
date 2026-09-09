@@ -140,6 +140,24 @@ export function useSocial(businessId: string, strategyType: SocialStrategyType =
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
       const { value, operator } = filter;
 
+      if (operator === "inArray") {
+        const RELEVANCE_BANDS: Record<string, { min: number; max: number }> = {
+          low: { min: 0, max: 25 },
+          medium: { min: 26, max: 50 },
+          high: { min: 51, max: 100 },
+        };
+        const levels = (Array.isArray(value) ? value : [value])
+          .map((v) => String(v).toLowerCase())
+          .filter((v) => v in RELEVANCE_BANDS);
+        if (levels.length === 0 || levels.length === Object.keys(RELEVANCE_BANDS).length) return [];
+        const minPct = Math.min(...levels.map((l) => RELEVANCE_BANDS[l].min));
+        const maxPct = Math.max(...levels.map((l) => RELEVANCE_BANDS[l].max));
+        const result: { field: string; value: string | string[]; operator: string }[] = [];
+        if (minPct > 0) result.push({ ...filter, operator: "gte", value: String(clamp(toDecimal(String(minPct)) - 0.005)) });
+        if (maxPct < 100) result.push({ ...filter, operator: "lte", value: String(clamp(toDecimal(String(maxPct)) + 0.005)) });
+        return result.length > 0 ? result : [];
+      }
+
       if (operator === "isBetween" && Array.isArray(value)) {
         const [minValue, maxValue] = value;
         const minNum = toDecimal(minValue);

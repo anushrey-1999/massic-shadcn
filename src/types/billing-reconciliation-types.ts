@@ -17,10 +17,13 @@ export type BillingReconciliationPeriod =
   | "year_to_date"
   | "all_time";
 
+export type BillingReconciliationChargeType = "recurring" | "upgrade";
+
 export interface BillingReconciliationRow {
   rowType: BillingReconciliationRowType;
   businessName: string;
   planName: string;
+  chargeType?: BillingReconciliationChargeType | null;
   detailLabel?: string | null;
   billingPeriodStart: string | null;
   billingPeriodEnd: string | null;
@@ -37,10 +40,16 @@ export interface BillingReconciliationRow {
   matchStatus: BillingReconciliationMatchStatus;
 }
 
+export interface BillingReconciliationPlanAmountBreakdown {
+  unitAmount: number;
+  count: number;
+}
+
 export interface BillingReconciliationPlanBreakdown {
   planName: string;
   count: number;
   amount: number;
+  amountBreakdown?: BillingReconciliationPlanAmountBreakdown[];
 }
 
 export interface BillingReconciliationSummary {

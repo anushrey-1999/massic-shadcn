@@ -339,11 +339,17 @@ function includeByFilter(row: MergedRow, filter: TableFilterType, includeGa4: bo
   return changes.some((value) => value < 0)
 }
 
-function compareBySort(a: MergedRow, b: MergedRow, sort: { column: SortColumn; direction: SortDirection }): number {
+function compareBySort(
+  a: MergedRow,
+  b: MergedRow,
+  sort: { column: SortColumn; direction: SortDirection },
+  filter: TableFilterType
+): number {
   const pick = (row: MergedRow): number | null => {
     const metric = row[sort.column]
     if (!metric?.available) return null
-    return metric.current
+    if (filter === "popular") return metric.current
+    return metric.current - metric.previous
   }
 
   const aVal = pick(a)
@@ -352,8 +358,19 @@ function compareBySort(a: MergedRow, b: MergedRow, sort: { column: SortColumn; d
   if (aVal === null && bVal === null) return 0
   if (aVal === null) return 1
   if (bVal === null) return -1
+  if (aVal === bVal) return 0
 
-  return sort.direction === "desc" ? bVal - aVal : aVal - bVal
+  if (sort.direction === "desc") {
+    return aVal > bVal ? -1 : 1
+  }
+
+  return aVal < bVal ? -1 : 1
+}
+
+function getDefaultSortDirectionForFilter(filter: TableFilterType): SortDirection | null {
+  if (filter === "growing") return "desc"
+  if (filter === "decaying") return "asc"
+  return null
 }
 
 function buildMap<T>(rows: T[], getKey: (row: T) => string | null, getDisplay: (row: T) => string): Map<string, { key: string; row: T }> {
@@ -715,18 +732,17 @@ export function useGSCAnalytics(
   const defaultSortColumn: SortColumn = ga4TrafficScope === "all" ? "sessions" : "impressions"
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
-  const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
+  const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
 
   useEffect(() => {
     if (ga4TrafficScope === "all") {
       setContentGroupsSort({ column: "sessions", direction: "desc" })
       setTopPagesSort({ column: "sessions", direction: "desc" })
-      setTopQueriesSort({ column: "sessions", direction: "desc" })
     } else {
       setContentGroupsSort({ column: "impressions", direction: "desc" })
       setTopPagesSort({ column: "impressions", direction: "desc" })
-      setTopQueriesSort({ column: "impressions", direction: "desc" })
     }
+    setTopQueriesSort({ column: "impressions", direction: "desc" })
   }, [ga4TrafficScope])
 
   const gscGate = useGoogleDataGate(businessUniqueId, "gsc")
@@ -1152,7 +1168,7 @@ export function useGSCAnalytics(
   ): GSCTableDataFormatted[] => {
     return data
       .filter((row) => includeByFilter(row, filter, includeGa4Columns))
-      .sort((a, b) => compareBySort(a, b, sort))
+      .sort((a, b) => compareBySort(a, b, sort, filter))
       .map((row) => ({
         key: row.key,
         rawKey: row.rawKey,
@@ -1187,14 +1203,26 @@ export function useGSCAnalytics(
 
   const handleContentGroupsFilterChange = useCallback((filter: TableFilterType) => {
     setContentGroupsFilter(filter)
+    const direction = getDefaultSortDirectionForFilter(filter)
+    if (direction) {
+      setContentGroupsSort((prev) => ({ ...prev, direction }))
+    }
   }, [])
 
   const handleTopPagesFilterChange = useCallback((filter: TableFilterType) => {
     setTopPagesFilter(filter)
+    const direction = getDefaultSortDirectionForFilter(filter)
+    if (direction) {
+      setTopPagesSort((prev) => ({ ...prev, direction }))
+    }
   }, [])
 
   const handleTopQueriesFilterChange = useCallback((filter: TableFilterType) => {
     setTopQueriesFilter(filter)
+    const direction = getDefaultSortDirectionForFilter(filter)
+    if (direction) {
+      setTopQueriesSort((prev) => ({ ...prev, direction }))
+    }
   }, [])
 
   const handleContentGroupsSort = useCallback((column: SortColumn) => {

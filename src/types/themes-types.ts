@@ -10,6 +10,7 @@ export interface ThemeItem {
   topic_count: number;
   offerings: string[];
   topics: ThemeTopic[];
+  [key: string]: any;
   business_relevance_score?: number;
   theme_coverage?: number;
 }
@@ -38,6 +39,7 @@ export interface ThemeRow {
   topic_count: number;
   offerings: string[];
   topics: ThemeTopic[];
+  [key: string]: any;
   business_relevance_score?: number;
   theme_coverage?: number;
   topic_coverage?: number;

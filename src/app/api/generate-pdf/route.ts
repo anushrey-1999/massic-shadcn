@@ -861,32 +861,39 @@ const SEO_SNAPSHOT_CSS = `
 `;
 
 const WEBSITE_SNAPSHOT_CSS = `
-  @page { size: letter; margin: 0; }
+  @page { size: letter; margin: 18mm 8mm; }
   :root{
     --ink:#1c1f1d;--muted:#6d726f;--faint:#9aa09c;--line:#e6e8e3;--line2:#f2f2ec;--brand:#123c28;
     --green:#123c28;--greenLine:#2f6b4a;--greenSoft:#e7efe9;--amber:#9c7a2f;--amberSoft:#f5eeda;
     --red:#b0566b;--redSoft:#f6e9ec;--paper:#ffffff;
   }
   *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#ffffff}
   body{
-    margin:0;background:#ffffff;color:var(--ink);
-    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    orphans:3;widows:3;
   }
-  /* 48px horizontal padding ≈ 0.5in — ensures content doesn't touch the page edge
-     even when @page margin:0 is in effect and Puppeteer's margin is the only guard */
-  .wrap{margin:0;padding:20px 48px}
+  .wrap{margin:0;padding:0}
   h1,h2,h3{margin:0;line-height:1.25}
   p{margin:0}
   a{color:var(--brand)}
   .num{font-variant-numeric:tabular-nums}
-  
-  /* Page Card */
+
+  /* No card chrome — page top/bottom margin keeps breaks off the edge. */
   .page-card{
-    background:var(--paper);
-    padding:40px 0;
-    margin-bottom:28px;
+    background:transparent;
+    border:0;
+    border-radius:0;
+    padding:28px 0;
+    margin:0 0 12px;
+    break-inside:auto;
+    page-break-inside:auto;
   }
+  .page-card:last-child{margin-bottom:0}
   
   /* Cover */
   .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0}
@@ -911,13 +918,12 @@ const WEBSITE_SNAPSHOT_CSS = `
   .callout-item{padding:16px 0;border-top:1px solid var(--line);break-inside:avoid;page-break-inside:avoid}
   .opening-block{border-left:3px solid var(--green);background:var(--greenSoft);padding:14px 16px;margin:16px 0;break-inside:avoid;page-break-inside:avoid}
   .close-p{margin-top:20px;font-size:14.5px;line-height:1.5;color:var(--ink)}
-  .section-sheet{page-break-before:always}
   .callout-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink);margin-bottom:10px}
   .callout-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .callout-body{font-size:14px;line-height:1.5;color:var(--muted)}
   
-  /* Section Headers */
-  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0}
+  /* Section Headers — keep title with the content that follows, never force a new page */
+  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0;break-after:avoid;page-break-after:avoid}
   .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);padding:0}
   
   /* Tier Cards */
@@ -952,16 +958,36 @@ const WEBSITE_SNAPSHOT_CSS = `
   .chart-caption{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.02em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
   
   /* Brand & Intent Mix */
-  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0}
-  .mix-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px}
-  .brand-bar,.intent-bar{display:flex;height:40px;border-radius:4px;overflow:hidden}
-  .brand-segment,.intent-segment{display:flex;align-items:center;justify-content:center;color:var(--paper);font-size:12px;font-weight:600}
+  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0;break-inside:avoid;page-break-inside:avoid}
+  .mix-title{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+  .brand-bar,.intent-bar{display:flex;height:28px;border-radius:4px;overflow:hidden;background:#ffffff;font:11px/1 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  .brand-segment,.intent-segment{display:flex;align-items:center;justify-content:center;color:var(--paper);font-size:11px;font-weight:400}
+  .bar-gap{flex:0 0 3px;width:3px;min-width:3px;background:#ffffff}
   .brand-branded{background:#123c28}
   .brand-nonbranded{background:#7a9d8a}
   .intent-trans{background:#123c28}
   .intent-comm{background:#4a7c59}
   .intent-info{background:#7a8c7e}
   .intent-nav{background:#9aa8a0}
+
+  /* Heading + badge rows (under the hood, issues, ladder) */
+  .item-row{padding:16px 0;border-top:1px solid var(--line);break-inside:avoid;page-break-inside:avoid}
+  .item-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+  .item-title{font-size:14.5px;font-weight:600;color:var(--ink);min-width:0}
+  .item-body{font-size:13.5px;line-height:1.5;color:var(--muted)}
+  .status-chip{display:inline-block;flex-shrink:0;font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;padding:4px 10px;border-radius:4px;font-weight:400}
+
+  /* PDF pagination:
+     Cards may split. Keep small units (rows, steps, charts) together so a heading
+     is never stranded and we never jump a huge block to the next page. */
+  .keep{break-inside:avoid;page-break-inside:avoid}
+  .phase-label{break-after:avoid;page-break-after:avoid}
+  .sec-h{break-after:avoid;page-break-after:avoid}
+  .lead{break-after:avoid;page-break-after:avoid}
+  .stats-grid,.tier-grid,.win-group,.chart-section{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
   
   /* You Win vs Missing */
   .win-missing-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding:0}
@@ -974,17 +1000,6 @@ const WEBSITE_SNAPSHOT_CSS = `
   .win-example{background:#fbfbf9;color:var(--muted);padding:4px 8px;border-radius:4px;font-size:11px;border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
   .win-blurb{color:var(--muted);font-size:13.5px;line-height:1.5}
   
-  /* PDF pagination rules:
-     Keep "Heading + subheading + content block" together without forcing the
-     entire section to be unbreakable (which can cause awkward whitespace). */
-  .keep{break-inside:avoid;page-break-inside:avoid}
-  .sec-h{break-after:avoid;page-break-after:avoid}
-  .lead{break-after:avoid;page-break-after:avoid}
-  /* Keep repeated “cards” together (fixes orphaned subheadings). */
-  .read,.wh-page,.c,.ex,.issue,.rung,.step,table,tr{
-    break-inside:avoid;
-    page-break-inside:avoid;
-  }
   .sec-h{display:flex;align-items:baseline;gap:12px;border-top:1px solid var(--line);padding-top:22px;margin-bottom:18px}
   .sec-h h2{font-size:22px;font-weight:800;letter-spacing:-.01em}
   .lead{color:var(--muted);font-size:15px;margin:-6px 0 20px}
@@ -1239,13 +1254,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const businessDescription = String(meta.business_description || "").trim();
   const website = String(meta.url || "").trim();
   const location = formatSnapshotLocation(meta.location || "");
-  const phone = meta.phone != null ? (() => {
-    try {
-      return decodeURIComponent(String(meta.phone || "").trim());
-    } catch {
-      return String(meta.phone || "").trim();
-    }
-  })() : "";
   const reportMonthYear = formatMonthYearFromIso(meta.report_date) || "Website Snapshot";
 
   const beats = Array.isArray((report as any)?.beats) ? (report as any).beats : [];
@@ -1279,11 +1287,9 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           .map((question, index) => {
             const b: any = beats[index] || {};
             const finding = String(b?.finding || "").trim();
-            const soWhat = String(b?.so_what || "").trim();
             const frameBeat = frameBeats[index] || {};
             const chipText = String(frameBeat?.chip?.text || "").trim();
             const tone = frameChipTone(frameBeat?.chip?.tone);
-            const owns = b?.owns_diagnosis === true || frameBeat?.owns_diagnosis === true;
             const chipBg = tone === "ok" ? "var(--greenSoft)" : tone === "warn" ? "var(--amberSoft)" : tone === "bad" ? "#f6e9ec" : "var(--paper)";
             const chipColor = tone === "ok" ? "var(--green)" : tone === "warn" ? "var(--amber)" : tone === "bad" ? "var(--red)" : "var(--faint)";
             const chipBorder = tone === "none" ? "1px dashed var(--line)" : "none";
@@ -1294,7 +1300,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                 ${chipText ? `<span style="display:inline-block;background:${chipBg};color:${chipColor};border:${chipBorder};font:10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;text-transform:uppercase;padding:4px 8px;border-radius:4px">${escapeHtml(chipText)}</span>` : ""}
               </div>
               ${finding ? `<div class="callout-body">${escapeHtml(finding)}</div>` : ""}
-              ${soWhat ? `<div style="font-size:13.5px;margin-top:8px;${owns ? "color:var(--green);font-weight:600" : "color:var(--muted);font-style:italic;font-weight:400"}">${escapeHtml(soWhat)}</div>` : ""}
             </div>`;
           })
           .join("")}
@@ -1332,7 +1337,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const navigational = intentMix.navigational != null ? Math.round(Number(intentMix.navigational) * 100) : 0;
 
   const statsHtml = `
-    <div class="page-card section-sheet">
+    <div class="page-card">
       <h2 class="section-title">Who is actually finding you?</h2>
       
       <div class="stats-grid">
@@ -1376,9 +1381,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         brandedPercent != null && nonBrandedPercent != null
           ? `<div class="brand-intent-grid">
               <div>
-                <h3 class="mix-title">Brand vs Non-brand</h3>
+                <h3 class="mix-title">Brand vs non-brand</h3>
                 <div class="brand-bar">
                   <div class="brand-segment brand-branded" style="flex:${brandedPercent}">${brandedPercent}%</div>
+                  <div class="bar-gap"></div>
                   <div class="brand-segment brand-nonbranded" style="flex:${nonBrandedPercent}">${nonBrandedPercent}%</div>
                 </div>
                 <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted)">
@@ -1395,12 +1401,14 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               ${
                 transactional + commercial + informational + navigational > 0
                   ? `<div>
-                      <h3 class="mix-title">Search Intent Mix</h3>
+                      <h3 class="mix-title">Search intent mix</h3>
                       <div class="intent-bar">
-                        ${transactional > 0 ? `<div class="intent-segment intent-trans" style="flex:${transactional}">${transactional}%</div>` : ""}
-                        ${commercial > 0 ? `<div class="intent-segment intent-comm" style="flex:${commercial}">${commercial}%</div>` : ""}
-                        ${informational > 0 ? `<div class="intent-segment intent-info" style="flex:${informational}">${informational}%</div>` : ""}
-                        ${navigational > 0 ? `<div class="intent-segment intent-nav" style="flex:${navigational}">${navigational}%</div>` : ""}
+                        ${[
+                          transactional > 0 ? `<div class="intent-segment intent-trans" style="flex:${transactional}">${transactional}%</div>` : "",
+                          commercial > 0 ? `<div class="intent-segment intent-comm" style="flex:${commercial}">${commercial}%</div>` : "",
+                          informational > 0 ? `<div class="intent-segment intent-info" style="flex:${informational}">${informational}%</div>` : "",
+                          navigational > 0 ? `<div class="intent-segment intent-nav" style="flex:${navigational}">${navigational}%</div>` : "",
+                        ].filter(Boolean).join('<div class="bar-gap"></div>')}
                       </div>
                       <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:11px;color:var(--muted)">
                         <div style="display:flex;align-items:center;gap:6px">
@@ -1524,19 +1532,19 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const shouldBeNote = String((report as any)?.should_be_note || competitorBuckets?.should_be_note || "").trim();
 
   const competitorsHtml = `
-      <div class="page-card section-sheet">
+      <div class="page-card">
         <h2 class="section-title">Who is taking that demand?</h2>
         ${setupText ? `<p class="section-lead">${escapeHtml(setupText)}</p>` : ""}
         ${deliveryText ? `<p class="section-lead">${escapeHtml(deliveryText)}</p>` : ""}
         ${directNote ? `<p class="section-lead">${escapeHtml(directNote)}</p>` : ""}
         ${
           directCompetitors.length
-            ? `<div class="keep" style="margin-top:20px;padding:0">
+            ? `<div style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Direct Rivals</div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
                   ${directCompetitors.map((c: any) => {
                     const domain = String(c?.domain || "").trim();
-                    return domain ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
+                    return domain ? `<span style="background:#fbfbf9;color:#6d726f;padding:2px 8px;border-radius:4px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
               </div>`
@@ -1544,15 +1552,15 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           similarElsewhere.length
-            ? `<div class="keep" style="margin-top:20px;padding:0">
+            ? `<div style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Similar, elsewhere</div>
-                ${similarElsewhereNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(similarElsewhereNote)}</p>` : ""}
-                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                ${similarElsewhereNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(similarElsewhereNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
                   ${similarElsewhere.map((item: any) => {
                     const domain = String(item?.domain || "").trim();
                     const where = String(item?.where || "").trim();
                     const label = [domain, where].filter(Boolean).join(" · ");
-                    return label ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(label)}</span>` : "";
+                    return label ? `<span style="background:#fbfbf9;color:#6d726f;padding:2px 8px;border-radius:4px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;border:1px solid #e6e8e3">${escapeHtml(label)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
               </div>`
@@ -1560,13 +1568,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           directoriesTools.length
-            ? `<div class="keep" style="margin-top:20px;padding:0">
+            ? `<div style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Directories and tools</div>
-                ${directoriesNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directoriesNote)}</p>` : ""}
-                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                ${directoriesNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(directoriesNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
                   ${directoriesTools.map((item: any) => {
                     const d = String(item || "").trim();
-                    return d ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
+                    return d ? `<span style="background:#fbfbf9;color:#6d726f;padding:2px 8px;border-radius:4px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
               </div>`
@@ -1574,13 +1582,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           noise.length
-            ? `<div class="keep" style="margin-top:20px;padding:0">
+            ? `<div style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Noise</div>
-                ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
-                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(noiseNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
                   ${noise.map((domain: any) => {
                     const d = String(domain || "").trim();
-                    return d ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
+                    return d ? `<span style="background:#fbfbf9;color:#6d726f;padding:2px 8px;border-radius:4px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
               </div>`
@@ -1588,7 +1596,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           shouldBe.length
-            ? `<div class="keep" style="margin-top:20px;padding:0">
+            ? `<div style="margin-top:20px;padding:0">
                 ${shouldBeNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(shouldBeNote)}</p>` : ""}
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
@@ -1596,10 +1604,15 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                   const note = String(c?.note || "").trim();
                   const inResults = c?.shows_up_in_results === true ? "In results" : c?.shows_up_in_results === false ? "Not in results" : "";
                   if (!name) return "";
-                  return `<div style="margin-bottom:16px;padding:16px;background:#fbfbf9;border-radius:4px;border:1px solid #e6e8e3">
-                    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(name)}${inResults ? ` <span style="font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;padding:2px 6px;border-radius:4px;background:${c.shows_up_in_results ? "#e7efe9" : "#f6e9ec"};color:${c.shows_up_in_results ? "#123c28" : "#b0566b"}">${escapeHtml(inResults)}</span>` : ""}</div>
-                    ${where ? `<div style="color:#9aa09c;font-size:12px;margin-bottom:6px">${escapeHtml(where)}</div>` : ""}
-                    ${note ? `<p style="color:#6d726f;font-size:13px">${escapeHtml(note)}</p>` : ""}
+                  return `<div class="item-row" style="display:flex;justify-content:space-between;gap:20px;font-size:13.5px">
+                    <div>
+                      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:2px">
+                        <div style="font-weight:600;color:var(--ink)">${escapeHtml(name)}</div>
+                        ${inResults ? `<span class="status-chip" style="background:${c.shows_up_in_results ? "#e7efe9" : "#f6e9ec"};color:${c.shows_up_in_results ? "#123c28" : "#b0566b"}">${escapeHtml(inResults)}</span>` : ""}
+                      </div>
+                      ${where ? `<div style="color:#9aa09c;font-size:12px">${escapeHtml(where)}</div>` : ""}
+                    </div>
+                    ${note ? `<div style="text-align:right;max-width:52%;color:#6d726f">${escapeHtml(note)}</div>` : ""}
                   </div>`;
                 }).filter(Boolean).join("")}
               </div>`
@@ -1625,12 +1638,11 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const underHtml =
     underRows.length || underPills.length || issues.length
       ? `
-      <div class="page-card section-sheet">
+      <div class="page-card">
         <h2 class="section-title">Can search engines use the site?</h2>
         ${
           underRows.length
-            ? `<div style="padding:0"><table style="border:none">
-              <tr><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 0">Layer</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">Status</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">What we found</th></tr>
+            ? `<div>
               ${underRows
                 .map((row: any) => {
                   const layer = String(row?.layer || "").trim();
@@ -1639,15 +1651,17 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                   if (!layer && !verdict && !detail) return "";
                   const verdictColor = verdict === "Fine" ? "#123c28" : verdict === "Gap" ? "#9c7a2f" : verdict === "Critical" ? "#b0566b" : "#6d726f";
                   const verdictBg = verdict === "Fine" ? "#e7efe9" : verdict === "Gap" ? "#f5eeda" : verdict === "Critical" ? "#f6e9ec" : "#f3f4f6";
-                  return `<tr style="border-bottom:1px solid #e6e8e3">
-                    <td style="padding:12px 0;vertical-align:top;font-weight:600;border:none">${escapeHtml(layer || "Layer")}</td>
-                    <td style="padding:12px;vertical-align:top;border:none">${verdict ? `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:10.5px;text-transform:uppercase;font-weight:600;background:${verdictBg};color:${verdictColor}">${escapeHtml(verdict)}</span>` : ""}</td>
-                    <td style="padding:12px;vertical-align:top;color:#6d726f;border:none">${escapeHtml(detail)}</td>
-                  </tr>`;
+                  return `<div class="item-row">
+                    <div class="item-head">
+                      <div class="item-title">${escapeHtml(layer || "Layer")}</div>
+                      ${verdict ? `<span class="status-chip" style="background:${verdictBg};color:${verdictColor}">${escapeHtml(verdict)}</span>` : ""}
+                    </div>
+                    ${detail ? `<div class="item-body">${escapeHtml(detail)}</div>` : ""}
+                  </div>`;
                 })
                 .filter(Boolean)
                 .join("")}
-            </table></div>`
+            </div>`
             : ""
         }
         ${
@@ -1681,13 +1695,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               const sevBg = tone === "critical" ? "#f6e9ec" : tone === "worth_fixing" ? "#f5eeda" : "#eef0eb";
               const sevColor = tone === "critical" ? "#b0566b" : tone === "worth_fixing" ? "#9c7a2f" : "#6d726f";
               const sevLabel = issueSeverityLabel(sev);
-              return `<div class="keep" style="padding:18px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:110px 1fr;gap:16px">
-                <div style="background:${sevBg};color:${sevColor};font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.04em;text-align:center;padding:4px 6px;border-radius:4px;height:fit-content;font-weight:600">${escapeHtml(sevLabel)}</div>
-                <div>
-                  <div style="font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:6px">${escapeHtml(title || "Issue")}</div>
-                  ${finding ? `<div style="font-size:13.5px;color:var(--muted);line-height:1.5">${escapeHtml(finding)}</div>` : ""}
-                  ${fix ? `<div style="font-size:13px;color:var(--ink);line-height:1.5;margin-top:8px"><div style="font-weight:600">Fix:</div><div>${escapeHtml(fix)}</div></div>` : ""}
+              return `<div class="item-row">
+                <div class="item-head">
+                  <div class="item-title">${escapeHtml(title || "Issue")}</div>
+                  ${sevLabel ? `<span class="status-chip" style="background:${sevBg};color:${sevColor}">${escapeHtml(sevLabel)}</span>` : ""}
                 </div>
+                ${finding ? `<div class="item-body">${escapeHtml(finding)}</div>` : ""}
+                ${fix ? `<div style="font-size:13px;color:var(--ink);line-height:1.5;margin-top:8px"><div style="font-weight:600">Fix:</div><div>${escapeHtml(fix)}</div></div>` : ""}
               </div>`;
             })
             .filter(Boolean)
@@ -1701,7 +1715,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const ladderHtml = ladder.length
     ? `
-      <div class="page-card section-sheet">
+      <div class="page-card">
         <h2 class="section-title">What is not on the site?</h2>
         ${ladderIntro ? `<p class="section-lead">${escapeHtml(ladderIntro)}</p>` : ""}
         
@@ -1711,7 +1725,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               const rung = r?.rung ?? idx + 1;
               const heading = String(r?.headline || r?.title || "").trim();
               const body = String(r?.body || "").trim();
-              const example = String(r?.example || "").trim();
               const status = String(r?.status || "").trim();
               
               const statusKey = ladderStatusKey(status);
@@ -1721,14 +1734,15 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                                  statusKey === "partly" ? "#9c7a2f" : "#b0566b";
               const statusLabel = ladderStatusLabel(status);
               
-              return `<div style="padding:18px 0;border-top:1px solid var(--line)">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                  <span style="font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--faint)">${String(rung).padStart(2, '0')}</span>
-                  <span style="font-size:14.5px;font-weight:600;color:var(--ink);flex:1">${escapeHtml(heading)}</span>
-                  <span style="background:${statusBg};color:${statusColor};font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 10px;border-radius:4px;font-weight:600">${escapeHtml(statusLabel)}</span>
+              return `<div class="item-row">
+                <div class="item-head">
+                  <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                    <span style="font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--faint)">${String(rung).padStart(2, '0')}</span>
+                    <span class="item-title">${escapeHtml(heading)}</span>
+                  </div>
+                  <span class="status-chip" style="background:${statusBg};color:${statusColor}">${escapeHtml(statusLabel)}</span>
                 </div>
-                ${example ? `<div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--muted);padding-left:24px;margin-bottom:4px">${escapeHtml(example)}</div>` : ""}
-                ${body ? `<div style="font-size:13.5px;color:var(--muted);line-height:1.5;padding-left:24px">${escapeHtml(body)}</div>` : ""}
+                ${body ? `<div class="item-body" style="padding-left:24px">${escapeHtml(body)}</div>` : ""}
               </div>`;
             })
             .filter(Boolean)
@@ -1740,8 +1754,8 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const tacticsHtml = tactics.length
     ? `
-      <div class="page-card section-sheet">
-        <h2 class="section-title">The plan</h2>
+      <div class="page-card">
+        <h2 class="section-title">The Plan</h2>
         <p class="section-lead">${escapeHtml(planIntro || "A focused route through the map, sequenced for your stage.")}</p>
         ${(() => {
           const uncaptured = formatUncapturedMoneyShare(headroom?.uncaptured_money_share);
@@ -1778,17 +1792,17 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             return `
               ${isNewPhase && phase ? `
                 ${i > 0 ? '<hr class="divider-thin" />' : ''}
-                <div style="padding:0;margin-top:${i > 0 ? '32px' : '20px'}">
+                <div class="phase-label" style="padding:0;margin-top:${i > 0 ? '32px' : '20px'}">
                   <span style="background:var(--green);color:var(--paper);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;padding:6px 12px;border-radius:4px;font-weight:600">${escapeHtml(phase.toUpperCase())}</span>
                 </div>
               ` : ""}
               ${title || body ? `
-                <div class="keep" style="padding:0;border-top:1px solid var(--line);padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:26px 1fr;gap:12px">
-                  <div style="font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;color:var(--green)">${stepNumber}</div>
-                  <div>
-                    ${title ? `<div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${escapeHtml(title)}</div>` : ""}
-                    ${body ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">${escapeHtml(body)}</div>` : ""}
+                <div class="keep item-row" style="padding-top:14px;padding-bottom:14px;border-top:1px solid var(--line)">
+                  <div class="item-head" style="margin-bottom:6px;justify-content:flex-start;gap:8px">
+                    <span style="font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;color:var(--green)">${stepNumber}.</span>
+                    ${title ? `<span class="item-title">${escapeHtml(title)}</span>` : ""}
                   </div>
+                  ${body ? `<div class="item-body" style="padding-left:24px">${escapeHtml(body)}</div>` : ""}
                 </div>
               ` : ""}
             `;
@@ -1809,7 +1823,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         </div>
         <div class="cover-meta">
           ${(website || location) ? `<div>${escapeHtml([stripProtocol(website), location].filter(Boolean).join(" · "))}</div>` : ""}
-          ${phone ? `<div>${escapeHtml(phone)}</div>` : ""}
         </div>
       </div>
       <hr class="divider-thick" />
@@ -1832,8 +1845,9 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               </div>
               ${
                 hero.value != null && Number.isFinite(Number(hero.value))
-                  ? `<div style="display:flex;gap:2px;height:12px;margin:0 0 16px;background:var(--line);border-radius:2px;overflow:hidden">
+                  ? `<div style="display:flex;height:12px;margin:0 0 16px;background:var(--line);border-radius:2px;overflow:hidden">
                       <div style="flex:${Math.max(Math.round(Number(hero.value) * 100), 1)};background:var(--faint)"></div>
+                      <div class="bar-gap" style="background:var(--line)"></div>
                       <div style="flex:${hero.counter_value != null && Number.isFinite(Number(hero.counter_value)) ? Math.max(Math.round(Number(hero.counter_value) * 100), 1) : 1};background:var(--green)"></div>
                     </div>`
                   : ""
@@ -1854,7 +1868,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   // Page 2: What SEO Can Do
   const page2Html = (tierLabel || tierReason) ? `
-    <div class="page-card section-sheet">
+    <div class="page-card">
       <h2 class="section-title">What SEO can do for you</h2>
       ${tierReason ? `<p class="section-lead">${escapeHtml(tierReason)}</p>` : ""}
       
@@ -2969,7 +2983,9 @@ export async function POST(request: NextRequest) {
         : {
             format: "Letter",
             printBackground: true,
-            margin: isSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
+            margin: isWebsiteSnapshotTemplate
+              ? { top: "0", right: "0", bottom: "0", left: "0" }
+              : isSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
               ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
               : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
             preferCSSPageSize: true,

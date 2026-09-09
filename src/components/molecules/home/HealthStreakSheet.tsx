@@ -17,7 +17,6 @@ import {
 } from "@/hooks/use-health-status"
 import {
   formatHealthDate,
-  HEALTH_LABEL,
   HealthDailyMetrics,
   HealthSignalPill,
   HealthTrendIndicator,
@@ -41,7 +40,6 @@ export function HealthStreakSheet({
   const streak = query.data?.current_streak ?? status.current_streak ?? null
   const days = query.data?.days ?? []
   const color = streak?.color ?? status.health_color
-  const label = color ? HEALTH_LABEL[color] : "Signal"
   const isStale = days.some(day => day.is_stale) || status.is_stale
 
   return (
@@ -49,21 +47,12 @@ export function HealthStreakSheet({
       <SheetContent className="w-full gap-0 p-0 sm:max-w-[480px]">
         <SheetHeader className="border-b px-5 py-4 pr-12 text-left">
           <SheetTitle className="truncate text-base">{businessName}</SheetTitle>
-          <SheetDescription>Current signal streak and daily details</SheetDescription>
+          <SheetDescription>Current signal streak</SheetDescription>
         </SheetHeader>
 
         {streak && color && (
           <section className="space-y-3 border-b px-5 py-4">
             <HealthSignalPill color={color} streakDays={streak.days} />
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {label} for {streak.days} {streak.days === 1 ? "day" : "days"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatHealthDate(streak.start_date, true)} – {formatHealthDate(streak.end_date, true)}
-                {" · "}data through {formatHealthDate(streak.end_date, true)}
-              </p>
-            </div>
             {isStale && (
               <div className="flex items-center gap-2 text-xs text-amber-700">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -120,14 +109,9 @@ function DailyStreakRow({ day }: { day: HealthStatusRow }) {
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           <HealthTrendIndicator trend={day.trend_arrow} />
           <span>{healthTrendLabel(day.trend_arrow)}</span>
-          <span aria-hidden="true">·</span>
-          <span>{day.confidence ? `${day.confidence} confidence` : "Confidence unavailable"}</span>
         </div>
       </div>
       <HealthDailyMetrics status={day} />
-      {day.reason_text && (
-        <p className="text-xs leading-relaxed text-muted-foreground">{day.reason_text}</p>
-      )}
     </article>
   )
 }

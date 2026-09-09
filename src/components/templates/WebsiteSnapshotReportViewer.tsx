@@ -90,13 +90,6 @@ export function WebsiteSnapshotReportViewer({
   const businessName = meta.business_name || "Business";
   const website = stripUrlProtocol(meta.url || "");
   const location = formatSnapshotLocation(meta.location || "");
-  const phone = (() => {
-    try {
-      return meta.phone ? decodeURIComponent(String(meta.phone)) : "";
-    } catch {
-      return meta.phone || "";
-    }
-  })();
   const reportDate = meta.report_date || "";
   const businessDescription = meta.business_description || "";
   
@@ -324,7 +317,6 @@ export function WebsiteSnapshotReportViewer({
                   {(website || location) && (
                     <div className="break-all">{[website, location].filter(Boolean).join(" · ")}</div>
                   )}
-                  {phone && <div>{phone}</div>}
                 </div>
               </div>
 
@@ -424,7 +416,6 @@ export function WebsiteSnapshotReportViewer({
                     const frameBeat = pageOneFrame?.beats?.[index];
                     const chipTone = frameChipTone(frameBeat?.chip?.tone);
                     const chipText = String(frameBeat?.chip?.text || "").trim();
-                    const ownsDiagnosis = beat.owns_diagnosis === true || frameBeat?.owns_diagnosis === true;
                     const chipStyle =
                       chipTone === "ok"
                         ? { background: COLORS.greenSoft, color: COLORS.green }
@@ -456,18 +447,6 @@ export function WebsiteSnapshotReportViewer({
                           {beat.finding}
                         </div>
                       )}
-                      {beat.so_what && (
-                        <div
-                          className="text-[13px] sm:text-[14px] mt-2 leading-snug"
-                          style={
-                            ownsDiagnosis
-                              ? { color: COLORS.green, fontWeight: 600 }
-                              : { color: COLORS.muted, fontStyle: "italic", fontWeight: 400 }
-                          }
-                        >
-                          {beat.so_what}
-                        </div>
-                      )}
                     </div>
                     );
                 })}
@@ -490,28 +469,17 @@ export function WebsiteSnapshotReportViewer({
                 </h2>
 
                 {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
-                  <div className="mt-6 overflow-x-auto -mx-6 sm:-mx-10 lg:-mx-14 px-6 sm:px-10 lg:px-14">
-                    <table className="w-full text-[12.5px] sm:text-[13.5px] min-w-[600px]">
-                      <thead>
-                        <tr>
-                          <th className="px-0 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            Layer
-                          </th>
-                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            Status
-                          </th>
-                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            What we found
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {underTheHood.rows.map((row, i) => (
-                          <tr key={i} className="border-b" style={{ borderColor: COLORS.hair }}>
-                            <td className="px-0 py-3.5 font-semibold align-top" style={{ color: COLORS.ink }}>{row.layer}</td>
-                            <td className="px-3 py-3.5 align-top">
-                              <span className={cn(
-                                "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                  <div className="mt-6 space-y-0">
+                    {underTheHood.rows.map((row, i) => (
+                      <div key={i} className="py-4 sm:py-4.5 border-t" style={{ borderColor: COLORS.hair }}>
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <div className="font-semibold text-[14px] sm:text-[14.5px] min-w-0" style={{ color: COLORS.ink }}>
+                            {row.layer}
+                          </div>
+                          {row.verdict && (
+                            <span
+                              className={cn(
+                                "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded shrink-0",
                                 row.verdict === "Fine" ? "bg-[#e7efe9]" :
                                 row.verdict === "Gap" ? "bg-[#f5eeda]" :
                                 row.verdict === "Critical" ? "bg-[#f6e9ec]" :
@@ -522,15 +490,19 @@ export function WebsiteSnapshotReportViewer({
                                        row.verdict === "Gap" ? COLORS.amber :
                                        row.verdict === "Critical" ? COLORS.red :
                                        COLORS.muted
-                              }}>
-                                {row.verdict}
-                              </span>
-                            </td>
-                            <td className="px-3 py-3.5 align-top" style={{ color: COLORS.muted }}>{row.detail}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              }}
+                            >
+                              {row.verdict}
+                            </span>
+                          )}
+                        </div>
+                        {row.detail && (
+                          <div className="text-[13px] sm:text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                            {row.detail}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -555,27 +527,29 @@ export function WebsiteSnapshotReportViewer({
                       const finding = String(issue.finding || "").trim();
                       const fix = String(issue.fix || "").trim();
                       return (
-                      <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
-                        <div className={cn(
-                          "font-mono text-[10px] tracking-wider text-center py-1 px-1.5 rounded h-fit leading-snug",
-                          tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
-                          tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
-                          "bg-[#eef0eb] text-gray-600"
-                        )}>
-                          {issueSeverityLabel(issue.severity)}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
-                          {finding && (
-                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
-                          )}
-                          {fix && (
-                            <div className="mt-2">
-                              <div className="text-[13px] font-semibold leading-relaxed" style={{ color: COLORS.ink }}>Fix:</div>
-                              <div className="text-[13px] leading-relaxed" style={{ color: COLORS.ink }}>{fix}</div>
-                            </div>
+                      <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <div className="font-semibold text-[14.5px] min-w-0">{issue.title}</div>
+                          {issue.severity && (
+                            <span className={cn(
+                              "inline-block font-mono text-[10px] tracking-wider py-1 px-1.5 rounded leading-snug shrink-0",
+                              tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
+                              tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
+                              "bg-[#eef0eb] text-gray-600"
+                            )}>
+                              {issueSeverityLabel(issue.severity)}
+                            </span>
                           )}
                         </div>
+                        {finding && (
+                          <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
+                        )}
+                        {fix && (
+                          <div className="mt-2">
+                            <div className="text-[13px] font-semibold leading-relaxed" style={{ color: COLORS.ink }}>Fix:</div>
+                            <div className="text-[13px] leading-relaxed" style={{ color: COLORS.ink }}>{fix}</div>
+                          </div>
+                        )}
                       </div>
                       );
                     })}
@@ -689,7 +663,7 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                           Brand vs non-brand
                         </div>
-                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
+                        <div className="flex gap-0.5 h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper, background: COLORS.paper }}>
                           <div 
                             className="flex items-center justify-center"
                             style={{ 
@@ -727,7 +701,7 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                           Search intent mix
                         </div>
-                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
+                        <div className="flex gap-0.5 h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper, background: COLORS.paper }}>
                           {intentRows.map((row) => {
                             const value = intentMix[row.key];
                             if (value == null || value <= 0) return null;
@@ -897,10 +871,9 @@ export function WebsiteSnapshotReportViewer({
                           </span>
                         </span>
                       </div>
-                      {rung.example && (
-                        <div className="font-mono text-[11px] text-gray-600 pl-0 sm:pl-6 mb-1">{rung.example}</div>
+                      {rung.body && (
+                        <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                       )}
-                      <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                     </div>
                     );
                   })}
@@ -1137,7 +1110,7 @@ export function WebsiteSnapshotReportViewer({
             {tactics.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  The plan
+                  The Plan
                 </h2>
                 <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
                   {planIntro || "A focused route through the map, sequenced for your stage."}

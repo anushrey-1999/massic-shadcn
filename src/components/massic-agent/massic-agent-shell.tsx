@@ -1,802 +1,116 @@
 "use client";
-
-import * as React from "react";
-import { ArrowLeft, ChevronDown, X, Pencil, Check, Bot } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MassicLoader } from "@/components/ui/massic-loader";
-import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
-import { useBusinessStore } from "@/store/business-store";
+import { cn } from "@/lib/utils";
 import { AgentHistorySidebar } from "./agent-history-sidebar";
+import { AgentSearchDialog } from "./agent-search-dialog";
+import { AgentChatsListView } from "./agent-chats-list-view";
 import { AgentChatThread } from "./agent-chat-thread";
 import { AgentComposer } from "./agent-composer";
-import { AgentEmptyState } from "./agent-empty-state";
-import { AgentChatsListView } from "./agent-chats-list-view";
-import { AgentSearchDialog } from "./agent-search-dialog";
-import { AgentArtifactPanel } from "./agent-artifact-panel";
-import { useAgentStream } from "./use-agent-stream";
-import {
-  getThreads,
-  getThreadMessages,
-  getThreadCitations,
-  renameThread,
-  cancelTurn,
-} from "./agent-api";
-import type {
-  AgentConversation,
-  AgentMessage,
-  AgentThread,
-  SpecialistState,
-  WidgetPart,
-} from "./types";
+import { AgentPlanWidget } from "./agent-plan-widget";
+import { AgentPlanPicker } from "./agent-plan-picker";
+import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
+import { allPlanIds, SURFACES } from "./agent-model";
+import { useAgentChat } from "./use-agent-chat";
+import type { AgentConversation, ResourceRef } from "./types";
+import styles from "./agent.module.css";
 
-const STORED_ANNOTATION_PREFIX = /\n\[(?:viewing|intent)\] /;
-const DEFAULT_ARTIFACT_PANEL_WIDTH = 520;
-const MIN_ARTIFACT_PANEL_WIDTH = 360;
-const MAX_ARTIFACT_PANEL_WIDTH = 760;
-const MIN_CHAT_PANEL_WIDTH = 420;
-
-function displayUserMessageContent(content: string): string {
-  const idx = content.search(STORED_ANNOTATION_PREFIX);
-  return (idx === -1 ? content : content.slice(0, idx)).trimEnd();
+export function MassicAgentShell({ businessId }: { businessId: string }) {
+  return <AgentWorkspace key={businessId} businessId={businessId} />;
 }
-
-function widgetPartsFromMetadata(metadata?: Record<string, unknown>): WidgetPart[] {
-  const parts = metadata?.parts;
-  if (!Array.isArray(parts)) return [];
-
-  return parts.flatMap((part): WidgetPart[] => {
-    if (!part || typeof part !== "object") return [];
-    const raw = part as Record<string, unknown>;
-    const resource = raw.resource as Record<string, unknown> | undefined;
-    if (raw.kind !== "widget" || !resource?.type || resource.id == null) return [];
-    const source = (raw.source ?? {}) as Record<string, unknown>;
-    return [{
-      kind: "widget",
-      widget: String(raw.widget ?? ""),
-      schema_version: Number(raw.schema_version ?? 1),
-      source: {
-        tool_call_id: String(source.tool_call_id ?? ""),
-        tool_name: String(source.tool_name ?? ""),
-      },
-      resource: {
-        type: String(resource.type),
-        id: resource.id as string | number,
-      },
-    }];
-  });
-}
-
-function threadToConversation(thread: AgentThread): AgentConversation {
-  return {
-    id: thread.thread_id,
-    title: thread.title ?? "New chat",
-    messages: [],
-    updatedAt: new Date(thread.updated_at).getTime(),
+function AgentWorkspace({ businessId }: { businessId: string }) {
+  const chat = useAgentChat(businessId);
+  const user = useAuthStore(s => s.user);
+  const qc = useQueryClient();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileHistory, setMobileHistory] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [view, setView] = useState<"chat" | "chats">("chat");
+  const [planPicker, setPlanPicker] = useState(false);
+  const [planVisible, setPlanVisible] = useState(true);
+  const [width, setWidth] = useState(940);
+  const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(null);
+  const [title, setTitle] = useState("");
+  const splitRef = useRef<HTMLDivElement>(null);
+  const cleanupResize = useRef<(() => void) | null>(null);
+  const planRef = chat.draft.resource;
+  const planQuery = useQuery({ queryKey: agentKeys.plan(businessId, planRef?.id ?? ""), queryFn: ({ signal }) => getPlan(businessId, planRef!.id, signal), enabled: !!planRef, retry: false });
+  const expectedPlanType = planRef?.type === "webpage_plan" ? "webpages" : "social_channels";
+  const plan = planQuery.data && (!planQuery.data.plan_type || planQuery.data.plan_type === expectedPlanType) ? planQuery.data : undefined;
+  const planError = planQuery.isError ? errorMessage(planQuery.error) : planQuery.data && !plan ? "This plan does not match the conversation mode." : null;
+  const ids = plan && planRef ? allPlanIds(plan.plan_json ?? [], planRef.type) : [];
+  useEffect(() => {
+    if (!plan) return;
+    const filtered = chat.draft.selectedIds.filter(id => ids.includes(id));
+    if (filtered.length !== chat.draft.selectedIds.length) chat.updateDraft({ selectedIds: filtered });
+  }, [plan]);
+  const rename = useMutation({ mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(businessId, id, title), onSuccess: (result) => { chat.updateTitle(result.thread_id, result.title ?? title.trim()); setRenameTarget(null); void qc.invalidateQueries({ queryKey: agentKeys.threads(businessId) }); } });
+  useEffect(() => { const key = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(v => !v); } }; window.addEventListener("keydown", key); return () => { window.removeEventListener("keydown", key); cleanupResize.current?.(); }; }, []);
+  useEffect(() => { setPlanVisible(true); }, [chat.activeKey, planRef?.id]);
+  const select = (id: string) => { chat.selectChat(id); setView("chat"); setMobileHistory(false); };
+  const newChat = () => { chat.newChat(); setView("chat"); setMobileHistory(false); };
+  const openPlan = (r: ResourceRef) => { chat.openPlan(r); setView("chat"); setPlanVisible(true); };
+  const openRename = (conversation: AgentConversation) => { setRenameTarget(conversation); setTitle(conversation.title); rename.reset(); };
+  const streaming = chat.runningKey === chat.activeKey;
+  const busyElsewhere = !!chat.runningKey && !streaming;
+  const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
+  const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
+  const historyProps = {
+    conversations: chat.conversations, activeId: chat.activeKey, onSelect: select, onRename: openRename, onNewChat: newChat, onSearch: () => setSearch(true), onChats: () => { setView("chats"); setMobileHistory(false); },
+    loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
+    hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, userName: user?.username || user?.email || "You",
   };
-}
-
-function threadMessageToAgentMessage(tm: {
-  turn_id: string;
-  role: "user" | "assistant";
-  content: string;
-  status: "complete" | "cancelled" | "error";
-  metadata?: Record<string, unknown>;
-  created_at: string;
-}): AgentMessage {
-  return {
-    // turn_id is shared between user + assistant in the same turn — append role for a unique key
-    id: `${tm.turn_id}-${tm.role}`,
-    turnId: tm.turn_id,
-    role: tm.role,
-    content: tm.role === "user" ? displayUserMessageContent(tm.content) : tm.content,
-    widgetParts: tm.role === "assistant" ? widgetPartsFromMetadata(tm.metadata) : undefined,
-    createdAt: new Date(tm.created_at).getTime(),
-    status: tm.status,
-    partial: tm.status === "cancelled",
-  };
-}
-
-type Props = {
-  businessId?: string;
-};
-
-export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const storeBusinessId = useBusinessStore(
-    (s) => s.profileDataByUniqueID?.UniqueId ?? ""
-  );
-  const businessId = businessIdProp || storeBusinessId;
-
-  const [conversations, setConversations] = React.useState<AgentConversation[]>([]);
-  const [activeId, setActiveId] = React.useState<string | null>(null);
-  const [input, setInput] = React.useState("");
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
-  const [searchOpen, setSearchOpen] = React.useState(false);
-  const [view, setView] = React.useState<"chat" | "chats">("chat");
-  const [messagesLoading, setMessagesLoading] = React.useState(false);
-  const [threadCursor, setThreadCursor] = React.useState<string | null>(null);
-  const [loadingMoreMessages, setLoadingMoreMessages] = React.useState(false);
-  const [activeWidgetPart, setActiveWidgetPart] = React.useState<WidgetPart | null>(null);
-  const [artifactPanelWidth, setArtifactPanelWidth] = React.useState(DEFAULT_ARTIFACT_PANEL_WIDTH);
-  const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
-
-  // Rename UI state
-  const [renamingTitle, setRenamingTitle] = React.useState<string | null>(null);
-  const [renameValue, setRenameValue] = React.useState("");
-  const renameInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  // Track which thread we're currently streaming into
-  const streamingConvIdRef = React.useRef<string | null>(null);
-  const streamingMsgIdRef = React.useRef<string | null>(null);
-
-  const agentStream = useAgentStream(businessId);
-
-  // Load thread list on mount / when businessId changes
-  React.useEffect(() => {
-    if (!businessId) return;
-    getThreads(businessId)
-      .then((res) => {
-        const convs = (res.threads ?? []).map(threadToConversation);
-        setConversations(convs);
-      })
-      .catch((err) => {
-        console.error("[agent] getThreads failed:", err);
-        toast.error("Failed to load conversations");
-      });
-  }, [businessId]);
-
-  // Keyboard shortcut for search
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setSearchOpen((o) => !o);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  // Focus rename input when entering rename mode
-  React.useEffect(() => {
-    if (renamingTitle !== null) {
-      setTimeout(() => renameInputRef.current?.focus(), 50);
-    }
-  }, [renamingTitle]);
-
-  const activeConversation = React.useMemo(
-    () => conversations.find((c) => c.id === activeId) ?? null,
-    [conversations, activeId]
-  );
-
-  // Only show the empty/new-chat state when we're not in the middle of loading
-  // an existing thread's messages. While loading, show a spinner instead.
-  const showEmptyState =
-    !messagesLoading &&
-    (!activeConversation || activeConversation.messages.length === 0);
-
-  const updateConversation = React.useCallback(
-    (id: string, updater: (c: AgentConversation) => AgentConversation) => {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === id ? updater(c) : c))
-      );
-    },
-    []
-  );
-
-  const patchStreamingMessage = React.useCallback(
-    (patcher: (m: AgentMessage) => AgentMessage) => {
-      const convId = streamingConvIdRef.current;
-      const msgId = streamingMsgIdRef.current;
-      if (!convId || !msgId) return;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id !== convId
-            ? c
-            : {
-                ...c,
-                updatedAt: Date.now(),
-                messages: c.messages.map((m) =>
-                  m.id === msgId ? patcher(m) : m
-                ),
-              }
-        )
-      );
-    },
-    []
-  );
-
-  const loadCitationsForMessages = React.useCallback(
-    async (threadId: string, messages: AgentMessage[]) => {
-      if (!businessId) return;
-      const turnIds = Array.from(
-        new Set(
-          messages
-            .filter((message) => message.role === "assistant" && message.turnId)
-            .map((message) => message.turnId!)
-        )
-      );
-      if (turnIds.length === 0) return;
-
-      try {
-        const citationsByTurn = await getThreadCitations(businessId, threadId, turnIds);
-        updateConversation(threadId, (conversation) => ({
-          ...conversation,
-          messages: conversation.messages.map((message) => {
-            if (!message.turnId || !(message.turnId in citationsByTurn)) return message;
-            return {
-              ...message,
-              citations: citationsByTurn[message.turnId] ?? undefined,
-            };
-          }),
-        }));
-      } catch (err) {
-        console.warn("[agent] getThreadCitations failed:", err);
-      }
-    },
-    [businessId, updateConversation]
-  );
-
-  const handleNewChat = () => {
-    agentStream.cancel();
-    setActiveId(null);
-    setInput("");
-    setView("chat");
-    setThreadCursor(null);
-    setRenamingTitle(null);
-    setActiveWidgetPart(null);
-  };
-
-  const handleSelect = async (id: string) => {
-    if (id === activeId) {
-      setView("chat");
-      return;
-    }
-    agentStream.cancel();
-    setActiveId(id);
-    setView("chat");
-    setThreadCursor(null);
-    setRenamingTitle(null);
-    setActiveWidgetPart(null);
-
-    if (!businessId) return;
-    setMessagesLoading(true);
-    try {
-      const res = await getThreadMessages(businessId, id);
-      const msgs = [...res.messages]
-        .reverse()
-        .map(threadMessageToAgentMessage);
-      setThreadCursor(res.next_cursor);
-      updateConversation(id, (c) => ({ ...c, messages: msgs }));
-      void loadCitationsForMessages(id, msgs);
-    } catch (err) {
-      const code = err instanceof Error ? err.message : "";
-      if (code === "thread_not_found") {
-        handleNewChat();
-      } else if (code === "service_unavailable") {
-        toast.error("Agent service temporarily unavailable.");
-      } else {
-        const detail = code ? ` (${code})` : "";
-        toast.error(`Failed to load messages${detail}`);
-        console.error("[agent] getThreadMessages failed:", err);
-      }
-    } finally {
-      setMessagesLoading(false);
-    }
-  };
-
-  const handleLoadOlderMessages = React.useCallback(async () => {
-    if (!activeId || !businessId || !threadCursor || loadingMoreMessages) return;
-    setLoadingMoreMessages(true);
-    try {
-      const res = await getThreadMessages(businessId, activeId, threadCursor);
-      const olderMsgs = [...res.messages]
-        .reverse()
-        .map(threadMessageToAgentMessage);
-      setThreadCursor(res.next_cursor);
-      updateConversation(activeId, (c) => ({
-        ...c,
-        messages: [...olderMsgs, ...c.messages],
-      }));
-      void loadCitationsForMessages(activeId, olderMsgs);
-    } catch {
-      toast.error("Failed to load older messages");
-    } finally {
-      setLoadingMoreMessages(false);
-    }
-  }, [activeId, businessId, threadCursor, loadingMoreMessages, updateConversation]);
-
-  const handleDelete = (id: string) => {
-    agentStream.cancel();
-    setConversations((prev) => prev.filter((c) => c.id !== id));
-    if (activeId === id) setActiveId(null);
-    if (activeId === id) setActiveWidgetPart(null);
-  };
-
-  const handleStop = async () => {
-    const turnId = agentStream.getCurrentTurnId();
-    const threadId = agentStream.getCurrentThreadId();
-    agentStream.cancel();
-    if (businessId && threadId && turnId) {
-      await cancelTurn(businessId, threadId, turnId).catch(() => {});
-    }
-  };
-
-  const handleSend = (overrideText?: string) => {
-    const text = (overrideText ?? input).trim();
-    if (!text) return;
-    if (agentStream.streamPhase !== null) return;
-    if (!businessId) {
-      toast.error("No business selected");
-      return;
-    }
-
-    setInput("");
-
-    const now = Date.now();
-    const assistantMsgId = `a-${now}`;
-    const userMsg: AgentMessage = {
-      id: `u-${now}`,
-      role: "user",
-      content: text,
-      createdAt: now,
-    };
-    const assistantMsg: AgentMessage = {
-      id: assistantMsgId,
-      role: "assistant",
-      content: "",
-      thinking: "",
-      actions: [],
-      widgetParts: [],
-      createdAt: now + 1,
-    };
-
-    let conversationId = activeId;
-
-    if (!conversationId) {
-      const tempId = `temp-${now}`;
-      conversationId = tempId;
-      const newConv: AgentConversation = {
-        id: tempId,
-        title: "New chat",
-        updatedAt: now,
-        messages: [userMsg, assistantMsg],
-      };
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveId(tempId);
-    } else {
-      updateConversation(conversationId, (c) => ({
-        ...c,
-        updatedAt: now,
-        messages: [...c.messages, userMsg, assistantMsg],
-      }));
-    }
-
-    streamingConvIdRef.current = conversationId;
-    streamingMsgIdRef.current = assistantMsgId;
-
-    agentStream.send(
-      { message: text, threadId: activeId },
-      {
-        onThreadMeta: (threadId, turnId, isNew, title) => {
-          const prevTempId = streamingConvIdRef.current;
-          patchStreamingMessage((m) => ({ ...m, turnId }));
-          streamingConvIdRef.current = threadId;
-
-          if (isNew && prevTempId !== threadId) {
-            // Replace temp conversation with real thread_id
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === prevTempId
-                  ? {
-                      ...c,
-                      id: threadId,
-                      title: title ?? c.title,
-                      updatedAt: Date.now(),
-                    }
-                  : c
-              )
-            );
-            setActiveId(threadId);
-          } else if (title) {
-            updateConversation(threadId, (c) => ({ ...c, title }));
-          }
-        },
-
-        onThreadTitle: (threadId, title) => {
-          setConversations((prev) =>
-            prev.map((c) => (c.id === threadId ? { ...c, title } : c))
-          );
-        },
-
-        onMessagePatch: patchStreamingMessage,
-
-        onMessageCommit: (content, partial) => {
-          patchStreamingMessage((m) => ({
-            ...m,
-            content,
-            partial,
-            status: partial ? "cancelled" : "complete",
-          }));
-        },
-
-        onCitations: (turnId, segments) => {
-          patchStreamingMessage((m) => ({
-            ...m,
-            turnId: m.turnId ?? turnId,
-            citations: segments,
-          }));
-        },
-
-        onToolCall: (toolName, widgetPart) => {
-          const labels: Record<string, string> = {
-            search_knowledge: "Searched knowledge base",
-            get_business_profile: "Loaded business profile",
-            get_strategy_statuses: "Checked strategy status",
-            get_pages_details: "Fetched page details",
-            get_webpage_plan: "Read content plan",
-            recall_memory: "Retrieved memories",
-            write_memory: "Saved memory",
-            forget_memory: "Removed memory",
-            save_plan: "Saved plan",
-            activate_plan: "Activated plan",
-          };
-          const label = labels[toolName] ?? toolName.replace(/_/g, " ");
-          patchStreamingMessage((m) => ({
-            ...m,
-            thinking: (m.thinking ? m.thinking + "\n\n" : "") + label,
-            widgetParts: widgetPart
-              ? [...(m.widgetParts ?? []), widgetPart]
-              : m.widgetParts,
-          }));
-        },
-
-        onWidgetParts: (parts) => {
-          patchStreamingMessage((m) => ({
-            ...m,
-            widgetParts: parts,
-          }));
-        },
-
-        onTurnEnd: () => {
-          streamingConvIdRef.current = null;
-          streamingMsgIdRef.current = null;
-        },
-
-        onCancelled: () => {
-          patchStreamingMessage((m) => ({
-            ...m,
-            partial: true,
-            status: "cancelled",
-          }));
-          streamingConvIdRef.current = null;
-          streamingMsgIdRef.current = null;
-        },
-
-        onError: (code, message) => {
-          patchStreamingMessage((m) => ({
-            ...m,
-            status: "error",
-          }));
-          streamingConvIdRef.current = null;
-          streamingMsgIdRef.current = null;
-          handleStreamError(code, message);
-        },
-      }
-    );
-  };
-
-  function handleStreamError(code: string, message: string) {
-    switch (code) {
-      case "thread_not_found":
-        handleNewChat();
-        toast.error("Thread not found. Starting a new chat.");
-        break;
-      case "credit_exhausted":
-        toast.error("Insufficient credits to continue.");
-        break;
-      case "turn_timeout":
-        toast.error("Request took too long — please try again.");
-        break;
-      case "tool_limit_reached":
-      case "max_iterations_reached":
-        toast.error("Agent hit a limit — try a simpler request.");
-        break;
-      case "redis_unavailable":
-      case "storage_unavailable":
-        toast.error("Service temporarily unavailable. Please try again.");
-        break;
-      default:
-        toast.error(message || "Something went wrong. Please try again.");
-    }
-  }
-
-  const handleRenameStart = () => {
-    if (!activeConversation) return;
-    setRenamingTitle(activeConversation.id);
-    setRenameValue(activeConversation.title);
-  };
-
-  const handleRenameConfirm = async () => {
-    if (!renamingTitle || !businessId) {
-      setRenamingTitle(null);
-      return;
-    }
-    const trimmed = renameValue.trim();
-    if (!trimmed) {
-      toast.error("Title cannot be empty");
-      return;
-    }
-    try {
-      const updated = await renameThread(businessId, renamingTitle, trimmed);
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === renamingTitle ? { ...c, title: updated.title ?? trimmed } : c
-        )
-      );
-    } catch (err) {
-      const code = err instanceof Error ? err.message : "";
-      if (code === "invalid_title") {
-        toast.error("Invalid title — must be non-empty and under 200 characters.");
-      } else if (code === "thread_not_found") {
-        toast.error("Thread not found.");
-      } else {
-        toast.error("Failed to rename thread.");
-      }
-    } finally {
-      setRenamingTitle(null);
-    }
-  };
-
-  const handleRenameCancel = () => {
-    setRenamingTitle(null);
-  };
-
-  const handleArtifactResizeStart = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-
-      const containerWidth = splitContainerRef.current?.getBoundingClientRect().width;
-      const maxWidth = containerWidth
-        ? Math.max(
-            MIN_ARTIFACT_PANEL_WIDTH,
-            Math.min(MAX_ARTIFACT_PANEL_WIDTH, containerWidth - MIN_CHAT_PANEL_WIDTH)
-          )
-        : MAX_ARTIFACT_PANEL_WIDTH;
-      const startX = event.clientX;
-      const startWidth = artifactPanelWidth;
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        const nextWidth = startWidth - (moveEvent.clientX - startX);
-        setArtifactPanelWidth(
-          Math.min(Math.max(nextWidth, MIN_ARTIFACT_PANEL_WIDTH), maxWidth)
-        );
-      };
-
-      const handlePointerUp = () => {
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", handlePointerUp);
-      };
-
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", handlePointerUp, { once: true });
-    },
-    [artifactPanelWidth]
-  );
-
-  const userName = user?.username || user?.email;
-  const isStreaming = agentStream.streamPhase !== null;
-  const backHref = businessId ? `/business/${businessId}/analytics` : "/";
-
-  return (
-    <div className="flex h-full w-full overflow-hidden bg-background">
-      <div
-        className={cn(
-          "shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
-          sidebarOpen ? "w-[240px]" : "w-12"
-        )}
-      >
-        <AgentHistorySidebar
-          conversations={conversations}
-          activeId={activeId}
-          activeView={view}
-          isCollapsed={!sidebarOpen}
-          specialistState={agentStream.specialistState}
-          onSelect={handleSelect}
-          onNewChat={handleNewChat}
-          onDelete={handleDelete}
-          onSearch={() => setSearchOpen(true)}
-          onCollapse={() => setSidebarOpen(false)}
-          onExpand={() => setSidebarOpen(true)}
-          onChatsView={() => setView("chats")}
-        />
-      </div>
-
-      <AgentSearchDialog
-        open={searchOpen}
-        onOpenChange={setSearchOpen}
-        conversations={conversations}
-        onSelect={handleSelect}
-      />
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="h-14 shrink-0 px-4">
-          <div className="mr-auto grid h-full w-full max-w-[1224px] grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(backHref)}
-              className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-
-            {!showEmptyState && view === "chat" ? (
-              renamingTitle === activeConversation?.id ? (
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <input
-                    ref={renameInputRef}
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRenameConfirm();
-                      if (e.key === "Escape") handleRenameCancel();
-                    }}
-                    className="min-w-0 max-w-[280px] rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground outline-none focus:border-general-primary"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleRenameConfirm}
-                    aria-label="Confirm rename"
-                    className="h-7 w-7 text-general-primary"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={handleRenameCancel}
-                    aria-label="Cancel rename"
-                    className="h-7 w-7 text-muted-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleRenameStart}
-                  className="group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-muted/60"
-                >
-                  <span className="max-w-[320px] truncate">
-                    {activeConversation?.title ?? "New chat"}
-                  </span>
-                  <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </button>
-              )
-            ) : null}
+  const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation}
+    onSurface={surface => { if (chat.conversation) chat.newChat(surface); else chat.updateDraft({ surface, resource: null, selectedIds: [] }); setView("chat"); }}
+    onClearMode={() => { if (chat.conversation) chat.newChat(); else chat.updateDraft({ surface: "global", resource: null, selectedIds: [] }); }}
+    resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}
+    onOpenPlans={() => setPlanPicker(true)} onShowPlan={() => setPlanVisible(true)} onSend={(intent, override) => { void chat.send(intent, override); }} onStop={() => { void chat.stop(); }}
+    streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.activeKey} />;
+  const resize = (value: number) => setWidth(Math.max(560, Math.min(value, 1050, (splitRef.current?.clientWidth ?? 1510) - 460)));
+  return <div className={cn(styles.workspace, "flex h-dvh w-full overflow-hidden bg-background")}>
+    <div className={cn("hidden shrink-0 overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block", collapsed ? "w-12" : "w-[240px]")}><AgentHistorySidebar {...historyProps} collapsed={collapsed} onCollapse={() => setCollapsed(v => !v)} /></div>
+    <Sheet open={mobileHistory} onOpenChange={setMobileHistory}><SheetContent side="left" showClose={false} className="w-[280px] gap-0 p-0"><SheetTitle className="sr-only">Chat history</SheetTitle><SheetDescription className="sr-only">Choose or start a conversation</SheetDescription><AgentHistorySidebar {...historyProps} collapsed={false} onCollapse={() => setMobileHistory(false)} /></SheetContent></Sheet>
+    <AgentSearchDialog open={search} onOpenChange={setSearch} conversations={chat.conversations} onSelect={select} />
+    <Dialog open={!!renameTarget} onOpenChange={open => { if (!open) setRenameTarget(null); }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Rename chat</DialogTitle><DialogDescription>Use a short title that will be easy to find later.</DialogDescription></DialogHeader><form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); if (renameTarget && title.trim() && !rename.isPending) rename.mutate({ id: renameTarget.id, title }); }}><Input aria-label="Conversation title" autoFocus value={title} maxLength={200} onChange={e => setTitle(e.target.value)} /><Button type="submit" disabled={rename.isPending || !title.trim()}>{rename.isPending ? "Saving…" : "Save"}</Button></form>{rename.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(rename.error)}</p>}</DialogContent></Dialog>
+    <main className="flex min-w-0 flex-1 flex-col">
+      <header className="flex h-12 shrink-0 items-center px-3 md:hidden" aria-label="Agent workspace toolbar">
+        <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Open history" onClick={() => setMobileHistory(true)}><Menu className="h-4 w-4" /></Button>
+      </header>
+      <div ref={splitRef} className="relative flex min-h-0 w-full flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
+            {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicLoader /></div>
+              : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
+              : showEmpty ? <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-8 sm:px-6"><div className="mb-6 flex items-center gap-2.5"><MassicLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div><div className="w-full max-w-2xl">{composer}</div></div>
+              : <AgentChatThread key={chat.activeKey} messages={chat.messages} streaming={streaming} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
+            {!showEmpty && <div className="shrink-0 px-4 pb-4"><div className="mx-auto w-full max-w-3xl">{composer}</div></div>}
+            <div className="mx-auto w-full max-w-3xl px-4 pb-3">
+              {chat.error && <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/5 p-3 text-sm text-destructive"><p className="flex-1">{chat.error}</p><button aria-label="Dismiss error" onClick={() => chat.setError(null)}><X className="h-4 w-4" /></button></div>}
+              {busyElsewhere && <p role="status" className="text-xs text-muted-foreground">A response is running in another chat. <button className="cursor-pointer underline" onClick={() => select(chat.runningKey!)}>Open that chat</button> to view or stop it.</p>}
+              {!chat.knownThread && !chat.history.threads.isLoading && !chat.history.threads.isFetchingNextPage && <p role="alert" className="text-sm text-destructive">This conversation could not be found for this business. <button onClick={newChat} className="underline">Start a new chat</button>.</p>}
+              {chat.creditWarning && <p className="text-xs text-muted-foreground">Agent credits are running low.</p>}
+              {chat.history.citations.isError && <p className="text-xs text-muted-foreground">Sources could not be loaded. <button onClick={() => chat.history.citations.refetch()} className="underline">Retry sources</button></p>}
             </div>
-
-            <div className="flex justify-center gap-2">
-            {agentStream.specialistState === "webpages" ? (
-              <div className="flex items-center gap-1.5 rounded-full border border-general-primary/30 bg-general-primary/8 px-2.5 py-1 text-xs font-medium text-general-primary">
-                <Bot className="h-3 w-3" />
-                <span>Webpages agent</span>
-              </div>
-            ) : null}
-            {/*
-            <div className="hidden items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground sm:flex">
-              <span>Free plan</span>
-              <span className="text-general-primary">·</span>
-              <button
-                type="button"
-                className="font-medium text-general-primary hover:underline"
-              >
-                Upgrade
-              </button>
-              <button
-                type="button"
-                aria-label="Dismiss"
-                className="ml-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-            */}
-            </div>
-
-            <div />
-          </div>
-        </header>
-
-        <div
-          ref={splitContainerRef}
-          className="mr-auto flex min-h-0 w-full max-w-[1224px] flex-1"
-        >
-          <div className={cn("flex min-w-0 flex-1 flex-col")}>
-            {view === "chats" ? (
-              <AgentChatsListView
-                conversations={conversations}
-                onSelect={handleSelect}
-                onNewChat={handleNewChat}
-              />
-            ) : messagesLoading ? (
-              <div className="flex flex-1 items-center justify-center">
-                <MassicLoader size={36} animate />
-              </div>
-            ) : showEmptyState ? (
-              <AgentEmptyState
-                value={input}
-                onChange={setInput}
-                onSend={handleSend}
-                onStop={handleStop}
-                isStreaming={isStreaming}
-                userName={userName ?? undefined}
-              />
-            ) : (
-              <>
-                <AgentChatThread
-                  messages={activeConversation?.messages ?? []}
-                  streamPhase={agentStream.streamPhase}
-                  activeToolName={agentStream.activeToolName}
-                  align={activeWidgetPart ? "left" : "center"}
-                  hasMore={!!threadCursor}
-                  loadingMore={loadingMoreMessages}
-                  onLoadMore={handleLoadOlderMessages}
-                  onOpenWidget={setActiveWidgetPart}
-                  onRegenerate={undefined}
-                />
-
-                <div className="shrink-0 px-4 pb-4">
-                  <div
-                    className={cn(
-                      "w-full max-w-3xl",
-                      !activeWidgetPart && "mx-auto"
-                    )}
-                  >
-                    <AgentComposer
-                      value={input}
-                      onChange={setInput}
-                      onSend={() => handleSend()}
-                      onStop={handleStop}
-                      isStreaming={isStreaming}
-                    />
-                    <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                      Massic is AI and can make mistakes. Please double-check
-                      responses.
-                    </p>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {view === "chat" && activeWidgetPart ? (
-            <AgentArtifactPanel
-              businessId={businessId}
-              part={activeWidgetPart}
-              onClose={() => setActiveWidgetPart(null)}
-              width={artifactPanelWidth}
-              onResizeStart={handleArtifactResizeStart}
-            />
-          ) : null}
+          </>}
         </div>
-      </main>
-    </div>
-  );
+        {view === "chat" && planRef && planVisible && <aside className={cn(styles.planPanel, "flex min-h-0 flex-col border-l border-border bg-background")} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>
+          <div role="separator" tabIndex={0} aria-label="Resize plan panel" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={560} aria-valuemax={1050}
+            className="absolute -left-1 top-0 hidden h-full w-2 cursor-col-resize touch-none hover:bg-general-primary/20 focus-visible:bg-general-primary/20 xl:block"
+            onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); resize(width + (e.key === "ArrowLeft" ? 20 : -20)); } }}
+            onPointerDown={e => { e.preventDefault(); const start = e.clientX; const startWidth = width; const move = (event: PointerEvent) => resize(startWidth + start - event.clientX); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); cleanupResize.current = null; }; cleanupResize.current?.(); cleanupResize.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }} />
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4"><div><p className="text-xs text-muted-foreground">{SURFACES[chat.surface].label} plan</p><h2 className="text-sm font-medium">Plan #{planRef.id}</h2></div><div className="flex gap-1"><Button variant="ghost" size="sm" className="xl:hidden" onClick={() => setPlanVisible(false)}>Back to chat</Button><Button variant="ghost" size="icon-sm" aria-label="Close plan and clear selection" onClick={() => chat.updateDraft({ resource: null, selectedIds: [] })}><X className="h-4 w-4" /></Button></div></div>
+          <div className="flex min-h-0 flex-1 flex-col p-4">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicLoader size={20} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} /> : null}</div>
+          <div className="border-t border-border p-3 xl:hidden"><Button variant="outline" className="w-full" onClick={() => setPlanVisible(false)}>Chat about {chat.draft.selectedIds.length ? `${chat.draft.selectedIds.length} selected items` : "this plan"}</Button></div>
+        </aside>}
+      </div>
+    </main>
+    {chat.surface !== "global" && <AgentPlanPicker businessId={businessId} type={SURFACES[chat.surface].resource!} open={planPicker} onOpenChange={setPlanPicker} onPick={openPlan} />}
+  </div>;
 }

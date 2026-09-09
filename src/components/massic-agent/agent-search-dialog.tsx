@@ -58,10 +58,10 @@ export function AgentSearchDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Search"
-      description="Search your chats"
+      description="Search loaded conversations"
       className="top-[15vh] max-w-2xl translate-y-0"
     >
-      <CommandInput placeholder="Search chats and projects" />
+      <CommandInput placeholder="Search loaded chats" />
       <CommandList className="max-h-[480px]">
         <CommandEmpty>No chats found.</CommandEmpty>
         <CommandGroup>

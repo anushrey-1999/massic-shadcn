@@ -9,8 +9,8 @@ export function renderLightMarkdown(
   text: string,
   inlinePatterns: LightMarkdownInlinePattern[] = []
 ): React.ReactNode {
-  const esc = (s: string) =>
-    s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+  // React escapes text nodes; pre-escaping would show literal HTML entities.
+  const esc = (s: string) => s;
 
   const blocks = splitFencedBlocks(text);
 
@@ -108,8 +108,8 @@ export function renderLightMarkdown(
 
     const patterns: LightMarkdownInlinePattern[] = [
       ...inlinePatterns,
-      { re: /\*\*(.+?)\*\*/, wrap: (m) => <strong>{m[1]}</strong> },
-      { re: /\*(.+?)\*/, wrap: (m) => <em>{m[1]}</em> },
+      { re: /\*\*(.+?)\*\*/, wrap: (m) => <strong>{transformInline(m[1])}</strong> },
+      { re: /\*(.+?)\*/, wrap: (m) => <em>{transformInline(m[1])}</em> },
       { re: /`([^`]+?)`/, wrap: (m) => <code>{m[1]}</code> },
       {
         re: /\[(.+?)\]\((https?:[^\s)]+)\)/,

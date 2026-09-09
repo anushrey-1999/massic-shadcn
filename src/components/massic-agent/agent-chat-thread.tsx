@@ -1,137 +1,22 @@
 "use client";
-
-import * as React from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
-import { MassicLoader } from "@/components/ui/massic-loader";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { AgentMessageView } from "./agent-message";
-import type { AgentMessage, StreamPhase, WidgetPart } from "./types";
-
-type Props = {
-  messages: AgentMessage[];
-  streamPhase: StreamPhase;
-  activeToolName?: string | null;
-  align?: "center" | "left";
-  messagesLoading?: boolean;
-  hasMore?: boolean;
-  loadingMore?: boolean;
-  onLoadMore?: () => void;
-  onOpenWidget?: (part: WidgetPart) => void;
-  onRegenerate?: () => void;
-};
-
-export function AgentChatThread({
-  messages,
-  streamPhase,
-  activeToolName,
-  align = "center",
-  messagesLoading,
-  hasMore,
-  loadingMore,
-  onLoadMore,
-  onOpenWidget,
-  onRegenerate,
-}: Props) {
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const bottomRef = React.useRef<HTMLDivElement | null>(null);
-  const [showScrollBtn, setShowScrollBtn] = React.useState(false);
-
-  const scrollToBottom = React.useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, []);
-
-  React.useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamPhase, scrollToBottom]);
-
-  React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      setShowScrollBtn(distanceFromBottom > 120);
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const lastMessage = messages[messages.length - 1];
-  const isStreaming = streamPhase !== null;
-  const showBottomLoader =
-    lastMessage?.role === "assistant" && streamPhase !== "thinking";
-  const animateBottomLoader = isStreaming;
-
-  return (
-    <div className="relative flex-1 min-h-0">
-      <div ref={scrollRef} className="h-full overflow-y-auto">
-        <div
-          className={cn(
-            "w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6",
-            align === "center" && "mx-auto"
-          )}
-        >
-          {hasMore ? (
-            <div className="flex justify-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onLoadMore}
-                disabled={loadingMore}
-                className="text-xs text-muted-foreground"
-              >
-                {loadingMore ? "Loading…" : "Load older messages"}
-              </Button>
-            </div>
-          ) : null}
-
-          {messagesLoading ? (
-            <div className="flex justify-center py-8">
-              <MassicLoader size={28} animate />
-            </div>
-          ) : null}
-
-          {messages.map((m, i) => (
-            <AgentMessageView
-              key={m.id}
-              message={m}
-              isLast={i === messages.length - 1}
-              streamPhase={streamPhase}
-              activeToolName={i === messages.length - 1 ? activeToolName : null}
-              onOpenWidget={onOpenWidget}
-              onRegenerate={
-                m.role === "assistant" && i === messages.length - 1 && streamPhase === null
-                  ? onRegenerate
-                  : undefined
-              }
-            />
-          ))}
-
-          {showBottomLoader ? (
-            <div className="flex items-center pt-1">
-              <MassicLoader size={28} animate={animateBottomLoader} />
-            </div>
-          ) : null}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
-
-      {showScrollBtn ? (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            onClick={scrollToBottom}
-            className="h-8 w-8 rounded-full shadow-md bg-background text-muted-foreground hover:bg-background hover:border-general-primary/40 hover:text-foreground"
-            aria-label="Scroll to bottom"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : null}
+import type { AgentMessage, ResourceRef } from "./types";
+export function AgentChatThread({ messages, streaming, onOpenPlan, hasMore, loadingMore, onLoadMore }: { messages: AgentMessage[]; streaming: boolean; onOpenPlan: (resource: ResourceRef) => void; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void }) {
+  const scroll = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
+  const olderHeight = useRef<number | null>(null);
+  const [away, setAway] = useState(false);
+  useLayoutEffect(() => {
+    const el = scroll.current; if (!el) return;
+    if (olderHeight.current !== null && !loadingMore) { el.scrollTop += el.scrollHeight - olderHeight.current; olderHeight.current = null; }
+    else if (follow.current) el.scrollTop = el.scrollHeight;
+  }, [messages, loadingMore]);
+  return <div className="relative min-h-0 flex-1"><div ref={scroll} className="h-full overflow-y-auto overscroll-contain" onScroll={() => { const el = scroll.current!; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120; setAway(!follow.current); }}>
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">{hasMore && <div className="text-center"><Button variant="ghost" size="sm" disabled={loadingMore} onClick={() => { olderHeight.current = scroll.current?.scrollHeight ?? null; onLoadMore(); }}>{loadingMore ? "Loading…" : "Load older messages"}</Button></div>}
+      {messages.map((message, i) => <AgentMessageView key={message.id} message={message} streaming={streaming && i === messages.length - 1} onOpenPlan={onOpenPlan} />)}
     </div>
-  );
+  </div>{away && <Button variant="outline" size="icon-sm" className="absolute bottom-4 left-1/2 rounded-full bg-background shadow-md transition-shadow hover:shadow-lg" aria-label="Jump to latest message" onClick={() => { const el = scroll.current; if (el) { el.scrollTo({ top: el.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); follow.current = true; } }}><ArrowDown className="h-4 w-4" /></Button>}</div>;
 }

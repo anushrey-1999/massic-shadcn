@@ -53,7 +53,7 @@ export function MassicLoader({ className, size = 36, animate = true }: Props) {
     <div
       className={cn("relative shrink-0", className)}
       style={{ width: size, height: size }}
-      aria-label="Loading"
+      aria-label={animate ? "Loading" : "Massic"}
       role="status"
     >
       {cells.map(([row, col]) => {
@@ -64,14 +64,14 @@ export function MassicLoader({ className, size = 36, animate = true }: Props) {
         return (
           <span
             key={`${row}-${col}`}
-            className="absolute rounded-[2px] bg-general-primary"
+            className="absolute rounded-[2px] bg-general-primary motion-reduce:animate-none"
             style={{
               width: box,
               height: box,
               top: row * cell + gap / 2,
               left: col * cell + gap / 2,
               animation: animate
-                ? `massicLoaderPulse ${duration}s linear infinite`
+                ? `pulse ${duration}s linear infinite`
                 : undefined,
               animationDelay: animate ? `${delay}s` : undefined,
               opacity: animate ? undefined : 1,

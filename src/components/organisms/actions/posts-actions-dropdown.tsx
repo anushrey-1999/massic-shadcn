@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RelevancePill } from "@/components/ui/relevance-pill"
+import { getChannelIconSource } from "@/components/ui/channel-icon"
 import { cn } from "@/lib/utils"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
 import { useFeatureActionGuard } from "@/hooks/use-permissions"
@@ -156,24 +157,6 @@ const DEFAULT_ITEMS: PostsActionsItem[] = [
     opportunityLabel: "Low",
   },
 ]
-
-function getChannelIcon(channelName: string): string | null {
-  const normalized = (channelName || "").toLowerCase().trim()
-  const iconMap: Record<string, string> = {
-    facebook: "/icons/facebook.png",
-    "facebook group": "/icons/facebook.png",
-    "facebook groups": "/icons/facebook.png",
-    instagram: "/icons/instagram.png",
-    linkedin: "/icons/linkedin.png",
-    quora: "/icons/quora.svg",
-    x: "/icons/twitter.png",
-    twitter: "/icons/twitter.png",
-    youtube: "/icons/youtube.png",
-    tiktok: "/icons/tiktok.png",
-    reddit: "/icons/reddit.png",
-  }
-  return iconMap[normalized] || null
-}
 
 function ActionTypePill({ type }: { type: PostActionType }) {
   const label = type === "publish" ? "Publish" : "Engage"
@@ -357,7 +340,7 @@ export function PostsActionsDropdown({
           <div className="flex min-h-0 flex-col overflow-y-auto">
             {sortedRows.map((row) => {
               const open = openItemId === row.id
-              const iconPath = getChannelIcon(row.channel)
+              const iconPath = getChannelIconSource(row.channel)
               const isDone = doneIds.has(row.id)
               const isDimmed = row.isDisabled || isDone
 
@@ -677,7 +660,7 @@ export function PostsActionsDropdown({
           <div className="flex min-h-0 flex-col overflow-y-auto">
             {sortedRows.map((row) => {
               const open = openItemId === row.id
-              const iconPath = getChannelIcon(row.channel)
+              const iconPath = getChannelIconSource(row.channel)
               const isDone = doneIds.has(row.id)
               const isDimmed = row.isDisabled || isDone
 
@@ -851,4 +834,3 @@ export function PostsActionsDropdown({
     </Card>
   )
 }
-

@@ -4,7 +4,8 @@ import { Bot, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Typography } from "../ui/typography";
-import { useParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useJobByBusinessId } from "@/hooks/use-jobs";
 
 interface BreadcrumbItem {
   label: string;
@@ -16,6 +17,7 @@ interface PageHeaderProps {
   onDownload?: () => void;
   onSettings?: () => void;
   isButton?: boolean;
+  showAskMassic?: boolean;
   trial?: {
     remainingDays?: number;
   };
@@ -27,16 +29,24 @@ export function PageHeader({
   onDownload,
   onSettings,
   isButton = false,
+  showAskMassic,
   trial,
   onUpgrade,
 }: PageHeaderProps) {
   const params = useParams();
-  const pathname = usePathname();
   const rawBusinessId = (params as any)?.id as string | string[] | undefined;
   const businessId = Array.isArray(rawBusinessId)
     ? rawBusinessId[0]
     : rawBusinessId || null;
-  const isBusinessPage = pathname.startsWith("/business/");
+
+  const { data: jobDetails } = useJobByBusinessId(
+    showAskMassic === undefined ? businessId : null
+  );
+
+  const effectiveShowAskMassic =
+    typeof showAskMassic === "boolean"
+      ? showAskMassic
+      : Boolean(jobDetails?.job_id);
 
   return (
     <div className="w-full border-b border-border bg-foreground-light">
@@ -103,18 +113,11 @@ export function PageHeader({
             </div>
           ) : null}
 
-          {isBusinessPage && businessId ? (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
+          {businessId && effectiveShowAskMassic ? (
+            <Button asChild variant="outline" size="sm" className="gap-2">
               <Link href={`/business/${businessId}/agent`}>
                 <Bot className="h-4 w-4 text-general-primary" />
-                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
-                  Ask Massic
-                </span>
+                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">Massic Agent</span>
               </Link>
             </Button>
           ) : null}

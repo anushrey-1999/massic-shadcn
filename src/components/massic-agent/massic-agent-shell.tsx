@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Menu, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -62,10 +63,11 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const busyElsewhere = !!chat.runningKey && !streaming;
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
+  const backHref = `/business/${businessId}/analytics`;
   const historyProps = {
     conversations: chat.conversations, activeId: chat.activeKey, onSelect: select, onRename: openRename, onNewChat: newChat, onSearch: () => setSearch(true), onChats: () => { setView("chats"); setMobileHistory(false); },
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
-    hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, userName: user?.username || user?.email || "You",
+    hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, userName: user?.username || user?.email || "You", backHref,
   };
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation}
     onSurface={surface => { if (chat.conversation) chat.newChat(surface); else chat.updateDraft({ surface, resource: null, selectedIds: [] }); setView("chat"); }}
@@ -80,8 +82,9 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     <AgentSearchDialog open={search} onOpenChange={setSearch} conversations={chat.conversations} onSelect={select} />
     <Dialog open={!!renameTarget} onOpenChange={open => { if (!open) setRenameTarget(null); }}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Rename chat</DialogTitle><DialogDescription>Use a short title that will be easy to find later.</DialogDescription></DialogHeader><form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); if (renameTarget && title.trim() && !rename.isPending) rename.mutate({ id: renameTarget.id, title }); }}><Input aria-label="Conversation title" autoFocus value={title} maxLength={200} onChange={e => setTitle(e.target.value)} /><Button type="submit" disabled={rename.isPending || !title.trim()}>{rename.isPending ? "Saving…" : "Save"}</Button></form>{rename.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(rename.error)}</p>}</DialogContent></Dialog>
     <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center px-3 md:hidden" aria-label="Agent workspace toolbar">
+      <header className="flex h-12 shrink-0 items-center gap-1 px-3 md:hidden" aria-label="Agent workspace toolbar">
         <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Open history" onClick={() => setMobileHistory(true)}><Menu className="h-4 w-4" /></Button>
+        <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground"><Link href={backHref}><ArrowLeft className="h-4 w-4" />Back</Link></Button>
       </header>
       <div ref={splitRef} className="relative flex min-h-0 w-full flex-1">
         <div className="flex min-w-0 flex-1 flex-col">

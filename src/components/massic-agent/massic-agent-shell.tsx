@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { AgentComposer } from "./agent-composer";
 import { AgentPlanWidget } from "./agent-plan-widget";
 import { AgentPlanPicker } from "./agent-plan-picker";
 import { AgentPlanHeader } from "./agent-plan-header";
+import { AgentPlansView } from "./agent-plans-view";
 import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
 import type { AgentEntryAction } from "./agent-links";
 import { allPlanIds, intentFor, SURFACES } from "./agent-model";
@@ -31,13 +32,14 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
 }
 function AgentWorkspace({ businessId }: { businessId: string }) {
   const chat = useAgentChat(businessId);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const user = useAuthStore(s => s.user);
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileHistory, setMobileHistory] = useState(false);
   const [search, setSearch] = useState(false);
-  const [view, setView] = useState<"chat" | "chats">("chat");
+  const [view, setView] = useState<"chat" | "chats" | "plans">(() => searchParams.get("view") === "plans" ? "plans" : "chat");
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
   const [width, setWidth] = useState(940);
@@ -110,8 +112,21 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const rename = useMutation({ mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(businessId, id, title), onSuccess: (result) => { chat.updateTitle(result.thread_id, result.title ?? title.trim()); setRenameTarget(null); void qc.invalidateQueries({ queryKey: agentKeys.threads(businessId) }); } });
   useEffect(() => { const key = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(v => !v); } }; window.addEventListener("keydown", key); return () => { window.removeEventListener("keydown", key); cleanupResize.current?.(); }; }, []);
   useEffect(() => { setPlanVisible(true); }, [chat.activeKey, planRef?.id]);
-  const select = (id: string) => { chat.selectChat(id); setView("chat"); setMobileHistory(false); };
-  const newChat = () => { chat.newChat(); setView("chat"); setMobileHistory(false); };
+  const updateViewRoute = (nextView: "chat" | "chats" | "plans") => {
+    setView(nextView);
+    setMobileHistory(false);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextView === "plans") params.set("view", "plans");
+    else params.delete("view");
+    params.delete("action");
+    params.delete("plan");
+    params.delete("submit");
+    if (nextView !== "plans") params.delete("surface");
+    const query = params.toString();
+    router.replace(`/business/${encodeURIComponent(businessId)}/agent${query ? `?${query}` : ""}`, { scroll: false });
+  };
+  const select = (id: string) => { chat.selectChat(id); updateViewRoute("chat"); };
+  const newChat = () => { chat.newChat(); updateViewRoute("chat"); };
   const openPlan = (r: ResourceRef) => { chat.openPlan(r); setView("chat"); setPlanVisible(true); };
   const openRename = (conversation: AgentConversation) => { setRenameTarget(conversation); setTitle(conversation.title); rename.reset(); };
   const streaming = chat.runningKey === chat.activeKey;
@@ -124,7 +139,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
   const backHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const historyProps = {
-    conversations: chat.conversations, activeId: chat.activeKey, onSelect: select, onRename: openRename, onNewChat: newChat, onSearch: () => setSearch(true), onChats: () => { setView("chats"); setMobileHistory(false); },
+    conversations: chat.conversations, activeId: chat.activeKey, activeView: view, onSelect: select, onRename: openRename, onNewChat: newChat, onPlans: () => updateViewRoute("plans"), onSearch: () => setSearch(true), onChats: () => updateViewRoute("chats"),
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, userName: user?.username || user?.email || "You", backHref,
   };
@@ -146,7 +161,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
       </header>
       <div ref={splitRef} className="relative flex min-h-0 w-full flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          {view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
+          {view === "plans" ? <AgentPlansView businessId={businessId} initialSurface={entrySurface ?? "webpages"} /> : view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
             {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicLoader /></div>
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
               : showEmpty ? <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-8 sm:px-6"><div className="mb-6 flex items-center gap-2.5"><MassicLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div><div className="w-full max-w-2xl">{composer}</div></div>

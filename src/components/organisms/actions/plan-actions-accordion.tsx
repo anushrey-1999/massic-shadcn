@@ -1,12 +1,11 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, RotateCw } from "lucide-react";
 import { AgentPlanTable } from "@/components/massic-agent/agent-plan-table";
 import { agentKeys, errorMessage, getPlan, getPlans } from "@/components/massic-agent/agent-api";
-import { agentPlanHref } from "@/components/massic-agent/agent-links";
+import { agentPlanHref, agentPlansHref } from "@/components/massic-agent/agent-links";
 import type { PlanItem, ResourceType } from "@/components/massic-agent/types";
 import { SocialActionCell } from "@/components/organisms/SocialTable/social-action-cell";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
@@ -17,7 +16,6 @@ import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import type { TacticRow } from "@/types/social-types";
 import type { WebPageRow } from "@/types/web-page-types";
 import { formatPlanDate, PLAN_ACTIONS_CONFIG, planMatchesType } from "./plan-actions-config";
-import { PlanHistoryDialog } from "./plan-history-dialog";
 
 function escapeCsv(value: unknown) {
   const text = String(value ?? "");
@@ -83,7 +81,6 @@ function SocialAction({ businessId, item, index }: { businessId: string; item: P
 export function PlanActionsAccordion({ businessId, type, ready, readinessLoading }: { businessId: string; type: ResourceType; ready: boolean; readinessLoading: boolean }) {
   const router = useRouter();
   const config = PLAN_ACTIONS_CONFIG[type];
-  const [plansOpen, setPlansOpen] = React.useState(false);
   const guardCreate = useFeatureActionGuard("actions.createPlan");
   const guardRefine = useFeatureActionGuard("actions.refinePlan");
   const plans = useQuery({
@@ -103,6 +100,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
     if (action === "create" ? !guardCreate() : !guardRefine()) return;
     router.push(agentPlanHref({ businessId, surface: config.surface, action, planId, autoSubmit: action === "create" }));
   };
+  const viewPlans = () => router.push(agentPlansHref({ businessId, surface: config.surface }));
   const lastUpdated = active ? formatPlanDate(active.activated_at ?? active.updated_at) : "—";
 
   return <>
@@ -114,7 +112,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Tooltip><TooltipTrigger asChild><Button variant="secondary" size="icon-sm" aria-label={`Download active ${config.title.toLowerCase()} plan`} disabled={!activePlan?.plan_json?.length} onClick={() => activePlan && downloadPlan(type, activePlan.id, activePlan.plan_json ?? [])}><Download className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Download CSV</TooltipContent></Tooltip>
-            <Button variant="secondary" size="sm" onClick={() => setPlansOpen(true)}>View plans</Button>
+            <Button variant="secondary" size="sm" onClick={viewPlans}>View plans</Button>
             {active && <Button variant="secondary" size="sm" onClick={() => navigate("refine", active.id)}><RotateCw className="h-3.5 w-3.5" />Refine</Button>}
             <Button size="sm" onClick={() => navigate("create")}>New plan</Button>
           </div>
@@ -124,13 +122,12 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
             : !ready ? <div className="flex h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">{config.title} strategy is not ready yet</p><p className="mt-1 text-xs text-muted-foreground">Complete the {config.title.toLowerCase()} strategy workflow before creating plans.</p></div>
             : plans.isLoading ? <div className="flex h-32 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading plans…</div>
             : plans.isError ? <div role="alert" className="flex h-32 flex-col items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-center text-sm text-destructive"><p>{errorMessage(plans.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => plans.refetch()}>Retry</Button></div>
-            : !active ? <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">No active {config.title.toLowerCase()} plan</p><p className="mt-1 max-w-sm text-xs text-muted-foreground">Create a new plan with Massic Agent or open plan history to review a proposed plan.</p><div className="mt-4 flex gap-2"><Button variant="outline" size="sm" onClick={() => setPlansOpen(true)}>View plans</Button><Button size="sm" onClick={() => navigate("create")}>New plan</Button></div></div>
+            : !active ? <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">No active {config.title.toLowerCase()} plan</p><p className="mt-1 max-w-sm text-xs text-muted-foreground">Create a new plan with Massic Agent or open plan history to review a proposed plan.</p><div className="mt-4 flex gap-2"><Button variant="outline" size="sm" onClick={viewPlans}>View plans</Button><Button size="sm" onClick={() => navigate("create")}>New plan</Button></div></div>
             : detail.isLoading ? <div className="flex h-32 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading active plan…</div>
             : detail.isError ? <div role="alert" className="flex h-32 flex-col items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-center text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>
             : activePlan ? <AgentPlanTable plan={activePlan} type={type} showPlanHeader={false} renderAction={(item, index) => type === "webpage_plan" ? <WebAction businessId={businessId} item={item} index={index} /> : <SocialAction businessId={businessId} item={item} index={index} />} />
             : <p role="alert" className="p-4 text-sm text-destructive">The active plan does not match this strategy.</p>}
         </div>
       </Card>
-    <PlanHistoryDialog businessId={businessId} type={type} open={plansOpen} onOpenChange={setPlansOpen} />
   </>;
 }

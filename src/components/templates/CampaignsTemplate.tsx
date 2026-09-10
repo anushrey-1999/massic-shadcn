@@ -76,15 +76,20 @@ function CampaignTrendChart({ trend, label, startDate, endDate }: { trend?: Camp
 
 function MetricSummary({ summary }: { summary?: CampaignListPerformance }) {
   if (!summary) return <span className="text-xs text-muted-foreground">—</span>;
+  const formattedValue = summary.value.toLocaleString();
   const change = summary.liftPercent != null
     ? `${summary.liftPercent > 0 ? "+" : ""}${summary.liftPercent}%`
     : summary.reportabilityReason === "new_activity" ? "New activity" : null;
   return (
     <div className="min-w-0 flex-1">
       <p className="text-xs text-muted-foreground">{summary.label}</p>
-      <div className="mt-0.5 flex items-baseline gap-1.5">
-        <span className="text-sm font-medium tabular-nums">{summary.value.toLocaleString()}</span>
-        {change ? <span className={`whitespace-nowrap ${summary.liftPercent != null && summary.liftPercent < 0 ? "text-xs font-medium text-red-700" : "text-xs font-medium text-green-700"}`}>{change}</span> : null}
+      <div className="mt-0.5 flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+        <span className="text-[13px] font-medium tabular-nums">{formattedValue}</span>
+        {change ? (
+          <span className={`text-[10px] font-medium ${summary.liftPercent != null && summary.liftPercent < 0 ? "text-red-700" : "text-green-700"}`}>
+            {change}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -92,11 +97,11 @@ function MetricSummary({ summary }: { summary?: CampaignListPerformance }) {
 
 function PerformanceSummary({ summaries = [] }: { summaries?: CampaignListPerformance[] }) {
   const byKey = new Map(summaries.map(summary => [summary.metricKey, summary]));
-  const metricKeys: CampaignListPerformance["metricKey"][] = ["branded_clicks", "sessions", "key_events", "search_clicks"];
+  const metricKeys: CampaignListPerformance["metricKey"][] = ["impressions", "clicks", "sessions", "goals"];
   return (
     <div className="grid grid-cols-4 divide-x divide-general-border">
       {metricKeys.map(metricKey => (
-        <div key={metricKey} className="min-w-0 px-2 first:pl-0 last:pr-0">
+        <div key={metricKey} className="min-w-0 px-1.5 first:pl-0 last:pr-0">
           <MetricSummary summary={byKey.get(metricKey)} />
         </div>
       ))}
@@ -198,12 +203,12 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
           ) : campaigns.isError ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center"><AlertTriangle className="size-8 text-destructive" /><div><h2 className="font-medium">Campaigns could not be loaded</h2><p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p></div><Button variant="outline" onClick={() => campaigns.refetch()}><RefreshCw className="size-4" />Try again</Button></div>
           ) : !campaigns.data?.length ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center"><span className="mb-4 grid size-12 place-items-center rounded-full bg-general-secondary"><Megaphone className="size-6 text-muted-foreground" /></span><h2 className="font-medium">{hasFilters ? "No matching campaigns" : "No campaigns yet"}</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">{hasFilters ? "Try clearing a filter or using another search." : "Add a campaign to compare performance before, during, and after it."}</p>{canManage && !hasFilters ? <Button className="mt-4" onClick={openCreate}><Plus className="size-4" />Add first campaign</Button> : null}</div>
+            <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center"><span className="mb-4 grid size-12 place-items-center rounded-full bg-general-secondary"><Megaphone className="size-6 text-muted-foreground" /></span><h2 className="font-medium">{hasFilters ? "No matching campaigns" : "No campaigns yet"}</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">{hasFilters ? "Try clearing a filter or using another search." : "Add a campaign to measure its performance over time."}</p>{canManage && !hasFilters ? <Button className="mt-4" onClick={openCreate}><Plus className="size-4" />Add first campaign</Button> : null}</div>
           ) : (
             <Table className="w-full">
-              <TableElement className="min-w-[1125px] table-fixed">
-                <colgroup><col className="w-[160px]" /><col className="w-[175px]" /><col className="w-[380px]" /><col className="w-[170px]" /><col className="w-[200px]" /><col className="w-[40px]" /></colgroup>
-                <TableHeader className="bg-general-primary-foreground"><TableRow className="h-9 bg-general-primary-foreground hover:bg-general-primary-foreground"><TableHead className="px-3 text-xs text-muted-foreground">Campaign</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Dates</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Performance vs before</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Status</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Search trend</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+              <TableElement className="min-w-[1160px] table-fixed">
+                <colgroup><col className="w-[160px]" /><col className="w-[175px]" /><col className="w-[410px]" /><col className="w-[190px]" /><col className="w-[185px]" /><col className="w-[40px]" /></colgroup>
+                <TableHeader className="bg-general-primary-foreground"><TableRow className="h-9 bg-general-primary-foreground hover:bg-general-primary-foreground"><TableHead className="px-3 text-xs text-muted-foreground">Campaign</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Dates</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Performance</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Status</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Search trend</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                 <TableBody>{campaigns.data.map(campaign => {
                   const statusKey = (campaign.status || "collecting_data") as CampaignStatus;
                   const statusMeta = CAMPAIGN_STATUS[statusKey];
@@ -212,7 +217,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
                     <TableCell className="px-3"><div className="min-w-0"><Tooltip><TooltipTrigger asChild><p className="truncate font-medium text-general-foreground">{campaign.name}</p></TooltipTrigger><TooltipContent side="top" sideOffset={6} className="max-w-[320px] whitespace-normal break-words text-left">{campaign.name}</TooltipContent></Tooltip><p className="mt-1 text-xs text-muted-foreground">{CAMPAIGN_TYPE_LABELS[campaign.campaignType]} · {campaign.eventKind === "one_time" ? "One-time event" : campaign.endDate ? "Campaign" : "Ongoing"}</p></div></TableCell>
                     <TableCell className="px-3"><div className="flex min-w-0 items-center gap-2 text-sm"><CalendarRange className="size-4 shrink-0 text-muted-foreground" /><span className="truncate whitespace-nowrap" title={dateLabel}>{dateLabel}</span></div></TableCell>
                     <TableCell className="px-3"><PerformanceSummary summaries={campaign.performanceSummaries} /></TableCell>
-                    <TableCell className="px-3"><div className="flex items-center gap-2 whitespace-nowrap"><Badge variant="outline" className={`${statusMeta.className} shrink-0 whitespace-nowrap border-0 font-medium`}>{statusMeta.label}</Badge>{campaign.hasOverlap ? <Tooltip><TooltipTrigger asChild><span className="inline-flex size-6 shrink-0 items-center justify-center rounded-[4px] text-amber-700 hover:bg-amber-50" onClick={event => event.stopPropagation()}><AlertTriangle className="size-4 shrink-0" strokeWidth={1.75} /><span className="sr-only">Overlaps another campaign</span></span></TooltipTrigger><TooltipContent side="top" sideOffset={6}>Another campaign overlaps these dates.</TooltipContent></Tooltip> : null}</div></TableCell>
+                    <TableCell className="px-3"><div className="grid grid-cols-[116px_24px] items-center gap-2"><Badge variant="outline" className={`${statusMeta.className} w-[116px] justify-center whitespace-nowrap border-0 font-medium`}>{statusMeta.label}</Badge>{campaign.hasOverlap ? <Tooltip><TooltipTrigger asChild><span className="inline-flex size-6 items-center justify-center rounded-[4px] text-amber-700 hover:bg-amber-50" onClick={event => event.stopPropagation()}><AlertTriangle className="size-4" strokeWidth={1.75} /><span className="sr-only">Campaign overlap</span></span></TooltipTrigger><TooltipContent side="top" sideOffset={6}>Campaign overlap: another campaign overlaps these dates.</TooltipContent></Tooltip> : <span className="size-6" aria-hidden="true" />}</div></TableCell>
                     <TableCell className="px-3"><CampaignTrendChart trend={campaign.performanceTrend} label={campaign.name} startDate={campaign.startDate} endDate={campaign.endDate} /></TableCell>
                     <TableCell
                       className="px-2 text-right"

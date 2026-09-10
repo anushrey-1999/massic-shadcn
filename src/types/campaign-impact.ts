@@ -22,7 +22,7 @@ export interface CampaignEvent {
 }
 
 export interface CampaignListPerformance {
-  metricKey: "branded_clicks" | "search_clicks" | "sessions" | "key_events"; label: string; source: "gsc" | "ga4";
+  metricKey: "impressions" | "clicks" | "sessions" | "goals"; label: string; source: "gsc" | "ga4";
   baseline: number; value: number;
   absoluteChange: number | null; liftPercent: number | null;
   reportabilityReason: string | null;
@@ -69,6 +69,7 @@ export interface CampaignImpactSource {
 export interface CampaignImpactChartPoint {
   date: string;
   phase: "before" | "during" | "after";
+  impressions: number | null;
   sessions: number | null;
   clicks: number | null;
   keyEvents: number | null;

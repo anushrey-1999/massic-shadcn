@@ -222,6 +222,7 @@ interface AnalyticsDisplayMenuProps {
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
   metricLabels?: Partial<Record<AnalyticsMetricKey, string>>;
+  triggerClassName?: string;
   /** The All tab plots a fixed set of lines, so the toggles are read-only. */
   linesLocked?: boolean;
   disabled?: boolean;
@@ -237,6 +238,7 @@ export function AnalyticsDisplayMenu({
   visibleLines,
   onLineToggle,
   metricLabels,
+  triggerClassName,
   linesLocked = false,
   disabled = false,
 }: AnalyticsDisplayMenuProps) {
@@ -255,7 +257,7 @@ export function AnalyticsDisplayMenu({
             <Button
               variant="outline"
               size="sm"
-              className={cn(TOOLBAR_BUTTON_CLASS, "opacity-40")}
+              className={cn(TOOLBAR_BUTTON_CLASS, triggerClassName, "opacity-40")}
               disabled
               style={{ pointerEvents: "none" }}
             >
@@ -277,7 +279,7 @@ export function AnalyticsDisplayMenu({
         <Button
           variant="outline"
           size="sm"
-          className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
+          className={cn(TOOLBAR_BUTTON_CLASS, triggerClassName, activeCount > 0 && "border-general-border-three bg-general-secondary")}
         >
           <SlidersHorizontal className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
           Display

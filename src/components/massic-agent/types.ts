@@ -36,12 +36,18 @@ export type PlanItem = {
 };
 export type AgentPlan = {
   id: number | string;
+  business_id?: string;
   plan_type?: Exclude<Surface, "global"> | string;
   status: string;
   valid?: boolean;
   timeframe?: number;
   parent_plan_id?: number | string | null;
   plan_json?: PlanItem[] | null;
+  proposed_at?: string | null;
+  activated_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 type Envelope = { agent?: string; path?: string; depth?: number; thread_id?: string; turn_id?: string };
 export type AgentEvent = Envelope & (

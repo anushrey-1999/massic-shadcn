@@ -8,7 +8,8 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import { useJobByBusinessId } from "@/hooks/use-jobs"
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status"
 import { PagesActionsDropdown, PostsActionsDropdown } from "@/components/organisms/actions"
-import { RefinePlanOverlayProvider } from "@/components/organisms/actions/refine-plan-overlay-provider"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AppWindow, Share2 } from "lucide-react"
 
 interface PageProps {
   params: Promise<{
@@ -18,7 +19,7 @@ interface PageProps {
 
 export default function BusinessActionsPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>("")
-  const [openSection, setOpenSection] = React.useState<"pages" | "posts" | null>("pages")
+  const [activeTab, setActiveTab] = React.useState<"pages" | "social">("pages")
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -27,10 +28,9 @@ export default function BusinessActionsPage({ params }: PageProps) {
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
-  const showActionsContent =
-    !jobDetailsLoading &&
-    coreStatus === "success" &&
-    isWorkflowSuccess(jobDetails, "webpages")
+  const showActionsContent = !jobDetailsLoading && coreStatus === "success"
+  const webpagesReady = isWorkflowSuccess(jobDetails, "webpages")
+  const socialReady = isWorkflowSuccess(jobDetails, "social_channels")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -71,26 +71,25 @@ export default function BusinessActionsPage({ params }: PageProps) {
         alertMessage="You're on Starter or Core. Upgrade to Growth to unlock Actions."
       >
         {showActionsContent ? (
-          <RefinePlanOverlayProvider businessId={businessId}>
-            <div
-              data-slot="actions-page-content"
-              className="relative w-full max-w-[1224px] flex-1 min-h-0 overflow-hidden p-5 flex flex-col"
-            >
-              <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
-                <PagesActionsDropdown
-                  businessId={businessId}
-                  open={openSection === "pages"}
-                  onOpenChange={(next) => setOpenSection(next ? "pages" : null)}
-                />
-                {/* <PostsActionsDropdown
-                  open={openSection === "posts"}
-                  onOpenChange={(next) => setOpenSection(next ? "posts" : null)}
-                /> */}
-              </div>
-            </div>
-          </RefinePlanOverlayProvider>
+          <div
+            data-slot="actions-page-content"
+            className="relative flex min-h-0 min-w-0 w-full max-w-[1224px] flex-1 flex-col overflow-hidden p-5"
+          >
+            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "pages" | "social")} className="min-h-0 flex-1 overflow-hidden">
+              <TabsList className="shrink-0">
+                <TabsTrigger value="pages"><AppWindow className="size-4" />Pages</TabsTrigger>
+                <TabsTrigger value="social"><Share2 className="size-4" />Social</TabsTrigger>
+              </TabsList>
+              <TabsContent value="pages" className="min-h-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col">
+                <PagesActionsDropdown businessId={businessId} ready={webpagesReady} readinessLoading={jobDetailsLoading} />
+              </TabsContent>
+              <TabsContent value="social" className="min-h-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col">
+                <PostsActionsDropdown businessId={businessId} ready={socialReady} readinessLoading={jobDetailsLoading} />
+              </TabsContent>
+            </Tabs>
+          </div>
         ) : (
-          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+          <div className="flex min-h-0 w-full flex-1 flex-col p-5">
             <WorkflowStatusBanner
               businessId={businessId}
               workflowKey="webpages"
@@ -102,4 +101,3 @@ export default function BusinessActionsPage({ params }: PageProps) {
     </div>
   )
 }
-

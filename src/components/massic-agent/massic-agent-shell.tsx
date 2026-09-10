@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,10 @@ import { AgentChatThread } from "./agent-chat-thread";
 import { AgentComposer } from "./agent-composer";
 import { AgentPlanWidget } from "./agent-plan-widget";
 import { AgentPlanPicker } from "./agent-plan-picker";
+import { AgentPlanHeader } from "./agent-plan-header";
 import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
-import { allPlanIds, SURFACES } from "./agent-model";
+import type { AgentEntryAction } from "./agent-links";
+import { allPlanIds, intentFor, SURFACES } from "./agent-model";
 import { useAgentChat } from "./use-agent-chat";
 import type { AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
@@ -28,6 +31,7 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
 }
 function AgentWorkspace({ businessId }: { businessId: string }) {
   const chat = useAgentChat(businessId);
+  const searchParams = useSearchParams();
   const user = useAuthStore(s => s.user);
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
@@ -41,12 +45,63 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const [title, setTitle] = useState("");
   const splitRef = useRef<HTMLDivElement>(null);
   const cleanupResize = useRef<(() => void) | null>(null);
+  const entryRef = useRef<string | null>(null);
+  const autoSubmitRef = useRef<string | null>(null);
+  const entrySurfaceRaw = searchParams.get("surface");
+  const entryActionRaw = searchParams.get("action");
+  const entryPlanId = searchParams.get("plan");
+  const autoSubmit = searchParams.get("submit") === "1";
+  const entrySurface = entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels" ? entrySurfaceRaw : null;
+  const preferredAction: AgentEntryAction | undefined = entryActionRaw === "create" || entryActionRaw === "refine" || entryActionRaw === "activate" ? entryActionRaw : undefined;
   const planRef = chat.draft.resource;
   const planQuery = useQuery({ queryKey: agentKeys.plan(businessId, planRef?.id ?? ""), queryFn: ({ signal }) => getPlan(businessId, planRef!.id, signal), enabled: !!planRef, retry: false });
   const expectedPlanType = planRef?.type === "webpage_plan" ? "webpages" : "social_channels";
   const plan = planQuery.data && (!planQuery.data.plan_type || planQuery.data.plan_type === expectedPlanType) ? planQuery.data : undefined;
   const planError = planQuery.isError ? errorMessage(planQuery.error) : planQuery.data && !plan ? "This plan does not match the conversation mode." : null;
   const ids = plan && planRef ? allPlanIds(plan.plan_json ?? [], planRef.type) : [];
+  useEffect(() => {
+    if (!entrySurface || !preferredAction || chat.conversation) return;
+    const key = `${entrySurface}:${preferredAction}:${entryPlanId ?? ""}`;
+    if (entryRef.current === key) return;
+    entryRef.current = key;
+    const expectedType = entrySurface === "webpages" ? "webpage_plan" : "social_channels_plan";
+    if (preferredAction === "create") {
+      chat.newChat(entrySurface);
+      return;
+    }
+    if (!entryPlanId) {
+      chat.newChat(entrySurface);
+      chat.setError("The requested plan could not be opened. Choose a plan before continuing.");
+      return;
+    }
+    const controller = new AbortController();
+    void getPlan(businessId, entryPlanId, controller.signal).then(entryPlan => {
+      const actualType = entryPlan.plan_type === "webpages" ? "webpage_plan" : entryPlan.plan_type === "social_channels" ? "social_channels_plan" : null;
+      if (actualType !== expectedType) {
+        chat.newChat(entrySurface);
+        chat.setError("This plan does not match the requested Agent mode. Choose a matching plan and try again.");
+        return;
+      }
+      chat.newChat(entrySurface, { type: expectedType, id: entryPlan.id });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      chat.newChat(entrySurface);
+      chat.setError(`The requested plan could not be opened. ${errorMessage(error)}`);
+    });
+    return () => controller.abort();
+  }, [businessId, entryActionRaw, entryPlanId, entrySurfaceRaw]);
+  useEffect(() => {
+    if (!autoSubmit || !entrySurface || !preferredAction || (preferredAction !== "create" && preferredAction !== "activate") || chat.conversation || chat.runningKey) return;
+    const key = `${entrySurface}:${preferredAction}:${entryPlanId ?? ""}`;
+    if (autoSubmitRef.current === key || chat.surface !== entrySurface) return;
+    if (preferredAction === "activate" && (!plan || !planRef || String(planRef.id) !== entryPlanId || plan.valid !== true)) return;
+    if (preferredAction === "create" && planRef) return;
+    autoSubmitRef.current = key;
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete("submit");
+    window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    void chat.send({ kind: intentFor(preferredAction, entrySurface) });
+  }, [autoSubmit, chat.conversation, chat.runningKey, chat.surface, entryPlanId, entrySurface, plan, planRef, preferredAction]);
   useEffect(() => {
     if (!plan) return;
     const filtered = chat.draft.selectedIds.filter(id => ids.includes(id));
@@ -61,9 +116,13 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const openRename = (conversation: AgentConversation) => { setRenameTarget(conversation); setTitle(conversation.title); rename.reset(); };
   const streaming = chat.runningKey === chat.activeKey;
   const busyElsewhere = !!chat.runningKey && !streaming;
+  const activatePlan = () => {
+    if (chat.surface === "global" || !plan || plan.valid !== true || streaming || busyElsewhere) return;
+    void chat.send({ kind: intentFor("activate", chat.surface) });
+  };
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
-  const backHref = `/business/${businessId}/analytics`;
+  const backHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const historyProps = {
     conversations: chat.conversations, activeId: chat.activeKey, onSelect: select, onRename: openRename, onNewChat: newChat, onSearch: () => setSearch(true), onChats: () => { setView("chats"); setMobileHistory(false); },
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
@@ -71,10 +130,9 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   };
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation}
     onSurface={surface => { if (chat.conversation) chat.newChat(surface); else chat.updateDraft({ surface, resource: null, selectedIds: [] }); setView("chat"); }}
-    onClearMode={() => { if (chat.conversation) chat.newChat(); else chat.updateDraft({ surface: "global", resource: null, selectedIds: [] }); }}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}
     onOpenPlans={() => setPlanPicker(true)} onShowPlan={() => setPlanVisible(true)} onSend={(intent, override) => { void chat.send(intent, override); }} onStop={() => { void chat.stop(); }}
-    streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.activeKey} />;
+    streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.activeKey} preferredAction={preferredAction} />;
   const resize = (value: number) => setWidth(Math.max(560, Math.min(value, 1050, (splitRef.current?.clientWidth ?? 1510) - 460)));
   return <div className={cn(styles.workspace, "flex h-dvh w-full overflow-hidden bg-background")}>
     <div className={cn("hidden shrink-0 overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block", collapsed ? "w-12" : "w-[240px]")}><AgentHistorySidebar {...historyProps} collapsed={collapsed} onCollapse={() => setCollapsed(v => !v)} /></div>
@@ -108,7 +166,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
             className="absolute -left-1 top-0 hidden h-full w-2 cursor-col-resize touch-none hover:bg-general-primary/20 focus-visible:bg-general-primary/20 xl:block"
             onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); resize(width + (e.key === "ArrowLeft" ? 20 : -20)); } }}
             onPointerDown={e => { e.preventDefault(); const start = e.clientX; const startWidth = width; const move = (event: PointerEvent) => resize(startWidth + start - event.clientX); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); cleanupResize.current = null; }; cleanupResize.current?.(); cleanupResize.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }} />
-          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4"><div><p className="text-xs text-muted-foreground">{SURFACES[chat.surface].label} plan</p><h2 className="text-sm font-medium">Plan #{planRef.id}</h2></div><div className="flex gap-1"><Button variant="ghost" size="sm" className="xl:hidden" onClick={() => setPlanVisible(false)}>Back to chat</Button><Button variant="ghost" size="icon-sm" aria-label="Close plan and clear selection" onClick={() => chat.updateDraft({ resource: null, selectedIds: [] })}><X className="h-4 w-4" /></Button></div></div>
+          <AgentPlanHeader plan={plan} planId={planRef.id} surface={chat.surface} onActivate={activatePlan} activateDisabled={streaming || busyElsewhere} preferredAction={preferredAction} onBackToChat={() => setPlanVisible(false)} onClose={() => chat.updateDraft({ resource: null, selectedIds: [] })} />
           <div className="flex min-h-0 flex-1 flex-col p-4">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicLoader size={20} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} /> : null}</div>
           <div className="border-t border-border p-3 xl:hidden"><Button variant="outline" className="w-full" onClick={() => setPlanVisible(false)}>Chat about {chat.draft.selectedIds.length ? `${chat.draft.selectedIds.length} selected items` : "this plan"}</Button></div>
         </aside>}

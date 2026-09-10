@@ -29,18 +29,25 @@ export const agentKeys = {
   threads: (business: string) => ["massic-agent", business, "threads"] as const,
   messages: (business: string, thread: string) => ["massic-agent", business, "messages", thread] as const,
   citations: (business: string, thread: string, ids: string[]) => ["massic-agent", business, "citations", thread, ids] as const,
-  plans: (business: string) => ["massic-agent", business, "plans"] as const,
+  plans: (business: string, type?: ResourceType) => type
+    ? ["massic-agent", business, "plans", type] as const
+    : ["massic-agent", business, "plans"] as const,
   plan: (business: string, id: string | number) => ["massic-agent", business, "plan", String(id)] as const,
 };
 const tenant = (business: string) => ({ business_id: business });
 export const getThreads = (business: string, offset = 0, signal?: AbortSignal) => api.get<ThreadsPage>("/agent/threads", "python", { params: { ...tenant(business), limit: 20, offset }, signal });
 export const getMessages = (business: string, thread: string, before?: string, signal?: AbortSignal) => api.get<MessagesPage>(`/agent/threads/${encodeURIComponent(thread)}/messages`, "python", { params: { ...tenant(business), limit: 50, ...(before ? { before } : {}) }, signal });
 export const renameThread = (business: string, thread: string, title: string) => api.patch<AgentThread>(`/agent/threads/${encodeURIComponent(thread)}`, "python", { title: title.trim() }, { params: tenant(business) });
-export const getPlan = (business: string, id: number | string, signal?: AbortSignal) => api.get<AgentPlan>(`/actions/plans/${encodeURIComponent(id)}`, "python", { params: tenant(business), signal });
+const normalizePlan = (plan: AgentPlan): AgentPlan => {
+  const rawType = String(plan.plan_type ?? "").toLowerCase();
+  const normalized = rawType === "pages" ? "webpages" : rawType === "posts" ? "social_channels" : rawType;
+  return { ...plan, plan_type: normalized };
+};
+export const getPlan = async (business: string, id: number | string, signal?: AbortSignal) => normalizePlan(await api.get<AgentPlan>(`/actions/plans/${encodeURIComponent(id)}`, "python", { params: tenant(business), signal }));
 export async function getPlans(business: string, type?: ResourceType, signal?: AbortSignal) {
   const planType = type === "webpage_plan" ? "webpages" : type === "social_channels_plan" ? "social_channels" : undefined;
   const response = await api.get<{ plans?: AgentPlan[]; items?: AgentPlan[] }>("/actions/plans", "python", { params: { ...tenant(business), ...(planType ? { plan_type: planType } : {}) }, signal });
-  return response.plans ?? response.items ?? [];
+  return (response.plans ?? response.items ?? []).map(normalizePlan);
 }
 export async function getCitations(business: string, thread: string, ids: string[], signal?: AbortSignal): Promise<Record<string, CitationDocument | null>> {
   const batches: Record<string, CitationDocument | null> = {};

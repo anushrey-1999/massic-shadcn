@@ -45,7 +45,6 @@ export function formatCampaignDateRange(startValue: string, endValue: string | n
   const [endYear, endMonth, endDay] = endValue.slice(0, 10).split("-").map(Number);
   if (startYear !== endYear) return `${formatCampaignDate(startValue)} – ${formatCampaignDate(endValue)}`;
   const startMonthLabel = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(startYear, startMonth - 1, 1)));
-  if (startMonth === endMonth) return `${startMonthLabel} ${startDay} – ${endDay}, ${startYear}`;
   const endMonthLabel = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(endYear, endMonth - 1, 1)));
   return `${startMonthLabel} ${startDay} – ${endMonthLabel} ${endDay}, ${startYear}`;
 }

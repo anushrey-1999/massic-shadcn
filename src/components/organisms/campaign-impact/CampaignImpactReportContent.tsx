@@ -2,14 +2,18 @@
 
 import * as React from "react";
 import {
+  Activity,
   AlertCircle,
   Calendar,
   Download,
+  Eye,
   Info,
   Loader2,
   Mail,
+  MousePointerClick,
   Pencil,
   RefreshCw,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -35,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MultiEmailInput } from "@/components/molecules/MultiEmailInput";
+import { AnalyticsDisplayMenu } from "@/components/molecules/analytics/AnalyticsHeaderActions";
 import { CampaignFormSheet } from "@/components/organisms/campaign-impact/CampaignFormSheet";
 import { CampaignImpactReportSkeleton } from "@/components/organisms/campaign-impact/CampaignImpactReportSkeleton";
 import { CampaignMessageBanner } from "@/components/organisms/campaign-impact/CampaignMessageBanner";
@@ -79,27 +84,35 @@ const TONE_TEXT: Record<CampaignPresentationTone, string> = {
 };
 
 const KEY_METRIC_KEYS: Record<CampaignImpactSource["source"], readonly string[]> = {
-  gsc: ["branded_clicks", "non_branded_clicks", "tracked_term_clicks"],
+  gsc: ["total_impressions", "total_clicks", "branded_clicks", "non_branded_clicks", "tracked_term_clicks"],
   ga4: ["sessions", "key_events", "revenue"],
   gbp: ["website_clicks", "call_clicks", "direction_requests"],
 };
 
-const REPORT_CHART_KEYS = ["sessions", "clicks", "goals"] as const satisfies readonly AnalyticsMetricKey[];
+const SOURCE_TAG_LABELS: Record<CampaignImpactSource["source"], string> = {
+  gsc: "GSC",
+  ga4: "GA4",
+  gbp: "GBP",
+};
+
+const REPORT_CHART_KEYS = ["impressions", "clicks", "sessions", "goals"] as const satisfies readonly AnalyticsMetricKey[];
 const REPORT_CHART_LABELS: Record<(typeof REPORT_CHART_KEYS)[number], string> = {
+  impressions: "Impressions",
   sessions: "Sessions",
   clicks: "Clicks",
-  goals: "Key Events",
+  goals: "Goals",
 };
 
 const REPORT_CARD_METRICS: Array<{
   source: CampaignImpactSource["source"];
   metricKey: string;
   label: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
 }> = [
-  { source: "ga4", metricKey: "sessions", label: "Sessions" },
-  { source: "gsc", metricKey: "branded_clicks", label: "Branded Clicks" },
-  { source: "gbp", metricKey: "website_clicks", label: "Website Clicks" },
-  { source: "ga4", metricKey: "key_events", label: "Key Events" },
+  { source: "gsc", metricKey: "total_impressions", label: "Impressions", icon: Eye },
+  { source: "gsc", metricKey: "total_clicks", label: "Clicks", icon: MousePointerClick },
+  { source: "ga4", metricKey: "sessions", label: "Sessions", icon: Activity },
+  { source: "ga4", metricKey: "key_events", label: "Goals", icon: Target },
 ];
 
 interface MetricRow extends CampaignPresentationMetric {
@@ -139,20 +152,6 @@ function windowRangeText(window: CampaignPresentationWindow | undefined): string
   return formatCampaignDateRange(window.start, window.end);
 }
 
-function comparisonCaption(presentation: CampaignImpactPresentation, windows: Map<string, CampaignPresentationWindow>): string {
-  const primaryText = windowRangeText(windows.get("primary"));
-  const baselineText = windowRangeText(windows.get("baseline"));
-  if (!primaryText || !baselineText) return presentation.comparisonDescription;
-  const periodCaptions = [
-    `${presentation.primaryColumnLabel} ${primaryText}`,
-    `Before ${baselineText}`,
-  ];
-  if (!presentation.hasPostPeriod) return periodCaptions.join(" · ");
-  const afterText = windowRangeText(windows.get("post"));
-  if (afterText) periodCaptions.push(`After ${afterText}`);
-  return periodCaptions.join(" · ");
-}
-
 function ColumnLabel({ label, rangeText }: { label: string; rangeText: string | null }) {
   if (!rangeText) return <>{label}</>;
   return (
@@ -167,17 +166,14 @@ function ColumnLabel({ label, rangeText }: { label: string; rangeText: string | 
   );
 }
 
-function highlightCaption(eventKind: "date_range" | "one_time", primaryColumnLabel: string): string {
-  return eventKind === "one_time" ? "Event week vs the week before" : `${primaryColumnLabel} vs the window before`;
-}
-
 interface NormalizedChartPoint extends CampaignImpactChartPoint {
+  impressionsNorm: number | null;
   sessionsNorm: number | null;
   clicksNorm: number | null;
   goalsNorm: number | null;
 }
 
-function normalizeSeries(points: CampaignImpactChartPoint[], key: "sessions" | "clicks" | "keyEvents"): Array<number | null> {
+function normalizeSeries(points: CampaignImpactChartPoint[], key: "impressions" | "sessions" | "clicks" | "keyEvents"): Array<number | null> {
   const available = points.map(point => point[key]).filter((value): value is number => value != null);
   if (!available.length) return points.map(() => null);
   const min = Math.min(...available);
@@ -194,11 +190,13 @@ function normalizeSeries(points: CampaignImpactChartPoint[], key: "sessions" | "
 }
 
 function normalizedChartPoints(points: CampaignImpactChartPoint[]): NormalizedChartPoint[] {
+  const impressions = normalizeSeries(points, "impressions");
   const sessions = normalizeSeries(points, "sessions");
   const clicks = normalizeSeries(points, "clicks");
   const goals = normalizeSeries(points, "keyEvents");
   return points.map((point, index) => ({
     ...point,
+    impressionsNorm: impressions[index],
     sessionsNorm: sessions[index],
     clicksNorm: clicks[index],
     goalsNorm: goals[index] == null ? null : goals[index] * 0.78,
@@ -221,6 +219,8 @@ function CampaignWindowChart({
   eventKind,
   eventDate,
   isScheduled,
+  visibleLines,
+  onPhaseChange,
 }: {
   points: CampaignImpactChartPoint[];
   primaryWindow: CampaignPresentationWindow | undefined;
@@ -228,18 +228,20 @@ function CampaignWindowChart({
   eventKind: "date_range" | "one_time";
   eventDate: string;
   isScheduled: boolean;
+  visibleLines: Record<string, boolean>;
+  onPhaseChange: (phase: CampaignImpactChartPoint["phase"]) => void;
 }) {
   const availableKeys = REPORT_CHART_KEYS.filter(key => {
     const dataKey = key === "goals" ? "keyEvents" : key;
-    return points.some(point => point[dataKey] != null);
+    return visibleLines[key] && points.some(point => point[dataKey] != null);
   });
   const useNormalizedKeys = availableKeys.length > 1;
   const chartData = useNormalizedKeys ? normalizedChartPoints(points) : points;
-  const availablePoints = points.filter(point => point.sessions != null || point.clicks != null || point.keyEvents != null);
+  const availablePoints = points.filter(point => point.impressions != null || point.sessions != null || point.clicks != null || point.keyEvents != null);
 
   if (!availablePoints.length) {
     return (
-      <div className="flex h-[246px] items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
         {isScheduled
           ? "This campaign has not started. Trend data will appear as measurements arrive."
           : "Trend will appear here when connected data is available."}
@@ -248,9 +250,16 @@ function CampaignWindowChart({
   }
 
   return (
-    <div className="h-[246px] w-full">
+    <div className="h-[220px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 18, right: 8, left: 8, bottom: 0 }}>
+        <AreaChart
+          data={chartData}
+          margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+          onMouseMove={state => {
+            const point = state?.activePayload?.[0]?.payload as CampaignImpactChartPoint | undefined;
+            if (point) onPhaseChange(point.phase);
+          }}
+        >
           <defs>
             {REPORT_CHART_KEYS.map(key => (
               <linearGradient key={key} id={`campaign-report-${key}`} x1="0" y1="0" x2="0" y2="1">
@@ -298,20 +307,26 @@ function CampaignWindowChart({
                 <div className="min-w-[180px] rounded-lg border border-general-border bg-white px-3 py-2.5 shadow-md">
                   <p className="mb-2 text-sm font-medium text-foreground">{chartDate(point.date)}</p>
                   <div className="space-y-1.5 text-sm">
-                    {point.sessions != null ? (
-                      <p className="flex items-center justify-between gap-4 text-[#ea580c]"><span>Sessions</span><span className="font-medium text-foreground">{point.sessions.toLocaleString()}</span></p>
+                    {visibleLines.impressions && point.impressions != null ? (
+                      <p className="flex items-center justify-between gap-4" style={{ color: CHART_SERIES_COLORS.impressions }}><span>Impressions</span><span className="font-medium text-foreground">{point.impressions.toLocaleString()}</span></p>
                     ) : null}
-                    {point.clicks != null ? (
-                      <p className="flex items-center justify-between gap-4 text-[#2563eb]"><span>Clicks</span><span className="font-medium text-foreground">{point.clicks.toLocaleString()}</span></p>
+                    {visibleLines.clicks && point.clicks != null ? (
+                      <p className="flex items-center justify-between gap-4" style={{ color: CHART_SERIES_COLORS.clicks }}><span>Clicks</span><span className="font-medium text-foreground">{point.clicks.toLocaleString()}</span></p>
                     ) : null}
-                    {point.keyEvents != null ? (
-                      <p className="flex items-center justify-between gap-4 text-[#059669]"><span>Key Events</span><span className="font-medium text-foreground">{point.keyEvents.toLocaleString()}</span></p>
+                    {visibleLines.sessions && point.sessions != null ? (
+                      <p className="flex items-center justify-between gap-4" style={{ color: CHART_SERIES_COLORS.sessions }}><span>Sessions</span><span className="font-medium text-foreground">{point.sessions.toLocaleString()}</span></p>
+                    ) : null}
+                    {visibleLines.goals && point.keyEvents != null ? (
+                      <p className="flex items-center justify-between gap-4" style={{ color: CHART_SERIES_COLORS.goals }}><span>Goals</span><span className="font-medium text-foreground">{point.keyEvents.toLocaleString()}</span></p>
                     ) : null}
                   </div>
                 </div>
               );
             }}
           />
+          {availableKeys.includes("impressions") ? (
+            <Area type="linear" dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"} stroke={CHART_SERIES_COLORS.impressions} fill="url(#campaign-report-impressions)" strokeWidth={1} connectNulls={false} name="Impressions" />
+          ) : null}
           {availableKeys.includes("sessions") ? (
             <Area type="linear" dataKey={useNormalizedKeys ? "sessionsNorm" : "sessions"} stroke={CHART_SERIES_COLORS.sessions} fill="url(#campaign-report-sessions)" strokeWidth={1} connectNulls={false} name="Sessions" />
           ) : null}
@@ -319,7 +334,7 @@ function CampaignWindowChart({
             <Area type="linear" dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"} stroke={CHART_SERIES_COLORS.clicks} fill="url(#campaign-report-clicks)" strokeWidth={1} connectNulls={false} name="Clicks" />
           ) : null}
           {availableKeys.includes("goals") ? (
-            <Area type="linear" dataKey={useNormalizedKeys ? "goalsNorm" : "keyEvents"} stroke={CHART_SERIES_COLORS.goals} fill="url(#campaign-report-goals)" strokeWidth={1} connectNulls={false} name="Key Events" />
+            <Area type="linear" dataKey={useNormalizedKeys ? "goalsNorm" : "keyEvents"} stroke={CHART_SERIES_COLORS.goals} fill="url(#campaign-report-goals)" strokeWidth={1} connectNulls={false} name="Goals" />
           ) : null}
         </AreaChart>
       </ResponsiveContainer>
@@ -327,109 +342,60 @@ function CampaignWindowChart({
   );
 }
 
-function CampaignChartLegend({
-  points,
-  eventKind,
-}: {
-  points: CampaignImpactChartPoint[];
-  eventKind: "date_range" | "one_time";
-}) {
-  const availableKeys = REPORT_CHART_KEYS.filter(key => {
-    const dataKey = key === "goals" ? "keyEvents" : key;
-    return points.some(point => point[dataKey] != null);
-  });
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-mono text-xs font-normal leading-[1.5] text-muted-foreground">
-      <div className="flex items-center gap-1">
-        {eventKind === "one_time" ? (
-          <span className="w-4 border-t-2 border-dashed border-primary" aria-hidden="true" />
-        ) : (
-          <span
-            className="size-2 rounded-full"
-            style={{ backgroundColor: "var(--general-primary)", opacity: 0.12 }}
-            aria-hidden="true"
-          />
-        )}
-        <span>{eventKind === "one_time" ? "Event Date" : "Campaign Window"}</span>
-      </div>
-      {availableKeys.map(key => (
-        <div key={key} className="flex items-center gap-1">
-          <span
-            className="h-0.5 w-4 rounded-full"
-            style={{ backgroundColor: CHART_SERIES_COLORS[key] }}
-            aria-hidden="true"
-          />
-          <span>{REPORT_CHART_LABELS[key]}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CampaignPhaseLabels({
+function CampaignPhaseMetrics({
   windows,
   primaryLabel,
   points,
+  activeKey,
 }: {
   windows: Map<string, CampaignPresentationWindow>;
   primaryLabel: string;
   points: CampaignImpactChartPoint[];
+  activeKey: string;
 }) {
   const phases = [
     { key: "baseline", pointPhase: "before", label: "Before" },
     { key: "primary", pointPhase: "during", label: primaryLabel },
     { key: "post", pointPhase: "after", label: "After" },
-  ].filter(phase => windows.get(phase.key)?.days);
+  ].filter(phase => windows.get(phase.key)?.days).map(phase => {
+    const window = windows.get(phase.key);
+    const phasePoints = points.filter(point => point.phase === phase.pointPhase);
+    return {
+      ...phase,
+      window,
+      metrics: [
+        { key: "impressions", label: "Impressions", color: CHART_SERIES_COLORS.impressions, values: phasePoints.map(point => point.impressions) },
+        { key: "clicks", label: "Clicks", color: CHART_SERIES_COLORS.clicks, values: phasePoints.map(point => point.clicks) },
+        { key: "sessions", label: "Sessions", color: CHART_SERIES_COLORS.sessions, values: phasePoints.map(point => point.sessions) },
+        { key: "goals", label: "Goals", color: CHART_SERIES_COLORS.goals, values: phasePoints.map(point => point.keyEvents) },
+      ],
+    };
+  });
+  const activePhase = phases.find(phase => phase.key === activeKey) || phases[0];
+
+  if (!activePhase) return null;
 
   return (
-    <div className="flex overflow-hidden rounded-md border border-general-border text-[10px] font-medium tracking-[0.15px] text-muted-foreground">
-      {phases.map(phase => {
-        const window = windows.get(phase.key);
-        const phasePoints = points.filter(point => point.phase === phase.pointPhase);
-        const totals = {
-          sessions: phasePoints.reduce((total, point) => total + (point.sessions || 0), 0),
-          clicks: phasePoints.reduce((total, point) => total + (point.clicks || 0), 0),
-          keyEvents: phasePoints.reduce((total, point) => total + (point.keyEvents || 0), 0),
-        };
-        const availability = {
-          sessions: phasePoints.some(point => point.sessions != null),
-          clicks: phasePoints.some(point => point.clicks != null),
-          keyEvents: phasePoints.some(point => point.keyEvents != null),
-        };
-
-        return (
-          <Tooltip key={phase.key}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "border-r border-general-border px-2 py-1.5 text-center transition-colors last:border-r-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  phase.key === "primary" && "bg-primary/[0.12] text-primary hover:bg-primary/15",
-                )}
-                style={{ flex: window?.days || 1 }}
-              >
-                {phase.label}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              sideOffset={6}
-              hideArrow
-              className="min-w-[200px] rounded-lg border border-general-border bg-white p-3 text-foreground shadow-md"
-            >
-              <p className="text-sm font-medium text-foreground">{phase.label}</p>
-              <p className="mb-2 text-xs text-muted-foreground">{windowRangeText(window)}</p>
-              <div className="space-y-1 text-xs">
-                {availability.sessions ? <p className="flex justify-between gap-5" style={{ color: CHART_SERIES_COLORS.sessions }}><span>Sessions</span><span className="font-medium text-foreground">{totals.sessions.toLocaleString()}</span></p> : null}
-                {availability.clicks ? <p className="flex justify-between gap-5" style={{ color: CHART_SERIES_COLORS.clicks }}><span>Clicks</span><span className="font-medium text-foreground">{totals.clicks.toLocaleString()}</span></p> : null}
-                {availability.keyEvents ? <p className="flex justify-between gap-5" style={{ color: CHART_SERIES_COLORS.goals }}><span>Key Events</span><span className="font-medium text-foreground">{totals.keyEvents.toLocaleString()}</span></p> : null}
-                {!availability.sessions && !availability.clicks && !availability.keyEvents ? <p className="text-muted-foreground">No chart data available</p> : null}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
+    <div className="overflow-x-auto rounded-[6px] border border-general-border bg-general-primary-foreground">
+      <div className="grid min-w-[580px] grid-cols-[136px_repeat(4,minmax(0,1fr))] items-center">
+        <div className="border-r border-general-border px-3 py-2">
+          <p className="text-[10px] text-muted-foreground">Period metrics</p>
+          <p className="mt-0.5 text-xs font-medium text-foreground">{activePhase.label}</p>
+        </div>
+        {activePhase.metrics.map(metric => {
+          const available = metric.values.some(value => value != null);
+          const total = metric.values.reduce<number>((sum, value) => sum + (value || 0), 0);
+          return (
+            <div key={metric.key} className="min-w-0 border-r border-general-border px-3 py-2 last:border-r-0">
+              <p className="flex items-center gap-1.5 truncate text-[10px] text-muted-foreground">
+                <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: metric.color }} aria-hidden="true" />
+                {metric.label}
+              </p>
+              <p className="mt-0.5 text-xs font-medium tabular-nums text-foreground">{available ? total.toLocaleString() : "—"}</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -450,6 +416,13 @@ export function CampaignImpactReportContent({
   const [emails, setEmails] = React.useState<string[]>([]);
   const [downloading, setDownloading] = React.useState<string | null>(null);
   const [showAllMetrics, setShowAllMetrics] = React.useState(false);
+  const [activePhaseKey, setActivePhaseKey] = React.useState("primary");
+  const [visibleLines, setVisibleLines] = React.useState<Record<AnalyticsMetricKey, boolean>>({
+    impressions: true,
+    clicks: true,
+    sessions: true,
+    goals: true,
+  });
   const shareKey = React.useRef(crypto.randomUUID());
   const report = impact.data;
   const campaign = detail.data || report?.campaign;
@@ -573,10 +546,7 @@ export function CampaignImpactReportContent({
     <div className="flex w-full flex-col gap-6 bg-white py-9">
       <div className="flex items-start justify-between gap-4 px-6">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-[-0.48px] text-foreground">{campaign.name}</h1>
-            <CampaignOverlapWarning overlaps={report.contamination} context="report" primaryPeriodLabel={presentation.primaryColumnLabel} />
-          </div>
+          <h1 className="text-2xl font-medium tracking-[-0.48px] text-foreground">{campaign.name}</h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="h-6 gap-1.5 rounded-lg border-0 bg-secondary px-2 text-[10px] font-medium tracking-[0.15px] text-muted-foreground">
               <Calendar className="size-3" />
@@ -587,6 +557,7 @@ export function CampaignImpactReportContent({
                 {presentation.status.label}
               </Badge>
             ) : null}
+            <CampaignOverlapWarning overlaps={report.contamination} context="report" primaryPeriodLabel={presentation.primaryColumnLabel} />
           </div>
           {(presentation.details.spendText || campaign.trackedTerms.length || locationLabels.length || presentation.details.notes) ? (
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -630,66 +601,77 @@ export function CampaignImpactReportContent({
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 px-6 sm:grid-cols-2 lg:grid-cols-4">
-        {reportCards.map(card => (
-          <div key={`${card.source}-${card.metricKey}`} className="flex min-h-[96px] min-w-0 flex-col justify-between gap-2 rounded-md border border-general-border p-3">
-            <p className="truncate text-xs font-medium text-muted-foreground">{card.label}</p>
-            <div>
-              <div className="flex flex-wrap items-baseline gap-1.5">
-                <p className="text-2xl font-semibold tracking-[-0.48px] text-secondary-foreground">
-                  {card.available && card.metric ? card.metric.primaryText : "—"}
-                </p>
-                {card.available && card.metric ? (
-                  <span className={cn("text-[10px] font-medium tracking-[0.15px]", TONE_TEXT[card.metric.change.tone])}>
-                    {card.metric.change.text}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 truncate text-[10px] tracking-[0.15px] text-muted-foreground" title={card.available ? undefined : card.unavailableText}>
-                {card.available ? highlightCaption(campaign.eventKind, presentation.primaryColumnLabel) : card.unavailableText}
+        {reportCards.map(card => {
+          const MetricIcon = card.icon;
+          return (
+          <div key={`${card.source}-${card.metricKey}`} className="flex min-h-[72px] min-w-0 flex-col justify-between gap-1 rounded-md border border-general-border px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <MetricIcon className="size-3.5 shrink-0" strokeWidth={1.5} />
+              <p className="truncate text-xs font-medium">{card.label}</p>
+            </div>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-2xl font-medium tracking-[-0.48px] text-secondary-foreground" title={card.available ? undefined : card.unavailableText}>
+                {card.available && card.metric ? card.metric.primaryText : "—"}
               </p>
+              {card.available && card.metric ? (
+                <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium tracking-[0.07px]", TONE_TEXT[card.metric.change.tone])}>
+                  {card.metric.change.text}
+                </span>
+              ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {report.status !== "unavailable" ? (
         <div>
           <div className="h-px w-full bg-general-border" />
-          <div className="flex flex-col gap-8 px-6 py-6">
-            <div>
-              <p className="text-base font-medium text-secondary-foreground">
-                {hasPostPeriod ? "Before, During & After" : `Before & ${presentation.primaryColumnLabel}`}
-              </p>
-              <p className="mt-0.5 text-[10px] tracking-[0.15px] text-muted-foreground">
-                {campaign.eventKind === "one_time"
-                  ? "The dashed line marks the event date. The Impact period covers the seven days starting there."
-                  : "The shaded band is the campaign window. Look for a shift that lines up with it."}
-              </p>
+          <div className="flex flex-col gap-4 px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-medium text-secondary-foreground">Performance</p>
+                <p className="mt-0.5 text-[10px] tracking-[0.15px] text-muted-foreground">
+                  {campaign.eventKind === "one_time"
+                    ? "The dashed line marks the event date."
+                    : "The shaded band marks the campaign window."}
+                </p>
+              </div>
+              <AnalyticsDisplayMenu
+                metricKeys={REPORT_CHART_KEYS}
+                metricLabels={REPORT_CHART_LABELS}
+                visibleLines={visibleLines}
+                onLineToggle={(key, checked) => setVisibleLines(current => ({ ...current, [key]: checked }))}
+                triggerClassName="min-h-8 gap-1.5 px-3 py-1.5"
+              />
             </div>
-            <CampaignWindowChart
-              points={report.chartSeries || []}
-              primaryWindow={windows.get("primary")}
-              primaryLabel={presentation.primaryColumnLabel}
-              eventKind={campaign.eventKind}
-              eventDate={campaign.startDate}
-              isScheduled={report.status === "scheduled"}
-            />
-            <CampaignPhaseLabels
-              windows={windows}
-              primaryLabel={presentation.primaryColumnLabel}
-              points={report.chartSeries || []}
-            />
-            <CampaignChartLegend points={report.chartSeries || []} eventKind={campaign.eventKind} />
+            <div className="space-y-1.5">
+              <CampaignWindowChart
+                points={report.chartSeries || []}
+                primaryWindow={windows.get("primary")}
+                primaryLabel={presentation.primaryColumnLabel}
+                eventKind={campaign.eventKind}
+                eventDate={campaign.startDate}
+                isScheduled={report.status === "scheduled"}
+                visibleLines={visibleLines}
+                onPhaseChange={phase => setActivePhaseKey(
+                  phase === "before" ? "baseline" : phase === "during" ? "primary" : "post",
+                )}
+              />
+              <CampaignPhaseMetrics
+                windows={windows}
+                primaryLabel={presentation.primaryColumnLabel}
+                points={report.chartSeries || []}
+                activeKey={activePhaseKey}
+              />
+            </div>
           </div>
           <div className="h-px w-full bg-general-border" />
         </div>
       ) : null}
 
       <div className="flex flex-col gap-4 px-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-medium text-secondary-foreground">Results</h2>
-          <p className="text-xs tracking-[0.18px] text-muted-foreground">{comparisonCaption(presentation, windows)}</p>
-        </div>
+        <h2 className="text-base font-medium text-secondary-foreground">Results</h2>
 
         {metricRows.length ? (
           <div className="overflow-x-auto">
@@ -708,7 +690,12 @@ export function CampaignImpactReportContent({
                 {visibleMetricRows.map(metric => (
                   <tr key={`${metric.sourceKey}-${metric.key}`} className="border-b border-general-border text-sm font-medium tracking-[0.07px]">
                     <td className="w-[320px] py-2 text-secondary-foreground">
-                      {metric.label}
+                      <div className="flex items-center gap-2">
+                        <span>{metric.label}</span>
+                        <span className="rounded border border-general-border px-1 text-[10px] font-medium leading-4 tracking-wide text-muted-foreground">
+                          {SOURCE_TAG_LABELS[metric.sourceKey]}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-2 text-center tabular-nums text-secondary-foreground">{metric.baselineText}</td>
                     <td className="py-2 text-center tabular-nums text-secondary-foreground">{metric.primaryText}</td>

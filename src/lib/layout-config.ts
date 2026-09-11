@@ -15,9 +15,15 @@ export const routesWithoutSidebar: string[] = [
  * Any pathname starting with one of these prefixes will use the empty layout.
  */
 export const routePrefixesWithoutSidebar: string[] = [
-  "/google-access",
-  "/r/",
-  "/admin",
-  "/agent",
-  "/email/verify",
-];
+  '/google-access',
+  '/email/verify',
+  '/r/',
+  '/admin',
+  '/agent',
+]
+
+const AGENT_PATH = /^\/business\/[^/]+\/agent\/?$/
+
+export function isAgentRoute(pathname: string) {
+  return AGENT_PATH.test(pathname)
+}

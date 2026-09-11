@@ -14,6 +14,7 @@ import {
   Flag,
   Maximize2,
   CalendarClock,
+  ChartSpline,
   Minimize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ import type { DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 import {
   getAvailableAnalyticsGroupings,
   getFallbackAnalyticsGrouping,
+  calculateTrailingMovingAverage,
   groupAnalyticsChartData,
   type AnalyticsGroupBy,
   type GroupedAnalyticsChartPoint,
@@ -118,6 +120,15 @@ function formatOverlayDate(dateKey: string): string {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
+  });
+}
+
+function formatChartMetricValue(
+  value: number | undefined,
+  isMovingAverage: boolean
+): string {
+  return (value ?? 0).toLocaleString("en-US", {
+    maximumFractionDigits: isMovingAverage ? 1 : 0,
   });
 }
 
@@ -390,6 +401,7 @@ export function OrganicPerformanceSection({
   const {
     chartData,
     rawCurrentChartData,
+    rawPreviousChartData,
     chartRanges,
     chartConfig,
     chartLegendItems,
@@ -439,8 +451,7 @@ export function OrganicPerformanceSection({
   // Overlays are opt-in per chart, so their data is only fetched once switched on.
   const [anomalyHighlightsOn, setAnomalyHighlightsOn] = useState(false);
   const [trackingOverlaysOn, setTrackingOverlaysOn] = useState(false);
-  const showAnomalyHighlights = anomalyHighlightsOn && !isIngestionActive;
-  const showTrackingOverlays = trackingOverlaysOn;
+  const [movingAverageOn, setMovingAverageOn] = useState(false);
 
   const [visibleLinesLocal, setVisibleLinesLocal] = useState<
     Record<string, boolean>
@@ -473,10 +484,29 @@ export function OrganicPerformanceSection({
     () => getFallbackAnalyticsGrouping(groupBy, availableGroupings),
     [availableGroupings, groupBy]
   );
+  const showMovingAverage = movingAverageOn && effectiveGroupBy === "day";
+  const showAnomalyHighlights =
+    anomalyHighlightsOn && !isIngestionActive && !showMovingAverage;
+  const showTrackingOverlays = trackingOverlaysOn && !showMovingAverage;
+  const movingAverageChartData = useMemo(() => {
+    if (!showMovingAverage) return rawCurrentChartData;
+
+    const currentDateKeys = new Set(
+      rawCurrentChartData
+        .map((point) => point.dateKey)
+        .filter((dateKey): dateKey is string => Boolean(dateKey))
+    );
+    const historyTail = rawPreviousChartData.slice(-6);
+
+    return calculateTrailingMovingAverage(
+      [...historyTail, ...rawCurrentChartData],
+      7
+    ).filter((point) => point.dateKey && currentDateKeys.has(point.dateKey));
+  }, [rawCurrentChartData, rawPreviousChartData, showMovingAverage]);
   const groupedChartData = useMemo<GroupedAnalyticsChartPoint[]>(
     () =>
       groupAnalyticsChartData(
-        rawCurrentChartData,
+        movingAverageChartData,
         effectiveGroupBy,
         chartRanges.currentStart,
         chartRanges.currentEnd
@@ -485,7 +515,7 @@ export function OrganicPerformanceSection({
       chartRanges.currentEnd,
       chartRanges.currentStart,
       effectiveGroupBy,
-      rawCurrentChartData,
+      movingAverageChartData,
     ]
   );
   const normalizedGroupedChartData = useMemo(() => {
@@ -568,6 +598,20 @@ export function OrganicPerformanceSection({
     },
     [businessUniqueId]
   );
+
+  const handleMovingAverageToggle = useCallback((enabled: boolean) => {
+    if (enabled) {
+      setAnomalyHighlightsOn(false);
+      setTrackingOverlaysOn(false);
+    }
+    setMovingAverageOn(enabled);
+  }, []);
+
+  useEffect(() => {
+    if (effectiveGroupBy !== "day" && movingAverageOn) {
+      setMovingAverageOn(false);
+    }
+  }, [effectiveGroupBy, movingAverageOn]);
 
   const singleMetricYDomain = useMemo(() => {
     if (!singleMetricMode || groupedChartData.length === 0) return undefined;
@@ -1198,8 +1242,12 @@ export function OrganicPerformanceSection({
                       label="anomaly highlights"
                       active={showAnomalyHighlights}
                       loading={isLoadingAnomalyDates}
-                      disabled={isIngestionActive}
-                      disabledReason="Available once your data is ready"
+                      disabled={isIngestionActive || showMovingAverage}
+                      disabledReason={
+                        showMovingAverage
+                          ? "Turn off the 7-day moving average to show anomaly highlights"
+                          : "Available once your data is ready"
+                      }
                       onToggle={handleAnomalyHighlightsToggle}
                       activeIconClassName="text-amber-600"
                     />
@@ -1208,7 +1256,18 @@ export function OrganicPerformanceSection({
                       label="tracking overlays"
                       active={showTrackingOverlays}
                       loading={campaignOverlays.isLoading}
+                      disabled={showMovingAverage}
+                      disabledReason="Turn off the 7-day moving average to show tracking overlays"
                       onToggle={handleTrackingOverlaysToggle}
+                      activeIconClassName="text-primary"
+                    />
+                    <ChartOverlayToggle
+                      icon={ChartSpline}
+                      label="7-day moving average"
+                      active={showMovingAverage}
+                      disabled={effectiveGroupBy !== "day"}
+                      disabledReason="The 7-day moving average is available in Day view"
+                      onToggle={handleMovingAverageToggle}
                       activeIconClassName="text-primary"
                     />
                   </div>
@@ -1450,6 +1509,11 @@ export function OrganicPerformanceSection({
                                   <p className="text-base font-medium leading-5 text-general-foreground">
                                     {data?.rangeLabel || label}
                                   </p>
+                                  {showMovingAverage && (
+                                    <span className="shrink-0 rounded-sm bg-general-secondary px-2 py-0.5 text-[10px] font-medium leading-4 text-general-muted-foreground">
+                                      7-day average
+                                    </span>
+                                  )}
                                   {showAnomalyHint && (
                                     <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-4 text-amber-700">
                                       Click to view anomaly
@@ -1464,7 +1528,7 @@ export function OrganicPerformanceSection({
                                         Impressions
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {data?.impressions?.toLocaleString() ?? "0"}
+                                        {formatChartMetricValue(data?.impressions, showMovingAverage)}
                                       </span>
                                     </div>
                                   )}
@@ -1475,7 +1539,7 @@ export function OrganicPerformanceSection({
                                         Clicks
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {data?.clicks?.toLocaleString() ?? "0"}
+                                        {formatChartMetricValue(data?.clicks, showMovingAverage)}
                                       </span>
                                     </div>
                                   )}
@@ -1487,7 +1551,7 @@ export function OrganicPerformanceSection({
                                           Sessions
                                         </p>
                                         <span className="font-medium text-general-foreground">
-                                          {data?.sessions?.toLocaleString() ?? "0"}
+                                          {formatChartMetricValue(data?.sessions, showMovingAverage)}
                                         </span>
                                       </div>
                                     )}
@@ -1499,7 +1563,7 @@ export function OrganicPerformanceSection({
                                           Goals
                                         </p>
                                         <span className="font-medium text-general-foreground">
-                                          {data?.goals?.toLocaleString() ?? "0"}
+                                          {formatChartMetricValue(data?.goals, showMovingAverage)}
                                         </span>
                                       </div>
                                     )}
@@ -1516,7 +1580,7 @@ export function OrganicPerformanceSection({
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
                             strokeWidth={1}
-                            name="Impressions"
+                            name={showMovingAverage ? "Impressions (7-day average)" : "Impressions"}
                           />
                         )}
                         {visibleLines.clicks && (
@@ -1527,7 +1591,7 @@ export function OrganicPerformanceSection({
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
                             strokeWidth={1}
-                            name="Clicks"
+                            name={showMovingAverage ? "Clicks (7-day average)" : "Clicks"}
                           />
                         )}
                         {visibleLines.goals && (
@@ -1538,7 +1602,7 @@ export function OrganicPerformanceSection({
                             stroke="#059669"
                             fill="url(#fillGoals)"
                             strokeWidth={1}
-                            name="Goals"
+                            name={showMovingAverage ? "Goals (7-day average)" : "Goals"}
                           />
                         )}
                         {visibleLines.sessions && (
@@ -1549,7 +1613,7 @@ export function OrganicPerformanceSection({
                             stroke="#ea580c"
                             fill="url(#fillSessions)"
                             strokeWidth={1}
-                            name="Sessions"
+                            name={showMovingAverage ? "Sessions (7-day average)" : "Sessions"}
                           />
                         )}
                         {anomalyBandData.bands.map((band) => (

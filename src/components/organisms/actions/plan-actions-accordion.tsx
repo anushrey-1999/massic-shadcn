@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Loader2, RotateCw } from "lucide-react";
+import { Download, Loader2, Plus, RotateCw } from "lucide-react";
 import { AgentPlanTable } from "@/components/massic-agent/agent-plan-table";
 import { agentKeys, errorMessage, getPlan, getPlans } from "@/components/massic-agent/agent-api";
 import { agentPlanHref, agentPlansHref } from "@/components/massic-agent/agent-links";
@@ -11,6 +11,7 @@ import { SocialActionCell } from "@/components/organisms/SocialTable/social-acti
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import type { TacticRow } from "@/types/social-types";
@@ -25,7 +26,7 @@ function escapeCsv(value: unknown) {
 function downloadPlan(type: ResourceType, planId: string | number, rows: PlanItem[]) {
   const social = type === "social_channels_plan";
   const headers = social
-    ? ["Campaign", "Channel", "Content type", "Rationale", "Relevance", "Status", "Valid", "Campaign cluster ID"]
+    ? ["Tactic", "Channel", "Type", "Rationale", "Relevance", "Status", "Valid", "Tactic ID"]
     : ["Page", "Page type", "Rationale", "Relevance", "Coverage", "Volume", "Status", "Valid", "Page ID"];
   const data = rows.map(item => social
     ? [item.cluster_name || item.campaign_name || "", item.channel_name, item.content_type, item.rationale, item.cluster_relevance, item.status, item.valid !== false, item.campaign_cluster_id]
@@ -96,6 +97,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
     enabled: ready && active !== null, retry: 1, refetchOnMount: "always", refetchOnWindowFocus: "always",
   });
   const activePlan = detail.data && planMatchesType(detail.data.plan_type, type) ? detail.data : undefined;
+  const canDownload = Boolean(activePlan && String(activePlan.status).toLowerCase() === "active");
   const navigate = (action: "create" | "refine", planId?: string | number) => {
     if (action === "create" ? !guardCreate() : !guardRefine()) return;
     router.push(agentPlanHref({ businessId, surface: config.surface, action, planId, autoSubmit: action === "create" }));
@@ -105,18 +107,35 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
 
   return <>
       <Card variant="profileCard" className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-0 bg-white p-4! shadow-none">
-        <div className="flex shrink-0 flex-wrap items-center gap-3 pb-4">
+        {active && <div className="flex shrink-0 flex-wrap items-center gap-3 pb-4">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{active ? `Plan #${active.id}` : `No active ${config.title.toLowerCase()} plan`}</p>
-            {active && <p className="mt-0.5 text-xs text-muted-foreground">Active since {lastUpdated}</p>}
+            <p className="text-sm font-medium">Plan #{active.id}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Active since {lastUpdated}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Tooltip><TooltipTrigger asChild><Button variant="secondary" size="icon-sm" aria-label={`Download active ${config.title.toLowerCase()} plan`} disabled={!activePlan?.plan_json?.length} onClick={() => activePlan && downloadPlan(type, activePlan.id, activePlan.plan_json ?? [])}><Download className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Download CSV</TooltipContent></Tooltip>
+            {canDownload && <Tooltip><TooltipTrigger asChild><Button variant="secondary" size="icon-sm" aria-label={`Download active ${config.title.toLowerCase()} plan`} disabled={!activePlan?.plan_json?.length} onClick={() => activePlan && downloadPlan(type, activePlan.id, activePlan.plan_json ?? [])}><Download className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Download CSV</TooltipContent></Tooltip>}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild><Button variant="secondary" size="icon-sm" aria-label="Plan actions"><Plus className="size-4" /></Button></DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Plan actions</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-64 rounded-lg border-border p-1.5 shadow-lg">
+                <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">What would you like to do?</DropdownMenuLabel>
+                <DropdownMenuItem className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5 focus:bg-general-primary/10 focus:text-general-primary" onSelect={() => navigate("refine", active.id)}>
+                  <RotateCw className="size-4 shrink-0" />
+                  <span className="flex min-w-0 flex-col"><span className="text-sm font-medium">Refine plan</span><span className="text-xs text-muted-foreground">Adjust Plan #{active.id}</span></span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5 focus:bg-general-primary/10 focus:text-general-primary" onSelect={() => navigate("create")}>
+                  <Plus className="size-4 shrink-0" />
+                  <span className="flex min-w-0 flex-col"><span className="text-sm font-medium">New plan</span><span className="text-xs text-muted-foreground">Start a new {config.title.toLowerCase()} plan</span></span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="secondary" size="sm" onClick={viewPlans}>View plans</Button>
-            {active && <Button variant="secondary" size="sm" onClick={() => navigate("refine", active.id)}><RotateCw className="h-3.5 w-3.5" />Refine</Button>}
-            <Button size="sm" onClick={() => navigate("create")}>New plan</Button>
           </div>
-        </div>
+        </div>}
         <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden">
           {readinessLoading ? <div className="flex h-32 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Checking strategy…</div>
             : !ready ? <div className="flex h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">{config.title} strategy is not ready yet</p><p className="mt-1 text-xs text-muted-foreground">Complete the {config.title.toLowerCase()} strategy workflow before creating plans.</p></div>

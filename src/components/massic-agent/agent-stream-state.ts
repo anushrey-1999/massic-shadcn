@@ -1,7 +1,7 @@
 import type { ActivityStep, AgentEvent, AgentMessage } from "./types";
 import { widgetParts } from "./agent-model";
 
-const labels: Record<string, string> = { search_knowledge: "Searching knowledge", get_business_profile: "Reading business profile", get_strategy_statuses: "Checking strategy", get_pages_details: "Reading webpage details", get_clusters_details: "Reading social campaigns", get_webpage_plan: "Reading webpage plan", get_social_channels_plan: "Reading social plan", save_webpages_plan: "Saving webpage plan", save_social_channels_plan: "Saving social plan", activate_plan: "Activating plan", recall_memory: "Recalling context", write_memory: "Saving context" };
+const labels: Record<string, string> = { search_knowledge: "Searching knowledge", get_business_profile: "Reading business profile", get_strategy_statuses: "Checking strategy", get_pages_details: "Reading web details", get_clusters_details: "Reading social tactics", get_webpage_plan: "Reading web plan", get_social_channels_plan: "Reading social plan", save_webpages_plan: "Saving web plan", save_social_channels_plan: "Saving social plan", activate_plan: "Activating plan", recall_memory: "Recalling context", write_memory: "Saving context" };
 export const toolLabel = (name: string) => labels[name] ?? name.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
 export function reduceAgentEvent(message: AgentMessage, event: AgentEvent): AgentMessage {
   const activity = [...(message.activity ?? [])];
@@ -13,7 +13,7 @@ export function reduceAgentEvent(message: AgentMessage, event: AgentEvent): Agen
     case "token": return depth === 0 ? { ...message, content: message.content + event.text } : message;
     case "message_complete": return depth === 0 ? { ...message, content: event.content, partial: event.partial } : message;
     case "summarising_history": return { ...message, activity: [...activity, { id: `summary-${activity.length}`, label: "Summarising earlier messages", scope, depth, status: "done" }] };
-    case "dispatch_start": return { ...message, activity: [...activity, { id: `dispatch:${event.child}:${activity.length}`, label: `${event.child === "webpages" ? "Webpage" : event.child === "social_channels" ? "Social" : event.child} planning`, detail: event.task, scope: event.child, depth: depth + 1, status: "running" }] };
+    case "dispatch_start": return { ...message, activity: [...activity, { id: `dispatch:${event.child}:${activity.length}`, label: `${event.child === "webpages" ? "Web" : event.child === "social_channels" ? "Social" : event.child} planning`, detail: event.task, scope: event.child, depth: depth + 1, status: "running" }] };
     case "dispatch_end": {
       const index = activity.findLastIndex(s => s.id.startsWith(`dispatch:${event.child}:`) && s.status === "running");
       if (index >= 0) activity[index] = { ...activity[index], status: "done", detail: event.summary ?? activity[index].detail };

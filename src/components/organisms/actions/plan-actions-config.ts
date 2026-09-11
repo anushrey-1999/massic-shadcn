@@ -3,14 +3,14 @@ import type { ResourceType, Surface } from "@/components/massic-agent/types";
 export type PlanActionsConfig = {
   type: ResourceType;
   surface: Exclude<Surface, "global">;
-  title: "Pages" | "Social";
-  itemLabel: "pages" | "campaigns";
+  title: "Web" | "Social";
+  itemLabel: "pages" | "tactics";
   workflow: "webpages" | "social_channels";
 };
 
 export const PLAN_ACTIONS_CONFIG: Record<ResourceType, PlanActionsConfig> = {
-  webpage_plan: { type: "webpage_plan", surface: "webpages", title: "Pages", itemLabel: "pages", workflow: "webpages" },
-  social_channels_plan: { type: "social_channels_plan", surface: "social_channels", title: "Social", itemLabel: "campaigns", workflow: "social_channels" },
+  webpage_plan: { type: "webpage_plan", surface: "webpages", title: "Web", itemLabel: "pages", workflow: "webpages" },
+  social_channels_plan: { type: "social_channels_plan", surface: "social_channels", title: "Social", itemLabel: "tactics", workflow: "social_channels" },
 };
 
 export const planMatchesType = (planType: string | undefined, type: ResourceType) => {

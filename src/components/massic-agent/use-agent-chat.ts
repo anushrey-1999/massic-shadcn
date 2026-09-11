@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQueryState } from "nuqs";
 import { agentKeys, cancelTurn, errorMessage, startChatStream, streamErrorMessage } from "./agent-api";
-import { buildChatRequest, intentLabel, lastMatchingPlan, mergeMessages } from "./agent-model";
+import { buildChatRequest, intentLabel, lastMatchingPlan, mergeMessages, resourceSurface } from "./agent-model";
 import { parseAgentStream } from "./agent-sse";
 import { reduceAgentEvent } from "./agent-stream-state";
 import { useAgentHistory } from "./use-agent-history";
@@ -65,9 +65,7 @@ export function useAgentChat(business: string) {
   }, [setUrlThread]);
   const selectChat = (id: string) => { activeRef.current = id; void setUrlThread(id); setError(null); };
   const openPlan = (resource: ResourceRef) => {
-    const nextSurface = resource.type === "webpage_plan" ? "webpages" : "social_channels";
-    if (surface !== "global" && surface !== nextSurface) newChat("global", resource);
-    else updateDraft({ resource, selectedIds: [] });
+    updateDraft({ resource, selectedIds: [] });
   };
   const requestStop = useCallback(async (run: Running) => {
     if (!run.thread || !run.turn) { run.stopRequested = true; return; }
@@ -89,18 +87,31 @@ export function useAgentChat(business: string) {
 
   const send = async (intent?: PlanIntent, override?: string) => {
     if (running.current || !business || !knownThread) return;
+    const requestSurface = draft.resource ? resourceSurface(draft.resource.type) : surface;
+    const startsPlanThread = Boolean(urlThread && draft.resource && surface !== requestSurface);
+    const requestThread = startsPlanThread ? null : urlThread;
+    const requestKey = startsPlanThread ? `draft:${crypto.randomUUID()}` : activeKey;
     let request: ChatRequest;
-    try { request = buildChatRequest({ threadId: urlThread, surface, message: override ?? draft.input, intent, resource: draft.resource, selectedIds: draft.selectedIds }); }
+    try { request = buildChatRequest({ threadId: requestThread, surface: requestSurface, message: override ?? draft.input, intent, resource: draft.resource, selectedIds: draft.selectedIds }); }
     catch (e) { setError(errorMessage(e)); return; }
-    const originalDraft = { ...draft, surface };
-    const originalKey = activeKey;
-    const run: Running = { key: activeKey, thread: urlThread ?? undefined, controller: new AbortController(), stopRequested: false };
+    if (startsPlanThread) {
+      setDraftId(requestKey);
+      activeRef.current = requestKey;
+      void setUrlThread(null);
+    }
+    const originalDraft = { ...draft, surface: requestSurface };
+    const originalKey = requestKey;
+    const run: Running = { key: requestKey, thread: requestThread ?? undefined, controller: new AbortController(), stopRequested: false };
     running.current = run; setRunningKey(run.key); setError(null); setStopping(false);
     const now = Date.now();
     let user: AgentMessage = { id: `pending:${now}-user`, role: "user", content: request.message ?? intentLabel(intent!.kind), createdAt: now, intent, view: request.metadata?.view };
     let assistant: AgentMessage = { id: `pending:${now}-assistant`, role: "assistant", content: "", createdAt: now + 1, activity: [] };
     setLive(prev => ({ ...prev, [run.key]: [...(prev[run.key] ?? []), user, assistant] }));
-    updateDraft({ input: "" });
+    setDrafts(prev => ({
+      ...prev,
+      ...(startsPlanThread ? { [activeKey]: { ...draft, input: "" } } : {}),
+      [run.key]: { ...originalDraft, input: "" },
+    }));
     // Coalesce tokens once per frame rather than rerendering for every network token.
     let frame: number | null = null;
     const iterationBuffers = new Map<number, string>();
@@ -125,10 +136,10 @@ export function useAgentChat(business: string) {
             if (activeRef.current === oldKey) { activeRef.current = run.key; void setUrlThread(run.key); }
             setRunningKey(run.key);
           }
-          setLocalThreads(prev => ({ ...prev, [run.key]: { id: run.key, surface, title: event.title ?? (event.is_new ? request.message?.slice(0, 80) : conversation?.title) ?? (intent ? intentLabel(intent.kind) : "New chat"), updatedAt: now } }));
+          setLocalThreads(prev => ({ ...prev, [run.key]: { id: run.key, surface: requestSurface, title: event.title ?? (event.is_new ? request.message?.slice(0, 80) : startsPlanThread ? undefined : conversation?.title) ?? (intent ? intentLabel(intent.kind) : "New chat"), updatedAt: now } }));
           if (run.stopRequested) void requestStop(run).catch(e => { if (mounted.current) { setError(errorMessage(e)); setStopping(false); } });
         }
-        if (event.type === "thread_title") setLocalThreads(prev => ({ ...prev, [event.thread_id]: { ...prev[event.thread_id], id: event.thread_id, surface, title: event.title, updatedAt: now } }));
+        if (event.type === "thread_title") setLocalThreads(prev => ({ ...prev, [event.thread_id]: { ...prev[event.thread_id], id: event.thread_id, surface: requestSurface, title: event.title, updatedAt: now } }));
         // Iteration-tagged tokens can be private scratch work. Buffer them until
         // the server marks the iteration as final so only conversational text is shown.
         if (event.type === "token" && typeof event.iteration === "number" && (event.depth ?? 0) === 0) {
@@ -146,7 +157,7 @@ export function useAgentChat(business: string) {
         }
         if (event.type === "turn_end" && (event.depth ?? 0) === 0) {
           terminal = true; setCreditWarning(event.credit_warning === true);
-          const resource = lastMatchingPlan(assistant.widgetParts ?? [], surface);
+          const resource = lastMatchingPlan(assistant.widgetParts ?? [], requestSurface);
           if (resource) setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[run.key] ?? originalDraft), resource, selectedIds: [] } }));
           void queryClient.invalidateQueries({ queryKey: agentKeys.plans(business) });
           for (const part of assistant.widgetParts ?? []) void queryClient.invalidateQueries({ queryKey: agentKeys.plan(business, part.resource.id) });

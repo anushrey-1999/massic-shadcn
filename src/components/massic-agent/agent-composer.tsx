@@ -34,13 +34,11 @@ export function AgentComposer(p: Props) {
   }, [p.centered, p.value]);
   useEffect(() => { ref.current?.focus(); }, [p.focusKey]);
   const busy = p.disabled || p.streaming;
-  const showQuickActions = !p.locked || Boolean(p.resource);
+  const showQuickActions = !p.locked && !p.resource;
   const actionSurface = p.resource ? resourceSurface(p.resource.type) : p.surface;
   const action = (kind: "create" | "refine" | "activate", surface: Exclude<Surface, "global">) => p.onSend({ kind: intentFor(kind, surface) });
   const quickActionClass = "h-8 border-general-primary/15 bg-general-primary/5 text-xs text-general-primary shadow-sm hover:border-general-primary/30 hover:bg-general-primary hover:text-primary-foreground hover:shadow-md";
   const preferredClass = "border-general-primary bg-general-primary text-primary-foreground shadow-md hover:bg-general-primary/90";
-  const refineHint = p.selectedCount === 0 ? "Refine replaces unfinished items and keeps completed items."
-    : p.selectedCount === p.totalCount ? "Refine replaces all items, including completed items." : `Refine replaces only the ${p.selectedCount} selected ${p.selectedCount === 1 ? "item" : "items"}.`;
   return <div className="w-full">
     <div className="flex w-full flex-col rounded-2xl border border-border bg-card shadow-sm transition-[border-color,box-shadow] hover:shadow-md focus-within:border-general-primary/40 focus-within:shadow-md">
       {p.resource && <button type="button" onClick={p.onShowPlan} className="mx-4 mt-3 flex w-fit max-w-[calc(100%-2rem)] cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground transition-[color,box-shadow] hover:text-foreground hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30">
@@ -67,6 +65,5 @@ export function AgentComposer(p: Props) {
         {p.resource && <Button variant="outline" size="sm" disabled={busy || !p.planLoaded} onClick={() => action("refine", actionSurface)} className={cn(quickActionClass, p.preferredAction === "refine" && preferredClass)}>Refine plan</Button>}
       </>}
     </div>}
-    {p.resource && <p className="mt-1 px-2 text-xs text-muted-foreground">{p.planValid === false ? "Replace missing items before activating this plan. " : ""}{refineHint}</p>}
   </div>;
 }

@@ -168,7 +168,7 @@ function PeriodTotals({
 
   return (
     <div className="space-y-1.5 px-2">
-      <p className="text-xs font-medium text-foreground">{days} days</p>
+      <p className="text-xs font-medium text-foreground">{days} day total</p>
       {metrics.map(({ label, value, previous, change, icon }) => (
         <div key={label}>
           {isLoading ? (

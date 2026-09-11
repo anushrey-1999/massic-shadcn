@@ -50,6 +50,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const entrySurfaceRaw = searchParams.get("surface");
   const entryActionRaw = searchParams.get("action");
   const entryPlanId = searchParams.get("plan");
+  const entryThreadId = searchParams.get("thread");
   const autoSubmit = searchParams.get("submit") === "1";
   const entrySurface = entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels" ? entrySurfaceRaw : null;
   const preferredAction: AgentEntryAction | undefined = entryActionRaw === "create" || entryActionRaw === "refine" || entryActionRaw === "activate" ? entryActionRaw : undefined;
@@ -61,17 +62,17 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const planError = planQuery.isError ? errorMessage(planQuery.error) : planQuery.data && !plan ? "This plan does not match the opened plan type." : null;
   const ids = plan && planRef ? allPlanIds(plan.plan_json ?? [], planRef.type) : [];
   useEffect(() => {
-    if (!entrySurface || !preferredAction || chat.conversation) return;
+    if (!entrySurface || !preferredAction || entryThreadId || chat.conversation) return;
     const key = `${entrySurface}:${preferredAction}:${entryPlanId ?? ""}`;
     if (entryRef.current === key) return;
     entryRef.current = key;
     const expectedType = entrySurface === "webpages" ? "webpage_plan" : "social_channels_plan";
     if (preferredAction === "create") {
-      chat.newChat("global");
+      chat.newChat(entrySurface);
       return;
     }
     if (!entryPlanId) {
-      chat.newChat("global");
+      chat.newChat(entrySurface);
       chat.setError("The requested plan could not be opened. Choose a plan before continuing.");
       return;
     }
@@ -79,22 +80,31 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     void getPlan(businessId, entryPlanId, controller.signal).then(entryPlan => {
       const actualType = entryPlan.plan_type === "webpages" ? "webpage_plan" : entryPlan.plan_type === "social_channels" ? "social_channels_plan" : null;
       if (actualType !== expectedType) {
-        chat.newChat("global");
+        chat.newChat(entrySurface);
         chat.setError("This plan does not match the requested action. Choose a matching plan and try again.");
         return;
       }
-      chat.newChat("global", { type: expectedType, id: entryPlan.id });
+      chat.newChat(entrySurface, { type: expectedType, id: entryPlan.id });
     }).catch(error => {
       if (controller.signal.aborted) return;
-      chat.newChat("global");
+      chat.newChat(entrySurface);
       chat.setError(`The requested plan could not be opened. ${errorMessage(error)}`);
     });
     return () => controller.abort();
-  }, [businessId, entryActionRaw, entryPlanId, entrySurfaceRaw]);
+  }, [businessId, entryActionRaw, entryPlanId, entrySurfaceRaw, entryThreadId]);
+  useEffect(() => {
+    if (!entryThreadId || !preferredAction) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("surface");
+    params.delete("action");
+    params.delete("plan");
+    params.delete("submit");
+    router.replace(`/business/${encodeURIComponent(businessId)}/agent?${params.toString()}`, { scroll: false });
+  }, [businessId, entryThreadId, preferredAction, router, searchParams]);
   useEffect(() => {
     if (!autoSubmit || !entrySurface || !preferredAction || (preferredAction !== "create" && preferredAction !== "activate") || chat.conversation || chat.runningKey) return;
     const key = `${entrySurface}:${preferredAction}:${entryPlanId ?? ""}`;
-    if (autoSubmitRef.current === key || chat.surface !== "global") return;
+    if (autoSubmitRef.current === key || chat.surface !== entrySurface) return;
     if (preferredAction === "activate" && (!plan || !planRef || String(planRef.id) !== entryPlanId || plan.valid !== true)) return;
     if (preferredAction === "create" && planRef) return;
     autoSubmitRef.current = key;
@@ -157,6 +167,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   };
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
+  const showCenteredEmpty = showEmpty && !planRef && preferredAction !== "refine";
   const fallbackHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const goBack = () => {
     if (typeof window !== "undefined" && (window.history.length > 1 || document.referrer.startsWith(window.location.origin))) {
@@ -170,7 +181,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, onBack: goBack,
   };
-  const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation} centered={showEmpty}
+  const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}
     onOpenPlans={() => setPlanPicker(true)} onShowPlan={showPlan} onSend={(intent, override) => { void chat.send(intent, override); }} onStop={() => { void chat.stop(); }}
     streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.activeKey} preferredAction={preferredAction} />;
@@ -190,7 +201,8 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
           {view === "plans" ? <AgentPlansView businessId={businessId} initialSurface={entrySurface ?? "webpages"} /> : view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
             {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicLoader /></div>
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
-              : showEmpty ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6"><div className="w-full max-w-3xl -translate-y-[8vh]"><div className="mb-6 flex items-center justify-center gap-2.5"><MassicLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div>{composer}</div></div>
+              : showCenteredEmpty ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6"><div className="w-full max-w-3xl -translate-y-[8vh]"><div className="mb-6 flex items-center justify-center gap-2.5"><MassicLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div>{composer}</div></div>
+              : showEmpty ? <div className="min-h-0 flex-1" />
               : <AgentChatThread key={chat.activeKey} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
             <div className="mx-auto w-full max-w-3xl space-y-2 px-4 pb-2">
               {chat.error && <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/5 p-3 text-sm text-destructive"><p className="flex-1">{chat.error}</p><button aria-label="Dismiss error" onClick={() => chat.setError(null)}><X className="h-4 w-4" /></button></div>}
@@ -199,7 +211,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               {chat.creditWarning && <p className="text-xs text-muted-foreground">Agent credits are running low.</p>}
               {chat.history.citations.isError && <p className="text-xs text-muted-foreground">Sources could not be loaded. <button onClick={() => chat.history.citations.refetch()} className="underline">Retry sources</button></p>}
             </div>
-            {!showEmpty && <div className="shrink-0 px-4 pb-4"><div className="mx-auto w-full max-w-3xl">{composer}</div></div>}
+            {!showCenteredEmpty && <div className="shrink-0 px-4 pb-4"><div className="mx-auto w-full max-w-3xl">{composer}</div></div>}
           </>}
         </div>
         {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>

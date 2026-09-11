@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { ArrowUpRight, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
@@ -34,8 +34,8 @@ const createdTime = (plan: AgentPlan) => {
 
 const createdDate = (plan: AgentPlan) => {
   const timestamp = createdTime(plan);
-  if (!timestamp) return "Created date unavailable";
-  return `Created ${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(timestamp)}`;
+  if (!timestamp) return "Date unavailable";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(timestamp);
 };
 
 function PlansList({ businessId, surface, onPreview }: {
@@ -60,22 +60,25 @@ function PlansList({ businessId, surface, onPreview }: {
   if (plans.isError) return <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-5 text-sm text-destructive"><p>{errorMessage(plans.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => plans.refetch()}>Retry</Button></div>;
   if (!items.length) return <div className="flex min-h-52 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">No plans found.</div>;
 
-  return <div className="min-h-0 flex-1 overflow-y-auto">
-    {items.map((plan, index) => {
+  return <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {items.map(plan => {
         const active = String(plan.status).toLowerCase() === "active";
         const view = () => onPreview(plan);
-        return <React.Fragment key={String(plan.id)}>
-          <button type="button" aria-label={`View Plan ${plan.id}`} onClick={view} className="group flex w-full cursor-pointer items-center justify-between gap-4 rounded-lg px-2 py-3.5 text-left transition-[background-color,box-shadow] hover:bg-general-primary/8 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30">
+        return <button key={String(plan.id)} type="button" aria-label={`View Plan ${plan.id}`} onClick={view} className="group flex min-h-32 w-full cursor-pointer flex-col rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-general-primary/30 hover:bg-general-primary/[0.03] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30 motion-reduce:transform-none">
+          <span className="flex w-full items-start justify-between gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-general-primary/10 text-general-primary"><FileText className="size-4" /></span>
             <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-normal text-foreground">Plan #{plan.id}</span>
               {active && <span className="shrink-0 rounded-full bg-general-primary/10 px-2 py-0.5 text-xs font-medium text-general-primary">Active</span>}
-              {plan.valid === false && <span className="shrink-0 text-xs text-destructive">Needs attention</span>}
+              <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-general-primary" />
             </span>
-            <span className="shrink-0 text-xs text-muted-foreground">{createdDate(plan)}</span>
-          </button>
-          {index < items.length - 1 && <div className="border-b border-border/30" />}
-        </React.Fragment>;
+          </span>
+          <span className="mt-4 truncate text-sm font-medium text-foreground">Plan #{plan.id}</span>
+          <span className="mt-1 text-xs text-muted-foreground">Created {createdDate(plan)}</span>
+          {plan.valid === false && <span className="mt-2 text-xs text-destructive">Needs attention</span>}
+        </button>;
       })}
+    </div>
   </div>;
 }
 
@@ -127,9 +130,9 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
 
   return <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-5 sm:px-6">
     <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <div className="mb-5 shrink-0"><h1 className="text-xl font-semibold tracking-tight">Plans</h1><p className="mt-1 text-sm text-muted-foreground">Review webpage and social plans for this business.</p></div>
+      <div className="mb-5 shrink-0"><h1 className="text-xl font-semibold tracking-tight">Plans</h1><p className="mt-1 text-sm text-muted-foreground">Review web and social plans for this business.</p></div>
       <Tabs value={surface} onValueChange={value => changeSurface(value as PlanTab)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="mb-4 w-fit shrink-0"><TabsTrigger value="webpages">Pages</TabsTrigger><TabsTrigger value="social_channels">Social</TabsTrigger></TabsList>
+        <TabsList className="mb-4 w-fit shrink-0"><TabsTrigger value="webpages">Web</TabsTrigger><TabsTrigger value="social_channels">Social</TabsTrigger></TabsList>
         <TabsContent value="webpages" className="min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"><PlansList businessId={businessId} surface="webpages" onPreview={setPreview} /></TabsContent>
         <TabsContent value="social_channels" className="min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"><PlansList businessId={businessId} surface="social_channels" onPreview={setPreview} /></TabsContent>
       </Tabs>

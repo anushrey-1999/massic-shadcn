@@ -1,7 +1,7 @@
 import type { AgentMessage, ChatRequest, IntentKind, PlanIntent, PlanItem, ResourceRef, ResourceType, Surface, ThreadMessage, WidgetPart } from "./types";
 
 export const SURFACES: Record<Surface, { label: string; resource: ResourceType | null }> = {
-  global: { label: "Global", resource: null }, webpages: { label: "Webpage", resource: "webpage_plan" }, social_channels: { label: "Social", resource: "social_channels_plan" },
+  global: { label: "Global", resource: null }, webpages: { label: "Web", resource: "webpage_plan" }, social_channels: { label: "Social", resource: "social_channels_plan" },
 };
 export const resourceSurface = (type: ResourceType): Exclude<Surface, "global"> => type === "webpage_plan" ? "webpages" : "social_channels";
 export const resourceKey = (resource: ResourceRef) => `${resource.type}:${resource.id}`;
@@ -12,13 +12,13 @@ export function intentFor(action: "create" | "refine" | "activate", surface: Exc
 }
 export function intentLabel(kind: IntentKind): string {
   const action = kind.startsWith("create") ? "Create" : kind.startsWith("refine") ? "Refine" : "Activate";
-  return `${action} ${kind.includes("social_channels") ? "social" : "webpage"} plan`;
+  return `${action} ${kind.includes("social_channels") ? "social" : "web"} plan`;
 }
 export function buildChatRequest(args: { threadId?: string | null; surface: Surface; message?: string; resource?: ResourceRef | null; selectedIds?: string[]; intent?: PlanIntent }): ChatRequest {
   const { threadId, surface, resource, intent } = args;
   const message = args.message?.trim();
   if (!message && !intent) throw new Error("Write a message or choose an action.");
-  if (resource && surface !== "global" && SURFACES[surface].resource !== resource.type) throw new Error("Open this plan in its matching conversation.");
+  if (resource && SURFACES[surface].resource !== resource.type) throw new Error("Open this plan in its matching conversation.");
   if (args.selectedIds?.length && !resource) throw new Error("Open a plan before selecting items.");
   if (intent && surface !== "global" && !intent.kind.includes(`_${surface}_`)) throw new Error("This action belongs to a different plan type.");
   if (intent?.kind.startsWith("refine") && !resource) throw new Error("Open a plan to refine it.");

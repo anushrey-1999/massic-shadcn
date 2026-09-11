@@ -58,7 +58,7 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
       <span className="text-xs font-medium">Detailed plan</span>
       <Badge variant="outline" className="capitalize">{plan.status}</Badge>
       <Badge variant="outline" className={cn(plan.valid === false && "border-destructive/30 text-destructive")}>{plan.valid === false ? "Needs attention" : "Valid"}</Badge>
-      <span className="ml-auto text-xs text-muted-foreground">{rows.length} {social ? "campaigns" : "pages"}</span>
+      <span className="ml-auto text-xs text-muted-foreground">{rows.length} {social ? "tactics" : "web pages"}</span>
     </div>}
     {plan.valid === false && <p className="border-b border-border bg-destructive/5 px-3 py-2 text-xs text-destructive">Some items are no longer in your strategy. Replace them before activating this plan.</p>}
     <div className="min-h-0 flex-1 overflow-auto">
@@ -71,7 +71,7 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
         </colgroup>
         <thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-muted-foreground">
           {selectable && <th className={cell}><Checkbox aria-label="Select all plan items" checked={allSelected ? true : selectedIds.length ? "indeterminate" : false} disabled={!ids.length} onCheckedChange={() => onSelection?.(allSelected ? [] : ids)} /></th>}
-          {(social ? ["Campaign", "Channel", "Content", "Rationale"] : ["Page", "Type", "Rationale"]).map(title => <th key={title} className={cn(cell, "whitespace-nowrap font-medium")}>{title}</th>)}
+          {(social ? ["Tactic", "Channel", "Type", "Rationale"] : ["Page", "Type", "Rationale"]).map(title => <th key={title} className={cn(cell, "whitespace-nowrap font-medium")}>{title}</th>)}
           <th className={cn(cell, "whitespace-nowrap font-medium")}><button type="button" className="flex cursor-pointer items-center gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30" onClick={() => setSort(current => current === "desc" ? "asc" : current === "asc" ? null : "desc")} aria-label="Sort by relevance">Relevance{sort === "asc" ? <ChevronUp className="h-3 w-3" /> : sort === "desc" ? <ChevronDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-60" />}</button></th>
           {!social && <><th className={cn(cell, "whitespace-nowrap font-medium")}>Coverage</th><th className={cn(cell, "whitespace-nowrap font-medium")}>Volume</th></>}
           <th className={cn(cell, "whitespace-nowrap font-medium")}>Status</th>

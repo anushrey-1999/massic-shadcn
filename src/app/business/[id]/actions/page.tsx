@@ -9,7 +9,6 @@ import { useJobByBusinessId } from "@/hooks/use-jobs"
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status"
 import { PagesActionsDropdown, PostsActionsDropdown } from "@/components/organisms/actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AppWindow, Share2 } from "lucide-react"
 
 interface PageProps {
   params: Promise<{
@@ -77,8 +76,8 @@ export default function BusinessActionsPage({ params }: PageProps) {
           >
             <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "pages" | "social")} className="min-h-0 flex-1 overflow-hidden">
               <TabsList className="shrink-0">
-                <TabsTrigger value="pages"><AppWindow className="size-4" />Pages</TabsTrigger>
-                <TabsTrigger value="social"><Share2 className="size-4" />Social</TabsTrigger>
+                <TabsTrigger value="pages">Web</TabsTrigger>
+                <TabsTrigger value="social">Social</TabsTrigger>
               </TabsList>
               <TabsContent value="pages" className="min-h-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col">
                 <PagesActionsDropdown businessId={businessId} ready={webpagesReady} readinessLoading={jobDetailsLoading} />

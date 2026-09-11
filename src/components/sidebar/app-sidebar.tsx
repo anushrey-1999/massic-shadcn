@@ -44,6 +44,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { normalizeDomainForFavicon } from '@/utils/utils'
 import { useCan } from '@/hooks/use-permissions'
+import { useAppSidebarCollapsed } from './use-app-sidebar-collapsed'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -165,7 +166,7 @@ export default function AppSidebar() {
 
   const businessesScrollRef = useRef<HTMLDivElement>(null)
 
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useAppSidebarCollapsed()
 
   const [flyoutBusinessId, setFlyoutBusinessId] = useState<string | null>(null)
   const [flyoutTop, setFlyoutTop] = useState(0)

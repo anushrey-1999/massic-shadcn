@@ -1,3 +1,85 @@
-.planPanel { position: absolute; inset: 0; z-index: 20; width: 100%; }
-@media (min-width: 1280px) { .planPanel { position: relative; inset: auto; z-index: auto; width: var(--plan-width); max-width: calc(100% - 460px); flex-shrink: 0; } }
+.planWorkspace { container-type: inline-size; }
+
+.planPanel {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  overflow: hidden;
+  visibility: hidden;
+  transform: translateX(100%);
+  pointer-events: none;
+  animation: plan-panel-overlay-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  will-change: transform;
+}
+
+.planPanel[data-state="open"] {
+  visibility: visible;
+  transform: translateX(0);
+  pointer-events: auto;
+  animation: plan-panel-overlay-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.planPanelContent {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  animation: plan-content-in 150ms ease-out both;
+}
+
+@keyframes plan-panel-overlay-in {
+  from { visibility: visible; transform: translateX(100%); }
+  to { visibility: visible; transform: translateX(0); }
+}
+
+@keyframes plan-panel-overlay-out {
+  from { visibility: visible; transform: translateX(0); }
+  99% { visibility: visible; }
+  to { visibility: hidden; transform: translateX(100%); }
+}
+
+@keyframes plan-content-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (min-width: 1280px) {
+  .planPanel {
+    --plan-target-width: max(0px, min(var(--plan-width), calc(100cqw - 460px)));
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: 0;
+    flex-shrink: 0;
+    visibility: hidden;
+    transform: none;
+    animation: plan-panel-collapse 180ms cubic-bezier(0.4, 0, 1, 1) both;
+    will-change: width;
+  }
+
+  .planPanel[data-state="open"] {
+    width: var(--plan-target-width);
+    visibility: visible;
+    transform: none;
+    animation: plan-panel-expand 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .planPanelContent {
+    right: 0;
+    left: auto;
+    width: var(--plan-target-width);
+  }
+}
+
+@keyframes plan-panel-expand {
+  from { width: 0; visibility: visible; }
+  to { width: var(--plan-target-width); visibility: visible; }
+}
+
+@keyframes plan-panel-collapse {
+  from { width: var(--plan-target-width); visibility: visible; }
+  99% { visibility: visible; }
+  to { width: 0; visibility: hidden; }
+}
+
 @media (prefers-reduced-motion: reduce) { .workspace *, .workspace *::before, .workspace *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

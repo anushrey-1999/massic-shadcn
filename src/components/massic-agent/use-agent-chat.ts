@@ -66,7 +66,7 @@ export function useAgentChat(business: string) {
   const selectChat = (id: string) => { activeRef.current = id; void setUrlThread(id); setError(null); };
   const openPlan = (resource: ResourceRef) => {
     const nextSurface = resource.type === "webpage_plan" ? "webpages" : "social_channels";
-    if (surface !== nextSurface) newChat(nextSurface, resource);
+    if (surface !== "global" && surface !== nextSurface) newChat("global", resource);
     else updateDraft({ resource, selectedIds: [] });
   };
   const requestStop = useCallback(async (run: Running) => {

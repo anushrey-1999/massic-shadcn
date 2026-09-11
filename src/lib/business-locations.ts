@@ -78,10 +78,17 @@ export function hasGbpLink(locations: unknown): boolean {
   return gbpLocations(locations).length > 0;
 }
 
+/** Normalizes either a numeric id or a `locations/{id}` resource name. */
+export function normalizeGbpLocationId(value: unknown): string {
+  const locationId = String(value || "").trim();
+  return locationId.includes("/")
+    ? locationId.split("/").pop() || locationId
+    : locationId;
+}
+
 /** Extracts the numeric id from a `locations/{id}` resource name. */
 export function gbpLocationId(location: Pick<BusinessLocation, "Name">): string {
-  const name = (location.Name || "").trim();
-  return name.includes("/") ? name.split("/").pop() || name : name;
+  return normalizeGbpLocationId(location.Name);
 }
 
 /** Single-line address for a location, or "" when no address is recorded. */

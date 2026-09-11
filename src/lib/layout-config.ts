@@ -20,3 +20,9 @@ export const routePrefixesWithoutSidebar: string[] = [
   '/r/',
   '/admin'
 ]
+
+const AGENT_PATH = /^\/business\/[^/]+\/agent\/?$/
+
+export function isAgentRoute(pathname: string) {
+  return AGENT_PATH.test(pathname)
+}

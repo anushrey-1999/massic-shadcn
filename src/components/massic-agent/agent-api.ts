@@ -12,7 +12,7 @@ export function errorMessage(error: unknown): string {
   const response = (error as { response?: { status?: number; data?: { detail?: unknown; message?: string } } })?.response;
   if (response?.status === 401 || response?.status === 403) return "Your session or business access has changed. Sign in again or choose an accessible business.";
   if (response?.status === 404) return "This conversation, plan, or agent service is unavailable.";
-  if (response?.status === 422) return "The agent could not use this chat or plan context. Open the matching mode and try again.";
+  if (response?.status === 422) return "The agent could not use this chat or plan context. Open the matching plan and try again.";
   if (response?.status === 503) return "The agent service is temporarily unavailable. Please try again.";
   return response?.data?.message ?? (error instanceof Error ? error.message : "Something went wrong. Please try again.");
 }
@@ -20,7 +20,7 @@ export function streamErrorMessage(code: string, fallback: string): string {
   if (code === "credit_exhausted") return "This business has run out of Agent credits. Add credits before trying again.";
   if (code === "thread_not_found") return "This conversation is no longer available. Start a new chat to continue.";
   if (code === "business_not_found") return "This business is no longer available to the Agent.";
-  if (code === "invalid_input") return fallback || "The selected mode, plan, or action is incompatible with this conversation.";
+  if (code === "invalid_input") return fallback || "The selected plan or action is incompatible with this conversation.";
   if (code === "redis_unavailable" || code === "storage_unavailable") return "The Agent service is temporarily unavailable. Your draft has been preserved.";
   if (code === "tool_error") return fallback || "The Agent could not complete that plan action.";
   return fallback || "The Agent could not complete this response. Please try again.";

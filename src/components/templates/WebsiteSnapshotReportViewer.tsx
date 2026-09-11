@@ -34,7 +34,6 @@ import {
   formatSearchEtv,
   formatSnapshotLocation,
   frameChipTone,
-  formatDeliveryMode,
   SNAPSHOT_BEAT_QUESTIONS,
   SNAPSHOT_INTENT_LABELS,
 } from "@/utils/website-snapshot-report";
@@ -113,7 +112,6 @@ export function WebsiteSnapshotReportViewer({
   const tier = report.tier || {};
   const search = report.search || {};
   const intentMix = report.intent_mix || {};
-  const scaleComparison = report.scale_comparison;
   const competitorBuckets = report.competitor_buckets || {};
   // shows_up / should_be arrive at the report root in some runs and nested under
   // competitor_buckets in others. An empty container at either location must not
@@ -129,7 +127,6 @@ export function WebsiteSnapshotReportViewer({
   const shouldBeNote = report.should_be_note || competitorBuckets.should_be_note || "";
   const directNote = String(showsUp.direct_note || "").trim();
   const setupLine = String(competitorBuckets.setup?.market || "").trim();
-  const deliveryLine = formatDeliveryMode(competitorBuckets.setup?.delivery);
   const directoriesTools = Array.isArray(showsUp.directories_tools) ? showsUp.directories_tools : [];
   const directoriesNote = String(showsUp.directories_tools_note || "").trim();
   const trafficRead = String(search.traffic_read || "").trim();
@@ -152,8 +149,7 @@ export function WebsiteSnapshotReportViewer({
     Object.keys(showsUp).length > 0 ||
     shouldBe.length > 0 ||
     Boolean(String(competitorBuckets.gap || "").trim()) ||
-    Boolean(setupLine) ||
-    Boolean(deliveryLine);
+    Boolean(setupLine);
 
   const headroomBits = (() => {
     const headroom = report.headroom;
@@ -738,42 +734,6 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 )}
 
-                {render.scale_comparison !== false &&
-                  scaleComparison &&
-                  (scaleComparison.you != null || scaleComparison.peer != null || scaleComparison.ratio != null) && (
-                  <div className="mt-6 sm:mt-7">
-                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
-                      You vs peer
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      {scaleComparison.you != null && (
-                        <div>
-                          <div className="text-[11px]" style={{ color: COLORS.muted }}>You</div>
-                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
-                            {Number(scaleComparison.you).toLocaleString()}
-                          </div>
-                        </div>
-                      )}
-                      {scaleComparison.peer != null && (
-                        <div>
-                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Peer</div>
-                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
-                            {Number(scaleComparison.peer).toLocaleString()}
-                          </div>
-                        </div>
-                      )}
-                      {scaleComparison.ratio != null && (
-                        <div>
-                          <div className="text-[11px]" style={{ color: COLORS.muted }}>Ratio</div>
-                          <div className="text-[20px] font-semibold" style={{ color: COLORS.ink }}>
-                            {Number(scaleComparison.ratio).toLocaleString()}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
 
                 {/* You Win vs Missing Columns */}
@@ -894,9 +854,6 @@ export function WebsiteSnapshotReportViewer({
                   <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
                     {setupLine}
                   </p>
-                )}
-                {deliveryLine && (
-                  <p className="text-[13px] mb-2" style={{ color: COLORS.muted }}>{deliveryLine}</p>
                 )}
                 {directNote && (
                   <p className="text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>

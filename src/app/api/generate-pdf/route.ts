@@ -20,7 +20,6 @@ import {
   type SeoSnapshotReport,
 } from "@/utils/seo-snapshot-report";
 import {
-  formatDeliveryMode,
   formatSearchEtv,
   formatSnapshotLocation,
   formatUncapturedMoneyShare,
@@ -1439,20 +1438,6 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             </div>`
           : ""
       }
-      ${(() => {
-        const scale = (report as any)?.scale_comparison;
-        if (!scale || (scale.you == null && scale.peer == null && scale.ratio == null)) return "";
-        const cells = [
-          scale.you != null ? `<div><div style="font-size:11px;color:#6d726f">You</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.you).toLocaleString())}</div></div>` : "",
-          scale.peer != null ? `<div><div style="font-size:11px;color:#6d726f">Peer</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.peer).toLocaleString())}</div></div>` : "",
-          scale.ratio != null ? `<div><div style="font-size:11px;color:#6d726f">Ratio</div><div style="font-size:20px;font-weight:600;color:#1c1f1d">${escapeHtml(Number(scale.ratio).toLocaleString())}</div></div>` : "",
-        ].filter(Boolean);
-        return `<div style="margin-top:28px">
-          <h3 class="mix-title">You vs peer</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${cells.join("")}</div>
-        </div>`;
-      })()}
-      
       ${
         (Array.isArray(search?.you_win) && search.you_win.length > 0) || 
         (Array.isArray(search?.buyers_elsewhere) && search.buyers_elsewhere.length > 0)
@@ -1528,14 +1513,12 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const directoriesTools = Array.isArray(showsUp?.directories_tools) ? showsUp.directories_tools : [];
   const directoriesNote = String(showsUp?.directories_tools_note || "").trim();
   const setupText = String(competitorBuckets?.setup?.market || "").trim();
-  const deliveryText = formatDeliveryMode(competitorBuckets?.setup?.delivery);
   const shouldBeNote = String((report as any)?.should_be_note || competitorBuckets?.should_be_note || "").trim();
 
   const competitorsHtml = `
       <div class="page-card">
         <h2 class="section-title">Who is taking that demand?</h2>
         ${setupText ? `<p class="section-lead">${escapeHtml(setupText)}</p>` : ""}
-        ${deliveryText ? `<p class="section-lead">${escapeHtml(deliveryText)}</p>` : ""}
         ${directNote ? `<p class="section-lead">${escapeHtml(directNote)}</p>` : ""}
         ${
           directCompetitors.length

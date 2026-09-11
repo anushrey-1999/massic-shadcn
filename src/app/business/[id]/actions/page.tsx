@@ -76,7 +76,10 @@ export default function BusinessActionsPage({ params }: PageProps) {
               data-slot="actions-page-content"
               className="relative w-full max-w-[1224px] flex-1 min-h-0 overflow-hidden p-5 flex flex-col"
             >
-              <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
+              <fieldset
+                disabled
+                className="m-0 flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden border-0 p-0"
+              >
                 <PagesActionsDropdown
                   businessId={businessId}
                   open={openSection === "pages"}
@@ -86,7 +89,7 @@ export default function BusinessActionsPage({ params }: PageProps) {
                   open={openSection === "posts"}
                   onOpenChange={(next) => setOpenSection(next ? "posts" : null)}
                 /> */}
-              </div>
+              </fieldset>
             </div>
           </RefinePlanOverlayProvider>
         ) : (

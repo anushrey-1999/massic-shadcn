@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { agentKeys, getCitations, getMessages, getThreads } from "./agent-api";
 import { hydrateMessage } from "./agent-model";
@@ -17,11 +18,12 @@ export function useAgentHistory(business: string, thread: string | null) {
     getNextPageParam: last => last.has_more && last.next_cursor ? last.next_cursor : undefined,
     retry: false,
   });
-  const hydrated = (messages.data?.pages ?? []).flatMap(p => p.turns).map(hydrateMessage);
+  const hydrated = useMemo(() => (messages.data?.pages ?? []).flatMap(p => p.turns).map(hydrateMessage), [messages.data]);
   const ids = [...new Set(hydrated.filter(m => m.role === "assistant").map(m => m.turnId!))].sort();
   const citations = useQuery({
     queryKey: agentKeys.citations(business, thread ?? "", ids), enabled: !!thread && ids.length > 0,
     queryFn: ({ signal }) => getCitations(business, thread!, ids, signal), retry: false, staleTime: Infinity,
   });
-  return { threads, messages, citations, hydrated: hydrated.map(m => ({ ...m, citations: citations.data?.[m.turnId!] ?? undefined })) };
+  const withCitations = useMemo(() => hydrated.map(m => ({ ...m, citations: citations.data?.[m.turnId!] ?? undefined })), [hydrated, citations.data]);
+  return { threads, messages, citations, hydrated: withCitations };
 }

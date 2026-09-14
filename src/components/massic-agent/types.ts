@@ -19,7 +19,7 @@ export type CitationDocument = { thread_id: string; turn_id: string; version: nu
 export type TurnStatus = "complete" | "cancelled" | "error";
 export type ActivityStep = { id: string; label: string; detail?: string; scope: string; depth: number; status: "running" | "done" | "error" | "cancelled" };
 export type AgentMessage = {
-  id: string; turnId?: string; role: "user" | "assistant"; content: string; createdAt: number;
+  id: string; presentationId?: string; turnId?: string; role: "user" | "assistant"; content: string; createdAt: number;
   status?: TurnStatus; partial?: boolean; error?: string; activity?: ActivityStep[];
   citations?: CitationDocument; widgetParts?: WidgetPart[]; intent?: PlanIntent; view?: ChatMetadata["view"];
 };

@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableElement, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CampaignFormSheet } from "@/components/organisms/campaign-impact/CampaignFormSheet";
+import { CampaignImpactReportSheet } from "@/components/organisms/campaign-impact/CampaignImpactReportSheet";
 import { CampaignMessageBanner } from "@/components/organisms/campaign-impact/CampaignMessageBanner";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useCampaignEvents, useCampaignMutations } from "@/hooks/use-campaign-impact";
@@ -75,15 +76,20 @@ function CampaignTrendChart({ trend, label, startDate, endDate }: { trend?: Camp
 
 function MetricSummary({ summary }: { summary?: CampaignListPerformance }) {
   if (!summary) return <span className="text-xs text-muted-foreground">—</span>;
+  const formattedValue = summary.value.toLocaleString();
   const change = summary.liftPercent != null
     ? `${summary.liftPercent > 0 ? "+" : ""}${summary.liftPercent}%`
     : summary.reportabilityReason === "new_activity" ? "New activity" : null;
   return (
     <div className="min-w-0 flex-1">
       <p className="text-xs text-muted-foreground">{summary.label}</p>
-      <div className="mt-0.5 flex items-baseline gap-1.5">
-        <span className="text-sm font-medium tabular-nums">{summary.value.toLocaleString()}</span>
-        {change ? <span className={`whitespace-nowrap ${summary.liftPercent != null && summary.liftPercent < 0 ? "text-xs font-medium text-red-700" : "text-xs font-medium text-green-700"}`}>{change}</span> : null}
+      <div className="mt-0.5 flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+        <span className="text-[13px] font-medium tabular-nums">{formattedValue}</span>
+        {change ? (
+          <span className={`text-[10px] font-medium ${summary.liftPercent != null && summary.liftPercent < 0 ? "text-red-700" : "text-green-700"}`}>
+            {change}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -91,7 +97,16 @@ function MetricSummary({ summary }: { summary?: CampaignListPerformance }) {
 
 function PerformanceSummary({ summaries = [] }: { summaries?: CampaignListPerformance[] }) {
   const byKey = new Map(summaries.map(summary => [summary.metricKey, summary]));
-  return <div className="grid grid-cols-3 divide-x divide-general-border"><div className="pr-3"><MetricSummary summary={byKey.get("search_clicks")} /></div><div className="px-3"><MetricSummary summary={byKey.get("sessions")} /></div><div className="pl-3"><MetricSummary summary={byKey.get("key_events")} /></div></div>;
+  const metricKeys: CampaignListPerformance["metricKey"][] = ["impressions", "clicks", "sessions", "goals"];
+  return (
+    <div className="grid grid-cols-4 divide-x divide-general-border">
+      {metricKeys.map(metricKey => (
+        <div key={metricKey} className="min-w-0 px-1.5 first:pl-0 last:pr-0">
+          <MetricSummary summary={byKey.get(metricKey)} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function CampaignsTemplate({ businessId }: { businessId: string }) {
@@ -107,7 +122,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<CampaignEvent | null>(null);
   const [deleting, setDeleting] = React.useState<CampaignEvent | null>(null);
-  const [openingCampaignId, setOpeningCampaignId] = React.useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string | null>(null);
   const filters = React.useMemo(() => ({
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(type !== "all" ? { type } : {}),
@@ -139,9 +154,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
   function openCreate() { captureCampaignImpactEvent("campaign_tracking_opened", { business_id: businessId, origin: "campaign_list" }); setEditing(null); setFormOpen(true); }
   function openEdit(campaign: CampaignEvent) { setEditing(campaign); setFormOpen(true); }
   function openReport(campaignId: string) {
-    if (openingCampaignId) return;
-    setOpeningCampaignId(campaignId);
-    router.push(`/business/${businessId}/analytics/campaigns/${campaignId}`);
+    setSelectedCampaignId(campaignId);
   }
   async function confirmDelete() {
     if (!deleting) return;
@@ -190,22 +203,21 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
           ) : campaigns.isError ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center"><AlertTriangle className="size-8 text-destructive" /><div><h2 className="font-medium">Campaigns could not be loaded</h2><p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p></div><Button variant="outline" onClick={() => campaigns.refetch()}><RefreshCw className="size-4" />Try again</Button></div>
           ) : !campaigns.data?.length ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center"><span className="mb-4 grid size-12 place-items-center rounded-full bg-general-secondary"><Megaphone className="size-6 text-muted-foreground" /></span><h2 className="font-medium">{hasFilters ? "No matching campaigns" : "No campaigns yet"}</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">{hasFilters ? "Try clearing a filter or using another search." : "Add a campaign to compare performance before, during, and after it."}</p>{canManage && !hasFilters ? <Button className="mt-4" onClick={openCreate}><Plus className="size-4" />Add first campaign</Button> : null}</div>
+            <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center"><span className="mb-4 grid size-12 place-items-center rounded-full bg-general-secondary"><Megaphone className="size-6 text-muted-foreground" /></span><h2 className="font-medium">{hasFilters ? "No matching campaigns" : "No campaigns yet"}</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">{hasFilters ? "Try clearing a filter or using another search." : "Add a campaign to measure its performance over time."}</p>{canManage && !hasFilters ? <Button className="mt-4" onClick={openCreate}><Plus className="size-4" />Add first campaign</Button> : null}</div>
           ) : (
             <Table className="w-full">
-              <TableElement className="min-w-[1075px] table-fixed">
-                <colgroup><col className="w-[170px]" /><col className="w-[195px]" /><col className="w-[330px]" /><col className="w-[130px]" /><col className="w-[210px]" /><col className="w-[40px]" /></colgroup>
-                <TableHeader className="bg-general-primary-foreground"><TableRow className="h-9 bg-general-primary-foreground hover:bg-general-primary-foreground"><TableHead className="px-3 text-xs text-muted-foreground">Campaign</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Dates</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Performance vs before</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Status</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Search trend</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+              <TableElement className="min-w-[1160px] table-fixed">
+                <colgroup><col className="w-[160px]" /><col className="w-[175px]" /><col className="w-[410px]" /><col className="w-[190px]" /><col className="w-[185px]" /><col className="w-[40px]" /></colgroup>
+                <TableHeader className="bg-general-primary-foreground"><TableRow className="h-9 bg-general-primary-foreground hover:bg-general-primary-foreground"><TableHead className="px-3 text-xs text-muted-foreground">Campaign</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Dates</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Performance</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Status</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Search trend</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                 <TableBody>{campaigns.data.map(campaign => {
                   const statusKey = (campaign.status || "collecting_data") as CampaignStatus;
                   const statusMeta = CAMPAIGN_STATUS[statusKey];
-                  const isOpening = openingCampaignId === campaign.id;
                   const dateLabel = campaign.eventKind === "one_time" ? formatCampaignDate(campaign.startDate) : formatCampaignDateRange(campaign.startDate, campaign.endDate);
-                  return <TableRow key={campaign.id} className="group h-[84px] cursor-pointer hover:bg-general-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => openReport(campaign.id)} tabIndex={0} aria-busy={isOpening} onKeyDown={event => { if (event.key === "Enter") openReport(campaign.id); }}>
+                  return <TableRow key={campaign.id} className="group h-[84px] cursor-pointer hover:bg-general-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => openReport(campaign.id)} tabIndex={0} onKeyDown={event => { if (event.key === "Enter") openReport(campaign.id); }}>
                     <TableCell className="px-3"><div className="min-w-0"><Tooltip><TooltipTrigger asChild><p className="truncate font-medium text-general-foreground">{campaign.name}</p></TooltipTrigger><TooltipContent side="top" sideOffset={6} className="max-w-[320px] whitespace-normal break-words text-left">{campaign.name}</TooltipContent></Tooltip><p className="mt-1 text-xs text-muted-foreground">{CAMPAIGN_TYPE_LABELS[campaign.campaignType]} · {campaign.eventKind === "one_time" ? "One-time event" : campaign.endDate ? "Campaign" : "Ongoing"}</p></div></TableCell>
                     <TableCell className="px-3"><div className="flex min-w-0 items-center gap-2 text-sm"><CalendarRange className="size-4 shrink-0 text-muted-foreground" /><span className="truncate whitespace-nowrap" title={dateLabel}>{dateLabel}</span></div></TableCell>
                     <TableCell className="px-3"><PerformanceSummary summaries={campaign.performanceSummaries} /></TableCell>
-                    <TableCell className="px-3"><div className="flex items-center gap-2 whitespace-nowrap"><Badge variant="outline" className={`${statusMeta.className} shrink-0 whitespace-nowrap border-0 font-medium`}>{statusMeta.label}</Badge>{campaign.hasOverlap ? <Tooltip><TooltipTrigger asChild><span className="inline-flex size-6 shrink-0 items-center justify-center rounded-[4px] text-amber-700 hover:bg-amber-50" onClick={event => event.stopPropagation()}><AlertTriangle className="size-4 shrink-0" strokeWidth={1.75} /><span className="sr-only">Overlaps another campaign</span></span></TooltipTrigger><TooltipContent side="top" sideOffset={6}>Another campaign overlaps these dates.</TooltipContent></Tooltip> : null}</div></TableCell>
+                    <TableCell className="px-3"><div className="grid grid-cols-[116px_24px] items-center gap-2"><Badge variant="outline" className={`${statusMeta.className} w-[116px] justify-center whitespace-nowrap border-0 font-medium`}>{statusMeta.label}</Badge>{campaign.hasOverlap ? <Tooltip><TooltipTrigger asChild><span className="inline-flex size-6 items-center justify-center rounded-[4px] text-amber-700 hover:bg-amber-50" onClick={event => event.stopPropagation()}><AlertTriangle className="size-4" strokeWidth={1.75} /><span className="sr-only">Campaign overlap</span></span></TooltipTrigger><TooltipContent side="top" sideOffset={6}>Campaign overlap: another campaign overlaps these dates.</TooltipContent></Tooltip> : <span className="size-6" aria-hidden="true" />}</div></TableCell>
                     <TableCell className="px-3"><CampaignTrendChart trend={campaign.performanceTrend} label={campaign.name} startDate={campaign.startDate} endDate={campaign.endDate} /></TableCell>
                     <TableCell
                       className="px-2 text-right"
@@ -220,7 +232,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
                             className="size-8 rounded-[6px] border border-transparent bg-general-secondary text-general-unofficial-mid-alt hover:border-general-border hover:bg-general-border data-[state=open]:border-general-border data-[state=open]:bg-general-border"
                             aria-label={`Actions for ${campaign.name}`}
                           >
-                            {isOpening ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" strokeWidth={1.5} />}
+                            <MoreHorizontal className="size-4" strokeWidth={1.5} />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
@@ -274,6 +286,12 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
         </section>
       </main>
 
+      <CampaignImpactReportSheet
+        open={Boolean(selectedCampaignId)}
+        onOpenChange={open => { if (!open) setSelectedCampaignId(null); }}
+        businessId={businessId}
+        campaignId={selectedCampaignId}
+      />
       <CampaignFormSheet open={formOpen} onOpenChange={setFormOpen} businessId={businessId} locations={locations} campaign={editing} />
       <AlertDialog open={Boolean(deleting)} onOpenChange={open => !open && !mutations.remove.isPending && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete campaign?</AlertDialogTitle><AlertDialogDescription>This removes “{deleting?.name}” from Campaign Tracking and Analytics. Previously shared reports stay available.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={mutations.remove.isPending}>Cancel</AlertDialogCancel><AlertDialogAction onClick={event => { event.preventDefault(); void confirmDelete(); }} disabled={mutations.remove.isPending} className="bg-destructive text-white hover:bg-destructive/90">{mutations.remove.isPending ? <><Loader2 className="size-4 animate-spin" />Deleting</> : "Delete campaign"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>

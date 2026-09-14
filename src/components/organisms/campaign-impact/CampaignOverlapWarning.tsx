@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { CampaignContamination } from "@/types/campaign-impact";
 
 interface CampaignOverlapWarningProps {
@@ -34,11 +35,14 @@ export function CampaignOverlapWarning({
       <TooltipTrigger asChild>
         <button
           type="button"
-          className="inline-flex w-fit items-center gap-1.5 rounded-[4px] border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium leading-4 text-amber-900 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className={cn(
+            "inline-flex items-center justify-center rounded-[4px] border border-amber-200 bg-amber-50 text-xs font-medium leading-4 text-amber-900 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            context === "report" ? "size-6 shrink-0 p-0" : "w-fit gap-1.5 px-2 py-1",
+          )}
           aria-label={`Campaign overlap. ${summary} ${details.join(" ")}`}
         >
           <AlertTriangle className="size-3.5 shrink-0 text-amber-700" strokeWidth={1.75} aria-hidden="true" />
-          Campaign overlap
+          {context === "form" ? "Campaign overlap" : null}
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={6} className="max-w-[320px] space-y-1.5 px-3 py-2.5 text-left">

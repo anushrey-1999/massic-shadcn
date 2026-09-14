@@ -221,6 +221,8 @@ interface AnalyticsDisplayMenuProps {
   metricKeys: readonly AnalyticsMetricKey[];
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
+  metricLabels?: Partial<Record<AnalyticsMetricKey, string>>;
+  triggerClassName?: string;
   /** The All tab plots a fixed set of lines, so the toggles are read-only. */
   linesLocked?: boolean;
   disabled?: boolean;
@@ -235,6 +237,8 @@ export function AnalyticsDisplayMenu({
   metricKeys,
   visibleLines,
   onLineToggle,
+  metricLabels,
+  triggerClassName,
   linesLocked = false,
   disabled = false,
 }: AnalyticsDisplayMenuProps) {
@@ -253,7 +257,7 @@ export function AnalyticsDisplayMenu({
             <Button
               variant="outline"
               size="sm"
-              className={cn(TOOLBAR_BUTTON_CLASS, "opacity-40")}
+              className={cn(TOOLBAR_BUTTON_CLASS, triggerClassName, "opacity-40")}
               disabled
               style={{ pointerEvents: "none" }}
             >
@@ -275,7 +279,7 @@ export function AnalyticsDisplayMenu({
         <Button
           variant="outline"
           size="sm"
-          className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
+          className={cn(TOOLBAR_BUTTON_CLASS, triggerClassName, activeCount > 0 && "border-general-border-three bg-general-secondary")}
         >
           <SlidersHorizontal className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
           Display
@@ -306,7 +310,7 @@ export function AnalyticsDisplayMenu({
                   className="size-2.5 shrink-0 rounded-[2px]"
                   style={{ backgroundColor: CHART_SERIES_COLORS[key] }}
                 />
-                {ANALYTICS_METRIC_LABELS[key]}
+                {metricLabels?.[key] || ANALYTICS_METRIC_LABELS[key]}
               </span>
             </DropdownMenuCheckboxItem>
           );

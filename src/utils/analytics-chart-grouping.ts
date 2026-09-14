@@ -38,6 +38,75 @@ export interface GroupedAnalyticsChartPoint extends AnalyticsChartPointLike {
   grouping: AnalyticsGroupBy;
 }
 
+const MOVING_AVERAGE_METRICS = [
+  "impressions",
+  "clicks",
+  "sessions",
+  "goals",
+] as const;
+
+function parseUtcDayNumber(value?: string | null): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+/**
+ * Replaces daily metric values with a trailing simple moving average.
+ * Points without a complete consecutive window are omitted.
+ */
+export function calculateTrailingMovingAverage<T extends AnalyticsChartPointLike>(
+  points: T[],
+  windowSize = 7
+): T[] {
+  if (!Number.isInteger(windowSize) || windowSize < 1 || points.length === 0) {
+    return [];
+  }
+
+  const sortedPoints = [...points].sort((a, b) =>
+    (a.dateKey ?? "").localeCompare(b.dateKey ?? "")
+  );
+  const window: T[] = [];
+  const averagedPoints: T[] = [];
+  let previousDay: number | null = null;
+
+  for (const point of sortedPoints) {
+    const currentDay = parseUtcDayNumber(point.dateKey);
+    if (currentDay === null) {
+      window.length = 0;
+      previousDay = null;
+      continue;
+    }
+
+    if (previousDay !== null && currentDay - previousDay !== 1) {
+      window.length = 0;
+    }
+
+    window.push(point);
+    if (window.length > windowSize) window.shift();
+    previousDay = currentDay;
+
+    if (window.length !== windowSize) continue;
+
+    const averagedMetrics = Object.fromEntries(
+      MOVING_AVERAGE_METRICS.map((metric) => [
+        metric,
+        window.reduce((sum, item) => sum + (Number(item[metric]) || 0), 0) /
+          windowSize,
+      ])
+    ) as Pick<AnalyticsChartPointLike, (typeof MOVING_AVERAGE_METRICS)[number]>;
+
+    averagedPoints.push({
+      ...point,
+      ...averagedMetrics,
+    });
+  }
+
+  return averagedPoints;
+}
+
 const GROUPING_ORDER: AnalyticsGroupBy[] = ["day", "week", "month"];
 
 function parseDate(value?: string | null): Date | null {

@@ -5,6 +5,7 @@ import { useQueryState } from "nuqs";
 import { agentKeys, cancelTurn, errorMessage, startChatStream, streamErrorMessage } from "./agent-api";
 import { buildChatRequest, intentLabel, lastMatchingPlan, mergeMessages, resourceSurface } from "./agent-model";
 import { parseAgentStream } from "./agent-sse";
+import { createStreamPublisher } from "./stream-publisher";
 import { reduceAgentEvent } from "./agent-stream-state";
 import { useAgentHistory } from "./use-agent-history";
 import type { AgentConversation, AgentMessage, ChatRequest, PlanIntent, ResourceRef, Surface } from "./types";
@@ -19,6 +20,8 @@ export function useAgentChat(business: string) {
   const [urlThread, setUrlThread] = useQueryState("thread");
   const [draftId, setDraftId] = useState("draft:initial");
   const activeKey = urlThread ?? draftId;
+  const [presentationKeys, setPresentationKeys] = useState<Record<string, string>>({});
+  const presentationKey = presentationKeys[activeKey] ?? activeKey;
   const activeRef = useRef(activeKey); activeRef.current = activeKey;
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [live, setLive] = useState<Record<string, AgentMessage[]>>({});
@@ -39,7 +42,7 @@ export function useAgentChat(business: string) {
   const conversation = conversations.find(c => c.id === activeKey);
   const draft = drafts[activeKey] ?? emptyDraft(conversation?.surface ?? "global");
   const surface = conversation?.surface ?? draft.surface;
-  const messages = mergeMessages(history.hydrated, live[activeKey] ?? []);
+  const messages = useMemo(() => mergeMessages(history.hydrated, live[activeKey] ?? []), [history.hydrated, live, activeKey]);
   const knownThread = !urlThread || !!conversation;
   // A deep link may point beyond the first thread page; obtain its authoritative surface.
   useEffect(() => {
@@ -104,35 +107,37 @@ export function useAgentChat(business: string) {
     const run: Running = { key: requestKey, thread: requestThread ?? undefined, controller: new AbortController(), stopRequested: false };
     running.current = run; setRunningKey(run.key); setError(null); setStopping(false);
     const now = Date.now();
-    let user: AgentMessage = { id: `pending:${now}-user`, role: "user", content: request.message ?? intentLabel(intent!.kind), createdAt: now, intent, view: request.metadata?.view };
-    let assistant: AgentMessage = { id: `pending:${now}-assistant`, role: "assistant", content: "", createdAt: now + 1, activity: [] };
+    let user: AgentMessage = { id: `pending:${now}-user`, presentationId: `pending:${now}-user`, role: "user", content: request.message ?? intentLabel(intent!.kind), createdAt: now, intent, view: request.metadata?.view };
+    let assistant: AgentMessage = { id: `pending:${now}-assistant`, presentationId: `pending:${now}-assistant`, role: "assistant", content: "", createdAt: now + 1, activity: [] };
     setLive(prev => ({ ...prev, [run.key]: [...(prev[run.key] ?? []), user, assistant] }));
     setDrafts(prev => ({
       ...prev,
       ...(startsPlanThread ? { [activeKey]: { ...draft, input: "" } } : {}),
       [run.key]: { ...originalDraft, input: "" },
     }));
-    // Coalesce tokens once per frame rather than rerendering for every network token.
-    let frame: number | null = null;
+    // Publish accumulated text at a bounded cadence without replaying tokens.
     const iterationBuffers = new Map<number, string>();
     const publish = () => {
-      frame = null;
       if (!mounted.current) return;
       const snapshot = assistant;
       setLive(prev => ({ ...prev, [run.key]: [...(prev[run.key] ?? []).slice(0, -2), user, snapshot] }));
     };
+    const publisher = createStreamPublisher(publish);
     let terminal = false;
     try {
       const body = await startChatStream(business, request, run.controller.signal);
       for await (const event of parseAgentStream(body)) {
         if (running.current !== run) break;
+        const previous = assistant;
+        const previousUser = user;
         if (event.type === "thread_meta") {
           run.thread = event.thread_id; run.turn = event.turn_id;
           user = { ...user, turnId: event.turn_id, id: `${event.turn_id}-user` };
           if (run.key !== event.thread_id) {
             const oldKey = run.key; run.key = event.thread_id;
+            setPresentationKeys(prev => ({ ...prev, [run.key]: prev[oldKey] ?? oldKey }));
             setLive(prev => { const next = { ...prev, [run.key]: prev[oldKey] ?? [] }; delete next[oldKey]; return next; });
-            setDrafts(prev => ({ ...prev, [run.key]: { ...originalDraft, input: "" } }));
+            setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[oldKey] ?? originalDraft) } }));
             if (activeRef.current === oldKey) { activeRef.current = run.key; void setUrlThread(run.key); }
             setRunningKey(run.key);
           }
@@ -162,7 +167,9 @@ export function useAgentChat(business: string) {
           void queryClient.invalidateQueries({ queryKey: agentKeys.plans(business) });
           for (const part of assistant.widgetParts ?? []) void queryClient.invalidateQueries({ queryKey: agentKeys.plan(business, part.resource.id) });
         }
-        if (frame === null) frame = requestAnimationFrame(publish);
+        if (assistant !== previous || user !== previousUser) {
+          publisher.schedule((!previous.content && !!assistant.content) || ["message_complete", "cancelled", "error", "turn_end"].includes(event.type));
+        }
         if (terminal) break;
       }
       if (!terminal && assistant.status !== "error" && assistant.status !== "cancelled") {
@@ -176,8 +183,8 @@ export function useAgentChat(business: string) {
       if (run.thread && run.turn) void requestStop(run).catch(() => {});
       setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[run.key] ?? originalDraft), input: prev[run.key]?.input || originalDraft.input } }));
     } finally {
-      if (frame !== null) cancelAnimationFrame(frame);
-      publish(); run.controller.abort();
+      publisher.schedule(true);
+      publisher.cancel(); run.controller.abort();
       if (running.current === run) running.current = null;
       if (mounted.current) {
         setRunningKey(null); setStopping(false);
@@ -187,7 +194,7 @@ export function useAgentChat(business: string) {
       }
     }
   };
-  return { activeKey, conversation, conversations, surface, draft, messages, history, runningKey, stopping, error, creditWarning, knownThread,
+  return { activeKey, presentationKey, conversation, conversations, surface, draft, messages, history, runningKey, stopping, error, creditWarning, knownThread,
     setError, updateDraft, newChat, selectChat, openPlan, send, stop,
     updateTitle: (id: string, title: string) => setLocalThreads(prev => ({ ...prev, [id]: { ...conversations.find(c => c.id === id)!, title } })),
   };

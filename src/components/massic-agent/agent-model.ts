@@ -66,8 +66,17 @@ export function hydrateMessage(turn: ThreadMessage): AgentMessage {
     view: metadata.view as AgentMessage["view"],
   };
 }
+const mergedMessageCache = new WeakMap<AgentMessage, AgentMessage>();
 export function mergeMessages(history: AgentMessage[], live: AgentMessage[]): AgentMessage[] {
   const byId = new Map(history.map(m => [m.id, m]));
-  for (const message of live) byId.set(message.id, { ...byId.get(message.id), ...message });
+  for (const message of live) {
+    const citations = byId.get(message.id)?.citations;
+    if (message.citations || !citations) byId.set(message.id, message);
+    else {
+      let merged = mergedMessageCache.get(message);
+      if (!merged || merged.citations !== citations) { merged = { ...message, citations }; mergedMessageCache.set(message, merged); }
+      byId.set(message.id, merged);
+    }
+  }
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || (a.role === "user" ? -1 : 1));
 }

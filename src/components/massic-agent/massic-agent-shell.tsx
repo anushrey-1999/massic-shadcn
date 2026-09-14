@@ -13,6 +13,9 @@ import { AgentHistorySidebar } from "./agent-history-sidebar";
 import { AgentSearchDialog } from "./agent-search-dialog";
 import { AgentChatsListView } from "./agent-chats-list-view";
 import { AgentChatThread } from "./agent-chat-thread";
+import { AgentComposerDock } from "./agent-composer-dock";
+import { AgentCitationsDrawer } from "./agent-citations-drawer";
+import { canDismissPlan } from "./agent-dismissal";
 import { AgentComposer } from "./agent-composer";
 import { AgentPlanWidget } from "./agent-plan-widget";
 import { AgentPlanPicker } from "./agent-plan-picker";
@@ -43,6 +46,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(null);
   const [title, setTitle] = useState("");
   const splitRef = useRef<HTMLDivElement>(null);
+  const planTrigger = useRef<HTMLElement | null>(null);
   const cleanupResize = useRef<(() => void) | null>(null);
   const pendingPlanClearRef = useRef<string | null>(null);
   const entryRef = useRef<string | null>(null);
@@ -123,7 +127,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   useEffect(() => {
     pendingPlanClearRef.current = null;
     if (planRef) setPlanVisible(true);
-  }, [chat.activeKey, planRef?.type, planRef?.id]);
+  }, [chat.presentationKey, planRef?.type, planRef?.id]);
   const updateViewRoute = (nextView: "chat" | "chats" | "plans") => {
     setView(nextView);
     setMobileHistory(false);
@@ -140,7 +144,12 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const select = (id: string) => { chat.selectChat(id); updateViewRoute("chat"); };
   const newChat = () => { chat.newChat(); updateViewRoute("chat"); };
   const showPlan = () => { pendingPlanClearRef.current = null; setPlanVisible(true); };
-  const openPlan = (r: ResourceRef) => { pendingPlanClearRef.current = null; chat.openPlan(r); setView("chat"); setPlanVisible(true); };
+  const openPlan = (r: ResourceRef) => {
+    planTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    pendingPlanClearRef.current = null;
+    if (planRef && resourceKey(planRef) === resourceKey(r)) { if (planVisible) closePlan(false); else setPlanVisible(true); return; }
+    chat.openPlan(r); setView("chat"); setPlanVisible(true);
+  };
   const openRename = (conversation: AgentConversation) => { setRenameTarget(conversation); setTitle(conversation.title); rename.reset(); };
   const streaming = chat.runningKey === chat.activeKey;
   const busyElsewhere = !!chat.runningKey && !streaming;
@@ -151,6 +160,8 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const closePlan = (clear: boolean) => {
     if (!planRef) return;
     setPlanVisible(false);
+    const target = planTrigger.current?.isConnected ? planTrigger.current : splitRef.current?.querySelector<HTMLTextAreaElement>("textarea");
+    target?.focus({ preventScroll: true });
     pendingPlanClearRef.current = clear ? resourceKey(planRef) : null;
     if (clear && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       pendingPlanClearRef.current = null;
@@ -165,6 +176,14 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
       chat.updateDraft({ resource: null, selectedIds: [] });
     }
   };
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => {
+      const overlayOpen = !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"], [role="menu"][data-state="open"], [data-slot="popover-content"][data-state="open"]');
+      if (view === "chat" && planVisible && planRef && canDismissPlan(event, overlayOpen)) { event.preventDefault(); closePlan(false); }
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  });
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
   const showCenteredEmpty = showEmpty && !planRef && preferredAction !== "refine";
@@ -184,7 +203,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}
     onOpenPlans={() => setPlanPicker(true)} onShowPlan={showPlan} onSend={(intent, override) => { void chat.send(intent, override); }} onStop={() => { void chat.stop(); }}
-    streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.activeKey} preferredAction={preferredAction} />;
+    streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.presentationKey} preferredAction={preferredAction} />;
   const resize = (value: number) => setWidth(Math.max(560, Math.min(value, 1050, (splitRef.current?.clientWidth ?? 1510) - 460)));
   return <div className={cn(styles.workspace, "flex h-full min-h-0 w-full overflow-hidden bg-background")}>
     <div className={cn("hidden shrink-0 overflow-hidden transition-[width] duration-200 motion-reduce:transition-none md:block", collapsed ? "w-12" : "w-[240px]")}><AgentHistorySidebar {...historyProps} collapsed={collapsed} onCollapse={() => setCollapsed(v => !v)} /></div>
@@ -197,13 +216,13 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
         <Button variant="ghost" size="icon-sm" aria-label="Back" title="Back" onClick={goBack}><ArrowLeft className="h-4 w-4" /></Button>
       </header>
       <div ref={splitRef} className={cn(styles.planWorkspace, "relative flex min-h-0 w-full flex-1")}>
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1 flex-col">
           {view === "plans" ? <AgentPlansView businessId={businessId} initialSurface={entrySurface ?? "webpages"} /> : view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
             {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicLoader /></div>
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
-              : showCenteredEmpty ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6"><div className="w-full max-w-3xl -translate-y-[8vh]"><div className="mb-6 flex items-center justify-center gap-2.5"><MassicLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div>{composer}</div></div>
+              : showCenteredEmpty ? <div className="min-h-0 flex-1" />
               : showEmpty ? <div className="min-h-0 flex-1" />
-              : <AgentChatThread key={chat.activeKey} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
+              : <AgentChatThread key={`thread:${chat.presentationKey}`} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
             <div className="mx-auto w-full max-w-3xl space-y-2 px-4 pb-2">
               {chat.error && <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/5 p-3 text-sm text-destructive"><p className="flex-1">{chat.error}</p><button aria-label="Dismiss error" onClick={() => chat.setError(null)}><X className="h-4 w-4" /></button></div>}
               {busyElsewhere && <p role="status" className="text-xs text-muted-foreground">A response is running in another chat. <button className="cursor-pointer underline" onClick={() => select(chat.runningKey!)}>Open that chat</button> to view or stop it.</p>}
@@ -211,7 +230,8 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               {chat.creditWarning && <p className="text-xs text-muted-foreground">Agent credits are running low.</p>}
               {chat.history.citations.isError && <p className="text-xs text-muted-foreground">Sources could not be loaded. <button onClick={() => chat.history.citations.refetch()} className="underline">Retry sources</button></p>}
             </div>
-            {!showCenteredEmpty && <div className="shrink-0 px-4 pb-4"><div className="mx-auto w-full max-w-3xl">{composer}</div></div>}
+            <AgentComposerDock centered={showCenteredEmpty} chatKey={chat.presentationKey}>{composer}</AgentComposerDock>
+            <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} />
           </>}
         </div>
         {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>

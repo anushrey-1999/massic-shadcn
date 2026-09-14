@@ -4,8 +4,6 @@ import { useState, type MouseEvent } from "react";
 import {
 	AlertTriangle,
 	ArrowRight,
-	ArrowUp,
-	ArrowDown,
 	Eye,
 	MousePointerClick,
 	Target,
@@ -28,128 +26,15 @@ import {
 } from "@/components/ui/tooltip";
 import type {
 	HealthStatusRow,
-	HealthColor,
-	Confidence,
 } from "@/hooks/use-health-status";
-
-// PRD §2.1 — signal colors
-const HEALTH_ACCENT_COLOR: Record<NonNullable<HealthColor>, string> = {
-	green: "#639922",
-	amber: "#EF9F27",
-	red:   "#E24B4A",
-	gray:  "#B4B2A9",
-};
-
-const HEALTH_LABEL: Record<NonNullable<HealthColor>, string> = {
-	green: "Strong",
-	amber: "Dip",
-	red:   "Check",
-	gray:  "No Signal",
-};
-
-const HEALTH_BADGE_CLASSNAME: Record<NonNullable<HealthColor>, string> = {
-	green: "border-transparent bg-[#EEF6E4] text-[#639922]",
-	amber: "border-transparent bg-[#FFF3E2] text-[#EF9F27]",
-	red: "border-transparent bg-[#FDECEC] text-[#E24B4A]",
-	gray: "border-transparent bg-[#F2F1EE] text-[#7E7B73]",
-};
-
-/** Strong / Dip / Check × (high | medium vs low) — medium uses high copy per product spec. */
-const HEALTH_TOOLTIP_NARRATIVE: Record<
-	"green" | "amber" | "red",
-	{ strongSignal: { subtitle: string; footer: string }; thinData: { subtitle: string; footer: string } }
-> = {
-	green: {
-		strongSignal: {
-			subtitle: "Performing well and holding steady",
-			footer: "Strong signal · 14 days of data",
-		},
-		thinData: {
-			subtitle: "Looking good so far — check back as more data comes in",
-			footer: "Thin data · too early to confirm",
-		},
-	},
-	amber: {
-		strongSignal: {
-			subtitle: "Healthy, but momentum is softening",
-			footer: "Strong signal · 14 days of data",
-		},
-		thinData: {
-			subtitle: "Some soft signals — could be noise",
-			footer: "Thin data · too early to act on this",
-		},
-	},
-	red: {
-		strongSignal: {
-			subtitle: "Traffic is down and the pattern is consistent",
-			footer: "Strong signal · 14 days of data",
-		},
-		thinData: {
-			subtitle: "Some dips, but not enough data to confirm a real problem",
-			footer: "Thin data · hold off before drawing conclusions",
-		},
-	},
-};
-
-function healthTooltipNarrativeBlock(
-	color: NonNullable<HealthColor>,
-	confidence: Confidence
-): { subtitle: string; footer: string } | null {
-	if (color === "gray") return null;
-	const row = HEALTH_TOOLTIP_NARRATIVE[color];
-	const thin = confidence === "low";
-	return thin ? row.thinData : row.strongSignal;
-}
-
-// ─── Tooltip helpers ──────────────────────────────────────────────────────────
-
-function formatCompact(n: number | null | undefined): string {
-	if (n == null) return "—";
-	const abs = Math.abs(n);
-	if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (abs >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
-	return String(Math.round(n));
-}
-
-function formatPct(pct: number | null | undefined): string {
-	if (pct == null) return "—";
-	const rounded = Math.round(pct * 100);
-	return rounded >= 0 ? `+${rounded}%` : `${rounded}%`;
-}
-
-function MetricRow({
-	icon,
-	label,
-	recent,
-	baseline,
-	changePct,
-}: {
-	icon: React.ReactNode;
-	label: string;
-	recent: number | null;
-	baseline: number | null;
-	changePct: number | null;
-}) {
-	if (recent == null && baseline == null) return null;
-
-	const pctColor = changePct == null ? "text-muted-foreground"
-	               : changePct >= 0    ? "text-green-600"
-	               :                     "text-red-600";
-
-	return (
-		<div className="flex items-center justify-between gap-3">
-			<div className="flex items-center gap-1 shrink-0">
-				{icon}
-				<span className="text-[11px] text-muted-foreground">{label}</span>
-			</div>
-			<div className="flex items-center gap-1 text-[11px] tabular-nums">
-				<span className="font-medium text-foreground">{formatCompact(recent)}</span>
-				<span className={cn("font-semibold", pctColor)}>{formatPct(changePct)}</span>
-				<span className="text-muted-foreground text-[10px]">vs {formatCompact(baseline)}</span>
-			</div>
-		</div>
-	);
-}
+import {
+	HEALTH_LABEL,
+	HealthDailyMetrics,
+	HealthSignalPill,
+	HealthTrendIndicator,
+	healthTooltipNarrativeBlock,
+} from "./health-signal-ui";
+import { HealthStreakSheet } from "./HealthStreakSheet";
 
 function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 	const color = s.health_color;
@@ -161,10 +46,10 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 
 	return (
 		<div className="w-56 space-y-2 py-0.5">
-			{/* Header */}
 			<div className="flex items-center justify-between gap-2">
-				<span className="text-[11px] font-semibold text-foreground">
+				<span className="text-[11px] font-medium text-foreground">
 					{color ? HEALTH_LABEL[color] : "Insufficient data"}
+					{healthStatusStreakLabel(s)}
 				</span>
 				<span className="text-[10px] text-muted-foreground shrink-0">14d vs prior 14d</span>
 			</div>
@@ -181,23 +66,9 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 				</p>
 			)}
 
-			{/* Metric rows — Goals (70% weight) first, Clicks (30%) second */}
 			{hasAny && (
 				<div className="space-y-1.5 border-t border-border/50 pt-2">
-					<MetricRow
-						icon={<Target className="h-3 w-3 text-emerald-600 shrink-0" />}
-						label="Goals"
-						recent={s.recent_leads}
-						baseline={s.baseline_leads}
-						changePct={s.lead_change_pct}
-					/>
-					<MetricRow
-						icon={<MousePointerClick className="h-3 w-3 text-blue-600 rotate-90 shrink-0" />}
-						label="Clicks"
-						recent={s.recent_traffic}
-						baseline={s.baseline_traffic}
-						changePct={s.traffic_change_pct}
-					/>
+					<HealthDailyMetrics status={s} />
 				</div>
 			)}
 
@@ -217,64 +88,86 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 					<span className="text-[10px] text-amber-600">Stale data</span>
 				</div>
 			)}
+
 		</div>
 	);
 }
 
+function healthStatusStreakLabel(status: HealthStatusRow) {
+	const days = status.current_streak?.days;
+	if (!days) return "";
+	return ` · ${days}-day streak`;
+}
+
 // ─── Health badge wrapped in a metrics tooltip ─────────────────────────────────
 
-function HealthBadge({ healthStatus }: { healthStatus: HealthStatusRow }) {
+function HealthBadge({
+	healthStatus,
+	businessId,
+	businessName,
+}: {
+	healthStatus: HealthStatusRow;
+	businessId: string;
+	businessName: string;
+}) {
+	const [sheetOpen, setSheetOpen] = useState(false);
 	const color = healthStatus.health_color;
 	if (!color) return null;
 
-	const badgeColor = HEALTH_ACCENT_COLOR[color];
 	const label = HEALTH_LABEL[color];
-	const trendArrow = healthStatus.trend_arrow;
-
-	const trendIndicator =
-		color === "gray" || trendArrow === "flat" || trendArrow === "none" || !trendArrow ? (
-			<span className="text-[11px] font-semibold leading-none text-[#667085]">-</span>
-		) : trendArrow === "up" ? (
-			<ArrowUp className="h-3 w-3 shrink-0 text-[#667085]" strokeWidth={2} />
-		) : (
-			<ArrowDown className="h-3 w-3 shrink-0 text-[#667085]" strokeWidth={2} />
-		);
 
 	return (
-		<Tooltip>
-			<TooltipTrigger
-				asChild
-				onClick={(e: MouseEvent) => e.stopPropagation()}
-			>
-				<div
-					className="flex shrink-0 items-center gap-1.5 cursor-default"
-				>
-					<div
-						className={cn(
-							"inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none shrink-0",
-							HEALTH_BADGE_CLASSNAME[color]
-						)}
+		<div
+			className="shrink-0"
+			onClick={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+			onPointerDown={event => {
+				// Sheet portals still bubble through this React tree. Only isolate
+				// pointer events that originated inside the visible badge itself.
+				if (event.currentTarget.contains(event.target as Node)) {
+					event.stopPropagation();
+				}
+			}}
+		>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						className="group flex shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-full transition-transform duration-150 hover:-translate-y-px active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						aria-label={`${label}${healthStatusStreakLabel(healthStatus)}. Open daily details`}
+						aria-haspopup="dialog"
+						aria-expanded={sheetOpen}
+						onClick={(event: MouseEvent<HTMLButtonElement>) => {
+							event.stopPropagation();
+							setSheetOpen(true);
+						}}
 					>
-						<span
-							className="h-2 w-2 rounded-full shrink-0"
-							style={{ backgroundColor: badgeColor }}
+						<HealthSignalPill
+							color={color}
+							streakDays={healthStatus.current_streak?.days}
+							className="transition-[filter,box-shadow] duration-150 group-hover:brightness-[0.97] group-hover:shadow-xs"
 						/>
-						{label}
-					</div>
-					{trendIndicator}
-				</div>
-			</TooltipTrigger>
+						<HealthTrendIndicator trend={healthStatus.trend_arrow} />
+					</button>
+				</TooltipTrigger>
 
-			<TooltipContent
-				side="bottom"
-				align="end"
-				sideOffset={6}
-				hideArrow
-				className="bg-background text-foreground border border-border shadow-xl ring-1 ring-black/5 min-w-[232px] max-w-[280px] px-3 py-2.5"
-			>
-				<HealthTooltipBody s={healthStatus} />
-			</TooltipContent>
-		</Tooltip>
+				<TooltipContent
+					side="bottom"
+					align="end"
+					sideOffset={6}
+					hideArrow
+					className="min-w-[232px] max-w-[280px] border border-border bg-background px-3 py-2.5 text-foreground shadow-xl ring-1 ring-black/5"
+				>
+					<HealthTooltipBody s={healthStatus} />
+				</TooltipContent>
+			</Tooltip>
+			<HealthStreakSheet
+				businessId={businessId}
+				businessName={businessName}
+				status={healthStatus}
+				open={sheetOpen}
+				onOpenChange={setSheetOpen}
+			/>
+		</div>
 	);
 }
 
@@ -356,6 +249,7 @@ function normalizeUrlDomain(input: string) {
 
 export function BusinessPreviewCard({
 	name,
+	businessId,
 	url,
 	graph,
 	impressions,
@@ -368,6 +262,7 @@ export function BusinessPreviewCard({
 	onClick,
 }: {
 	name?: string;
+	businessId?: string;
 	url?: string;
 	graph?: PreviewGraph;
 	impressions?: PreviewStats;
@@ -391,7 +286,7 @@ export function BusinessPreviewCard({
 	return (
 		<Card
 			onClick={onClick}
-			className="overflow-hidden border border-[#f4f4f4] p-2 shadow-none rounded-lg gap-4 flex flex-col h-full cursor-pointer"
+			className="h-full cursor-pointer overflow-hidden rounded-lg border border-[#f4f4f4] p-2 shadow-none transition-[border-color,box-shadow] duration-150 hover:border-border hover:shadow-xs gap-4 flex flex-col"
 		>
 			<CardTitle className="text-sm font-medium p-0 shrink-0">
 				<div className="flex items-center justify-between gap-2">
@@ -404,7 +299,13 @@ export function BusinessPreviewCard({
 							{name || domain}
 						</Typography>
 					</div>
-					{healthStatus && <HealthBadge healthStatus={healthStatus} />}
+					{healthStatus && businessId && (
+						<HealthBadge
+							healthStatus={healthStatus}
+							businessId={businessId}
+							businessName={name || domain}
+						/>
+					)}
 				</div>
 			</CardTitle>
 

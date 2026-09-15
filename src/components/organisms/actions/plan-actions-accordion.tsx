@@ -26,11 +26,11 @@ function escapeCsv(value: unknown) {
 function downloadPlan(type: ResourceType, planId: string | number, rows: PlanItem[]) {
   const social = type === "social_channels_plan";
   const headers = social
-    ? ["Tactic", "Channel", "Type", "Rationale", "Relevance", "Status", "Valid", "Tactic ID"]
-    : ["Page", "Page type", "Rationale", "Relevance", "Coverage", "Volume", "Status", "Valid", "Page ID"];
+    ? ["Channel", "Campaign", "Type", "Tactic", "Title", "Description", "Keywords"]
+    : ["Page", "Type", "Offerings", "Coverage", "Priority", "Sub Topics"];
   const data = rows.map(item => social
-    ? [item.cluster_name || item.campaign_name || "", item.channel_name, item.content_type, item.rationale, item.cluster_relevance, item.status, item.valid !== false, item.campaign_cluster_id]
-    : [item.title || "", item.page_type, item.rationale, item.business_relevance_score, item.coverage, item.search_volume, item.status, item.valid !== false, item.page_id]);
+    ? [item.channel_name, item.campaign_name, item.content_type, item.cluster_name, item.title, item.description, (item.related_keywords ?? []).join(" | ")]
+    : [item.cluster_name || item.title || "", item.page_type, (item.offerings ?? []).join(" | "), item.coverage ?? 0, item.page_opportunity_score ?? 0, (item.supporting_keywords ?? []).join(" | ")]);
   const csv = [headers, ...data].map(row => row.map(escapeCsv).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
@@ -47,15 +47,20 @@ function WebAction({ businessId, item, index }: { businessId: string; item: Plan
   const row: WebPageRow = {
     id: item.page_id || `plan-page-${index}`,
     page_id: item.page_id,
-    cluster_name: item.title || item.page_id,
-    keyword: item.title || item.page_id,
+    cluster_name: item.cluster_name || item.title || item.page_id,
+    keyword: item.cluster_name || item.title || item.page_id,
     page_type: item.page_type || "page",
     search_volume: item.search_volume ?? 0,
     business_relevance_score: item.business_relevance_score ?? 0,
-    page_opportunity_score: 0,
-    sub_topics_count: 0,
+    page_opportunity_score: item.page_opportunity_score ?? 0,
+    sub_topics_count: item.supporting_keyword_count ?? item.supporting_keywords?.length ?? 0,
+    coverage: item.coverage ?? 0,
     status: item.status || "new",
-    supporting_keywords: [],
+    supporting_keywords: item.supporting_keywords ?? [],
+    offerings: item.offerings ?? [],
+    business_relevance_level: item.business_relevance_level || undefined,
+    search_intent: item.search_intent || undefined,
+    slug: item.slug || undefined,
   };
   return <WebPageActionCell businessId={businessId} row={row} />;
 }
@@ -68,15 +73,16 @@ function SocialAction({ businessId, item, index }: { businessId: string; item: P
     cluster_name: item.cluster_name || item.title || item.campaign_cluster_id,
     tactic: item.content_type || "Social content",
     title: item.title || item.cluster_name || item.campaign_name || "Social content",
-    description: item.rationale || "",
+    description: item.description || item.rationale || "",
     campaign_relevance: item.cluster_relevance ?? 0,
     cluster_relevance: item.cluster_relevance ?? 0,
-    related_keywords: [],
+    related_keywords: item.related_keywords ?? [],
     status: item.status || "new",
+    url: item.url || undefined,
     channel_name: item.channel_name || "",
     campaign_name: item.campaign_name || "",
   };
-  return <SocialActionCell businessId={businessId} row={row} channelName={item.channel_name || undefined} strategyType="publish" />;
+  return <SocialActionCell businessId={businessId} row={row} channelName={item.channel_name || undefined} strategyType={item.url ? "engage" : "publish"} />;
 }
 
 export function PlanActionsAccordion({ businessId, type, ready, readinessLoading }: { businessId: string; type: ResourceType; ready: boolean; readinessLoading: boolean }) {

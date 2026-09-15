@@ -30,9 +30,12 @@ export type MessagesPage = { turns: ThreadMessage[]; next_cursor: string | null;
 export type ThreadsPage = { threads: AgentThread[]; total: number; limit: number; offset: number };
 export type PlanItem = {
   page_id?: string; campaign_cluster_id?: string; cluster_name?: string | null; title?: string | null;
-  rationale?: string | null; page_type?: string | null; status?: string | null; valid?: boolean;
-  business_relevance_score?: number | null; search_volume?: number | null; coverage?: number | null;
+  rationale?: string | null; description?: string | null; page_type?: string | null; status?: string | null; valid?: boolean;
+  business_relevance_score?: number | null; business_relevance_level?: string | null; search_volume?: number | null; coverage?: number | null;
+  page_opportunity_score?: number | null; supporting_keywords?: string[] | null; offerings?: string[] | null;
+  supporting_keyword_count?: number | null; search_intent?: string | null; slug?: string | null;
   channel_name?: string | null; campaign_name?: string | null; cluster_relevance?: number | null; content_type?: string | null;
+  related_keywords?: string[] | null; cluster_offerings?: string[] | null; url?: string | null;
 };
 export type AgentPlan = {
   id: number | string;

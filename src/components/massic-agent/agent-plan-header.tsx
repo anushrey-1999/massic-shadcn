@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CircleAlert, X } from "lucide-react";
+import { ArrowLeft, CircleAlert, Maximize2, Minimize2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ const shortDate = (value?: string | null) => value
   ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value))
   : null;
 
-export function AgentPlanHeader({ plan, planId, surface, onBack, onRefine, onActivate, onBackToChat, onClose, closeLabel = "Close plan and clear selection", activateDisabled, preferredAction, className }: {
+export function AgentPlanHeader({ plan, planId, surface, onBack, onRefine, onActivate, onBackToChat, onToggleFullscreen, fullscreen = false, onClose, closeLabel = "Close plan and clear selection", activateDisabled, preferredAction, className }: {
   plan?: AgentPlan;
   planId: string | number;
   surface: Surface;
@@ -20,6 +20,8 @@ export function AgentPlanHeader({ plan, planId, surface, onBack, onRefine, onAct
   onRefine?: () => void;
   onActivate?: () => void;
   onBackToChat?: () => void;
+  onToggleFullscreen?: () => void;
+  fullscreen?: boolean;
   onClose?: () => void;
   closeLabel?: string;
   activateDisabled?: boolean;
@@ -45,6 +47,8 @@ export function AgentPlanHeader({ plan, planId, surface, onBack, onRefine, onAct
       {onRefine && <Button variant="outline" size="sm" onClick={onRefine} className={cn("border-general-primary/15 text-general-primary shadow-sm hover:bg-general-primary/10 hover:text-general-primary", preferredAction === "refine" && "bg-general-primary/10 ring-1 ring-general-primary/20")}>Refine plan</Button>}
       {plan && status !== "active" && onActivate && <Button size="sm" disabled={activateDisabled || plan.valid !== true} onClick={onActivate} title={plan.valid === false ? "Replace missing items before activating this plan." : "Activate this entire plan"} className={cn("shadow-sm", preferredAction === "activate" && "ring-2 ring-general-primary/25 ring-offset-1")}>Activate plan</Button>}
       {onBackToChat && <Button variant="ghost" size="sm" className="xl:hidden" onClick={onBackToChat}>Back to chat</Button>}
+      {/* Below xl the panel already covers the workspace, so the toggle only applies to the split layout. */}
+      {onToggleFullscreen && <Button variant="ghost" size="icon-sm" aria-label={fullscreen ? "Exit full screen" : "Expand plan to full screen"} title={fullscreen ? "Exit full screen" : "Expand plan to full screen"} className="hidden hover:bg-general-primary/10 hover:text-general-primary xl:inline-flex" onClick={onToggleFullscreen}>{fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</Button>}
       {onClose && <Button variant="ghost" size="icon-sm" aria-label={closeLabel} className="hover:bg-general-primary/10 hover:text-general-primary" onClick={onClose}><X className="size-4" /></Button>}
     </div>
   </div>;

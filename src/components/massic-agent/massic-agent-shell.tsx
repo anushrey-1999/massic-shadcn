@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MassicLoader } from "@/components/ui/massic-loader";
+import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
+import { PageHeader } from "@/components/molecules/PageHeader";
+import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { cn } from "@/lib/utils";
 import { AgentHistorySidebar } from "./agent-history-sidebar";
 import { AgentSearchDialog } from "./agent-search-dialog";
@@ -29,7 +31,22 @@ import type { AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
 
 export function MassicAgentShell({ businessId }: { businessId: string }) {
-  return <AgentWorkspace key={businessId} businessId={businessId} />;
+  const { profileData } = useBusinessProfileById(businessId);
+  const businessName = profileData?.Name || profileData?.DisplayName || "Business";
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: businessName },
+    { label: "Massic Agent" },
+  ];
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+      <div className="min-h-0 flex-1">
+        <AgentWorkspace key={businessId} businessId={businessId} />
+      </div>
+    </div>
+  );
 }
 function AgentWorkspace({ businessId }: { businessId: string }) {
   const chat = useAgentChat(businessId);
@@ -42,11 +59,11 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const [view, setView] = useState<"chat" | "chats" | "plans">(() => searchParams.get("view") === "plans" ? "plans" : "chat");
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
+  const [planFullscreen, setPlanFullscreen] = useState(false);
   const [width, setWidth] = useState(940);
   const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(null);
   const [title, setTitle] = useState("");
   const splitRef = useRef<HTMLDivElement>(null);
-  const planTrigger = useRef<HTMLElement | null>(null);
   const cleanupResize = useRef<(() => void) | null>(null);
   const pendingPlanClearRef = useRef<string | null>(null);
   const entryRef = useRef<string | null>(null);
@@ -126,6 +143,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   useEffect(() => { const key = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch(v => !v); } }; window.addEventListener("keydown", key); return () => { window.removeEventListener("keydown", key); cleanupResize.current?.(); }; }, []);
   useEffect(() => {
     pendingPlanClearRef.current = null;
+    setPlanFullscreen(false);
     if (planRef) setPlanVisible(true);
   }, [chat.presentationKey, planRef?.type, planRef?.id]);
   const updateViewRoute = (nextView: "chat" | "chats" | "plans") => {
@@ -145,7 +163,6 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const newChat = () => { chat.newChat(); updateViewRoute("chat"); };
   const showPlan = () => { pendingPlanClearRef.current = null; setPlanVisible(true); };
   const openPlan = (r: ResourceRef) => {
-    planTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     pendingPlanClearRef.current = null;
     if (planRef && resourceKey(planRef) === resourceKey(r)) { if (planVisible) closePlan(false); else setPlanVisible(true); return; }
     chat.openPlan(r); setView("chat"); setPlanVisible(true);
@@ -160,8 +177,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const closePlan = (clear: boolean) => {
     if (!planRef) return;
     setPlanVisible(false);
-    const target = planTrigger.current?.isConnected ? planTrigger.current : splitRef.current?.querySelector<HTMLTextAreaElement>("textarea");
-    target?.focus({ preventScroll: true });
+    splitRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
     pendingPlanClearRef.current = clear ? resourceKey(planRef) : null;
     if (clear && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       pendingPlanClearRef.current = null;
@@ -218,7 +234,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
       <div ref={splitRef} className={cn(styles.planWorkspace, "relative flex min-h-0 w-full flex-1")}>
         <div className="relative flex min-w-0 flex-1 flex-col">
           {view === "plans" ? <AgentPlansView businessId={businessId} initialSurface={entrySurface ?? "webpages"} /> : view === "chats" ? <AgentChatsListView conversations={chat.conversations} onSelect={select} onNewChat={newChat} onRename={openRename} /> : <>
-            {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicLoader /></div>
+            {loadingMessages ? <div className="flex flex-1 items-center justify-center"><MassicAmoebaLoader /></div>
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
               : showCenteredEmpty ? <div className="min-h-0 flex-1" />
               : showEmpty ? <div className="min-h-0 flex-1" />
@@ -234,14 +250,14 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
             <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} />
           </>}
         </div>
-        {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>
+        {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} data-fullscreen={planFullscreen ? "true" : undefined} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>
           <div key={resourceKey(planRef)} className={cn(styles.planPanelContent, "flex min-h-0 flex-col border-l border-border bg-background")}>
-            <div role="separator" tabIndex={0} aria-label="Resize plan panel" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={560} aria-valuemax={1050}
+            {!planFullscreen && <div role="separator" tabIndex={0} aria-label="Resize plan panel" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={560} aria-valuemax={1050}
               className="absolute -left-1 top-0 hidden h-full w-2 cursor-col-resize touch-none hover:bg-general-primary/20 focus-visible:bg-general-primary/20 xl:block"
               onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); resize(width + (e.key === "ArrowLeft" ? 20 : -20)); } }}
-              onPointerDown={e => { e.preventDefault(); const start = e.clientX; const startWidth = width; const move = (event: PointerEvent) => resize(startWidth + start - event.clientX); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); cleanupResize.current = null; }; cleanupResize.current?.(); cleanupResize.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }} />
-            <AgentPlanHeader plan={plan} planId={planRef.id} surface={planSurface} onActivate={activatePlan} activateDisabled={streaming || busyElsewhere} preferredAction={preferredAction} onBackToChat={() => closePlan(false)} onClose={() => closePlan(true)} />
-            <div className="flex min-h-0 flex-1 flex-col p-4">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicLoader size={20} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} /> : null}</div>
+              onPointerDown={e => { e.preventDefault(); const start = e.clientX; const startWidth = width; const move = (event: PointerEvent) => resize(startWidth + start - event.clientX); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); cleanupResize.current = null; }; cleanupResize.current?.(); cleanupResize.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }} />}
+            <AgentPlanHeader plan={plan} planId={planRef.id} surface={planSurface} onActivate={activatePlan} activateDisabled={streaming || busyElsewhere} preferredAction={preferredAction} onBackToChat={() => closePlan(false)} fullscreen={planFullscreen} onToggleFullscreen={() => setPlanFullscreen(value => !value)} onClose={() => closePlan(true)} className="min-h-12 border-general-border bg-general-border/40 px-3" />
+            <div className="flex min-h-0 flex-1 flex-col bg-general-primary-foreground p-3">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicAmoebaLoader size={20} label={null} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} /> : null}</div>
             <div className="border-t border-border p-3 xl:hidden"><Button variant="outline" className="w-full" onClick={() => closePlan(false)}>Chat about {chat.draft.selectedIds.length ? `${chat.draft.selectedIds.length} selected items` : "this plan"}</Button></div>
           </div>
         </aside>}

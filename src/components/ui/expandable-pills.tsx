@@ -57,8 +57,29 @@ export function ExpandablePills({
     );
   }
 
+  // The whole expanded group collapses, so long lists don't force a hunt for the chevron.
+  const collapse = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    setIsExpanded(false);
+  };
+
   return (
-    <div className={cn("flex flex-wrap gap-1 items-start", className)}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded
+      title="Collapse"
+      onClick={collapse}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        collapse(e);
+      }}
+      className={cn(
+        "flex flex-wrap gap-1 items-start cursor-pointer rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        className
+      )}
+    >
       {items.map((item) => (
         <Badge key={item} variant={pillVariant} className=" ">
           {item}
@@ -67,11 +88,10 @@ export function ExpandablePills({
       <Button
         variant="outline"
         size="sm"
+        aria-hidden="true"
+        tabIndex={-1}
         className="h-5 w-5 p-0 shadow-none"
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsExpanded(false);
-        }}
+        onClick={collapse}
       >
         <ChevronUp className="h-2 w-2 text-general-border-three" />
       </Button>

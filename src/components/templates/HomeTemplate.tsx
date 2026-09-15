@@ -24,6 +24,7 @@ import { api } from "@/hooks/use-api";
 import type { JobDetails } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
 import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreviewCard";
+import type { PreviewGraph } from "@/components/molecules/home/MiniAreaChart";
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
@@ -40,17 +41,6 @@ import {
   type HomeSignalCounts,
   type HomeSignalFilterValue,
 } from "@/components/molecules/home/HomeFilterBar";
-
-type PreviewGraphRow = {
-  keys?: [string];
-  clicks?: string | number;
-  impressions?: string | number;
-  goal?: string | number;
-};
-
-type PreviewGraph = {
-  rows?: PreviewGraphRow[];
-};
 
 type PreviewStats = {
   Total?: string | number;

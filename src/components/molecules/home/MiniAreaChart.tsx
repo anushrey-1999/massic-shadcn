@@ -4,6 +4,7 @@ import { useMemo, useId } from "react"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Area, AreaChart, XAxis, YAxis } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
+import { calculateTrailingMovingAverage } from "@/utils/analytics-chart-grouping"
 
 export type PreviewGraphRow = {
   keys?: [string]
@@ -14,6 +15,11 @@ export type PreviewGraphRow = {
 
 export type PreviewGraph = {
   rows?: PreviewGraphRow[]
+  historyRows?: PreviewGraphRow[]
+  ranges?: {
+    currentStart?: string
+    currentEnd?: string
+  }
 }
 
 export type HomeTimePeriodValue =
@@ -140,21 +146,24 @@ export function MiniAreaChart({
   const goalsGradientId = useId()
 
   const data = useMemo(() => {
-    const rows = graph?.rows || []
-    const parsed = rows
+    const parseRows = (rows: PreviewGraphRow[]) => rows
       .map((row) => {
         const rawKey = row.keys?.[0] || ""
         const dateKey = normalizeDateKey(rawKey)
         return {
+          date: dateKey || "",
           dateKey,
           impressions: parseMetricValue(row.impressions),
           clicks: parseMetricValue(row.clicks),
           goals: parseMetricValue(row.goal),
         }
       })
-      .filter((row): row is { dateKey: string; impressions: number; clicks: number; goals: number } =>
+      .filter((row): row is { date: string; dateKey: string; impressions: number; clicks: number; goals: number } =>
         Boolean(row.dateKey)
       )
+
+    const parsed = parseRows(graph?.rows || [])
+    const parsedHistory = parseRows(graph?.historyRows || [])
 
     if (parsed.length === 0) return []
 
@@ -165,33 +174,59 @@ export function MiniAreaChart({
     const now = new Date()
     const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     const lastAvailableDate = availableDates[availableDates.length - 1] ?? null
-    const endDate = lastAvailableDate ?? todayUtc
-    const startDate = getPeriodStartDate(period, endDate)
-    const displayStartDate = addDaysUtc(startDate, 3)
-    const rangeStart =
-      displayStartDate.getTime() <= endDate.getTime() ? displayStartDate : startDate
+    const explicitStartDate = graph?.ranges?.currentStart
+      ? dateFromKey(graph.ranges.currentStart)
+      : null
+    const explicitEndDate = graph?.ranges?.currentEnd
+      ? dateFromKey(graph.ranges.currentEnd)
+      : null
+    const endDate = explicitEndDate ?? lastAvailableDate ?? todayUtc
+    const startDate = explicitStartDate ?? getPeriodStartDate(period, endDate)
     const dataByDate = new Map(parsed.map((row) => [row.dateKey, row]))
 
-    const filled: Array<{
+    const currentRows: Array<{
       date: string
+      dateKey: string
       impressions: number
       clicks: number
       goals: number
     }> = []
 
-    for (let cursor = rangeStart; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
+    for (let cursor = startDate; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
       const key = formatDateKey(cursor)
       const existing = dataByDate.get(key)
-      filled.push({
+      currentRows.push({
         date: key,
+        dateKey: key,
         impressions: existing?.impressions ?? 0,
         clicks: existing?.clicks ?? 0,
         goals: existing?.goals ?? 0,
       })
     }
 
-    return filled
-  }, [graph?.rows, period])
+    const historyRows: typeof currentRows = []
+    if (graph?.historyRows) {
+      const historyByDate = new Map(parsedHistory.map((row) => [row.dateKey, row]))
+      const historyStart = addDaysUtc(startDate, -6)
+      const historyEnd = addDaysUtc(startDate, -1)
+
+      for (let cursor = historyStart; cursor <= historyEnd; cursor = addDaysUtc(cursor, 1)) {
+        const key = formatDateKey(cursor)
+        const existing = historyByDate.get(key)
+        historyRows.push({
+          date: key,
+          dateKey: key,
+          impressions: existing?.impressions ?? 0,
+          clicks: existing?.clicks ?? 0,
+          goals: existing?.goals ?? 0,
+        })
+      }
+    }
+
+    const currentDateKeys = new Set(currentRows.map((row) => row.dateKey))
+    return calculateTrailingMovingAverage([...historyRows, ...currentRows], 7)
+      .filter((row) => currentDateKeys.has(row.dateKey))
+  }, [graph?.historyRows, graph?.ranges?.currentEnd, graph?.ranges?.currentStart, graph?.rows, period])
 
   const normalizedData = useMemo(() => {
     if (data.length === 0) return []
@@ -296,7 +331,14 @@ export function MiniAreaChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                labelFormatter={(value) => formatTooltipDate(value)}
+                labelFormatter={(value) => (
+                  <div className="flex items-center gap-2">
+                    <span>{formatTooltipDate(value)}</span>
+                    <span className="rounded-sm bg-general-secondary px-1.5 py-0.5 text-[10px] font-medium text-general-muted-foreground">
+                      7-day average
+                    </span>
+                  </div>
+                )}
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 formatter={(value: unknown, name: unknown, _item: unknown, _index?: number, payload?: unknown) => {
                   void value
@@ -321,7 +363,9 @@ export function MiniAreaChart({
                     <>
                       <span className="text-muted-foreground">{label}</span>
                       <span className="text-foreground font-mono font-medium tabular-nums">
-                        {Number.isFinite(displayValue) ? displayValue.toLocaleString() : "0"}
+                        {Number.isFinite(displayValue)
+                          ? displayValue.toLocaleString("en-US", { maximumFractionDigits: 1 })
+                          : "0"}
                       </span>
                     </>
                   )

@@ -48,6 +48,9 @@ import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { stableStringify } from "@/utils/stable-stringify";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,24 +83,6 @@ interface ProfileTemplateProps {
     payload: any,
     formValues?: any
   ) => Promise<{ jobExistsAfterSave?: boolean } | void>;
-}
-
-function stableStringify(value: unknown): string {
-  const normalize = (input: unknown): unknown => {
-    if (Array.isArray(input)) {
-      return input.map(normalize);
-    }
-    if (input && typeof input === "object") {
-      return Object.fromEntries(
-        Object.entries(input as Record<string, unknown>)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([key, entry]) => [key, normalize(entry)])
-      );
-    }
-    return input;
-  };
-
-  return JSON.stringify(normalize(value));
 }
 
 const basicDetailsSchema = businessInfoSchema.pick({
@@ -151,10 +136,6 @@ const ProfileTemplate = ({
     refetchData: refetchSubscriptionData,
   } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
-  const initialValuesRef = useRef<any>(null);
-  const hasChangesRef = useRef(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const rafIdRef = useRef<number | null>(null);
   const lastProfileDataRef = useRef<string | null>(null);
   const lastProfileDataStringRef = useRef<string | null>(null);
   // Track the offerings that were just saved to prevent overwriting with stale data
@@ -478,6 +459,26 @@ const ProfileTemplate = ({
     locationOptions
   );
 
+  // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
+  // silently while any field still holds a validation error, so a stale error on
+  // an unrelated autofilled field would make Save look dead. `handleSaveChanges`
+  // reads `form.state.values` and runs its own explicit checks instead.
+  const form = useForm({
+    defaultValues,
+    validators: {
+      onChange: businessInfoSchema as any,
+    },
+  });
+
+  const {
+    isDirty: hasChanges,
+    hasBaseline,
+    resetBaseline,
+    clearBaseline,
+  } = useFormDirtyState({ form });
+
+  const { allowNavigation } = useUnsavedChangesGuard({ isDirty: hasChanges });
+
   const saveProfileValues = useCallback(
     async (value: BusinessInfoFormData): Promise<boolean> => {
       if (!onUpdateProfile) {
@@ -561,10 +562,8 @@ const ProfileTemplate = ({
           setHasCreatedJobAfterSave(true);
         }
 
-        // Update initial values after successful save
-        initialValuesRef.current = stableStringify(value);
-        hasChangesRef.current = false;
-        setHasChanges(false);
+        // The saved values are the new clean state
+        resetBaseline();
         return true;
       } catch (error) {
         // Error toast is handled by the mutation
@@ -578,20 +577,10 @@ const ProfileTemplate = ({
       autofillProfileResult,
       externalProfileData,
       onUpdateProfile,
+      resetBaseline,
       setIsSaving,
     ]
   );
-
-  // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
-  // silently while any field still holds a validation error, so a stale error on
-  // an unrelated autofilled field would make Save look dead. `handleSaveChanges`
-  // reads `form.state.values` and runs its own explicit checks instead.
-  const form = useForm({
-    defaultValues,
-    validators: {
-      onChange: businessInfoSchema as any,
-    },
-  });
 
   const guardAutofillProfile = useFeatureActionGuard("actions.autofillProfile");
   const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan");
@@ -663,7 +652,7 @@ const ProfileTemplate = ({
         isNewProfile ||
         isDataChanged ||
         jobDetailsChanged ||
-        !initialValuesRef.current
+        !hasBaseline()
       ) {
         const mappedValues = mapBusinessProfileToFormValues(
           externalProfileData,
@@ -701,7 +690,7 @@ const ProfileTemplate = ({
         // - API data doesn't match what was just saved (means it's fresh data)
         const shouldUpdateOfferings =
           !hasUserOfferings ||
-          !initialValuesRef.current ||
+          !hasBaseline() ||
           !apiOfferingsMatchSaved;
 
         if (shouldUpdateOfferings) {
@@ -730,27 +719,29 @@ const ProfileTemplate = ({
           lastSavedOfferingsRef.current = null;
         }
 
-        const baselineValues = shouldUpdateOfferings
-          ? mappedValues
-          : {
-            ...mappedValues,
-            offeringsList: currentOfferings,
-          };
-        initialValuesRef.current = stableStringify(baselineValues);
-        hasChangesRef.current = false;
-        setHasChanges(false);
+        // Whatever the form holds once these writes settle is the clean state
+        resetBaseline();
         lastProfileDataRef.current = currentProfileId;
         lastProfileDataStringRef.current = currentDataString;
         lastJobDetailsRef.current = currentJobDetailsString;
       }
-    } else if (!externalProfileData && initialValuesRef.current) {
+    } else if (!externalProfileData && hasBaseline()) {
       // If profile data is cleared, reset the form
-      initialValuesRef.current = null;
+      clearBaseline();
       lastProfileDataRef.current = null;
       lastProfileDataStringRef.current = null;
       lastJobDetailsRef.current = null;
     }
-  }, [externalProfileData, externalJobDetails, form, isSaving, locationOptions]);
+  }, [
+    clearBaseline,
+    externalProfileData,
+    externalJobDetails,
+    form,
+    hasBaseline,
+    isSaving,
+    locationOptions,
+    resetBaseline,
+  ]);
 
   // Re-resolve primary location once options load (saved API labels -> select values)
   useEffect(() => {
@@ -778,12 +769,7 @@ const ProfileTemplate = ({
         ...prev,
         isTouched: false,
       }));
-      initialValuesRef.current = stableStringify({
-        ...form.state.values,
-        primaryLocation: resolved,
-      });
-      hasChangesRef.current = false;
-      setHasChanges(false);
+      resetBaseline();
     }
   }, [
     externalProfileData,
@@ -791,14 +777,8 @@ const ProfileTemplate = ({
     isSaving,
     locationOptions,
     locationsLoading,
+    resetBaseline,
   ]);
-
-  // Store initial values on mount (only once)
-  useEffect(() => {
-    if (!initialValuesRef.current) {
-      initialValuesRef.current = stableStringify(form.state.values);
-    }
-  }, []);
 
   useEffect(() => {
     if (externalJobDetails?.job_id) {
@@ -809,47 +789,9 @@ const ProfileTemplate = ({
     setHasCreatedJobAfterSave(false);
   }, [businessId, externalJobDetails?.job_id]);
 
-  // Use form store subscription for real-time change detection
-  // Optimized: Batches updates using requestAnimationFrame to avoid excessive JSON.stringify calls
-  // This provides instant visual feedback while maintaining good performance
+  // Form values drive the validation and save-blocking checks below; dirty
+  // tracking itself lives in `useFormDirtyState`.
   const formValues = useStore(form.store, (state) => state.values);
-
-  // Optimized change detection: Batch comparisons using requestAnimationFrame
-  // This prevents JSON.stringify from running on every single keystroke
-  // while still feeling instant to the user (updates within 16ms frame budget)
-  useEffect(() => {
-    if (!initialValuesRef.current) {
-      setHasChanges(false);
-      return;
-    }
-
-    // Cancel any pending comparison
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-    }
-
-    // Schedule comparison on next animation frame (batches rapid updates)
-    // This means if user types 10 characters quickly, we only compare once
-    rafIdRef.current = requestAnimationFrame(() => {
-      const currentValuesString = stableStringify(formValues);
-      const hasChangesValue = currentValuesString !== initialValuesRef.current;
-
-      // Only update state if it actually changed (prevents unnecessary re-renders)
-      if (hasChangesRef.current !== hasChangesValue) {
-        hasChangesRef.current = hasChangesValue;
-        setHasChanges(hasChangesValue);
-      }
-      rafIdRef.current = null;
-    });
-
-    // Cleanup on unmount or when formValues changes before RAF executes
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-    };
-  }, [formValues]);
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
@@ -931,7 +873,7 @@ const ProfileTemplate = ({
         });
 
         // Navigate to strategy page after successful API call
-        router.push(`/business/${businessId}/strategy`);
+        allowNavigation(() => router.push(`/business/${businessId}/strategy`));
       }
     } catch (error: unknown) {
       // Improved error handling with better type safety
@@ -956,6 +898,7 @@ const ProfileTemplate = ({
       setIsTriggeringWorkflow(false);
     }
   }, [
+    allowNavigation,
     businessId,
     externalJobDetails,
     router,
@@ -1356,8 +1299,9 @@ const ProfileTemplate = ({
     queryClient.invalidateQueries({
       queryKey: ["businessProfiles", "detail", businessId],
     });
-    router.push("/");
+    allowNavigation(() => router.push("/"));
   }, [
+    allowNavigation,
     businessForUnlink,
     businessId,
     guardUnlinkBusiness,

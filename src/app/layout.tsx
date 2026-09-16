@@ -8,6 +8,7 @@ import { NuqsProvider } from "@/components/providers/nuqs-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { GoogleAuthProvider } from "@/components/providers/google-auth-provider";
 import { SessionExpiredProvider } from "@/components/providers/session-expired-provider";
+import { UnsavedChangesProvider } from "@/components/providers/unsaved-changes-provider";
 import { PostHogAnalyticsProvider } from "@/components/providers/posthog-analytics-provider";
 import { pageMeta, siteMeta } from "@/config/seo";
 
@@ -48,7 +49,9 @@ export default function RootLayout({
             <AuthProvider>
               <PostHogAnalyticsProvider>
                 <NuqsProvider>
-                  <LayoutWrapper>{children}</LayoutWrapper>
+                  <UnsavedChangesProvider>
+                    <LayoutWrapper>{children}</LayoutWrapper>
+                  </UnsavedChangesProvider>
                   <Toaster />
                   <SessionExpiredProvider />
                 </NuqsProvider>

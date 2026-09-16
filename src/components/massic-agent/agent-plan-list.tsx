@@ -7,7 +7,7 @@ import { ChannelIcon } from "@/components/ui/channel-icon";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { cn } from "@/lib/utils";
 import { allPlanIds, planItemId } from "./agent-model";
-import { PlanMetaField, PlanRelevanceMetric, PlanTypeSlot, PlanVolumeMetric } from "./agent-plan-item-meta";
+import { PlanMetaField, PlanTypeSlot } from "./agent-plan-item-meta";
 import type { AgentPlan, PlanItem, ResourceType } from "./types";
 
 type AgentPlanListProps = {
@@ -33,8 +33,6 @@ function PlanListRow({ item, type, selected, expanded, onToggleSelected, onToggl
   const social = type === "social_channels_plan";
   const label = itemTitle(item, social, fallbackLabel);
   const invalid = item.valid === false;
-  const description = social ? item.description || item.rationale : item.rationale || item.description;
-  const keywords = social ? item.related_keywords ?? [] : item.supporting_keywords ?? [];
 
   return <li className="flex items-start gap-2">
     <span className="flex h-10 shrink-0 items-center">
@@ -48,31 +46,24 @@ function PlanListRow({ item, type, selected, expanded, onToggleSelected, onToggl
     )}>
       <button type="button" aria-expanded={expanded} onClick={onToggleExpanded}
         className="flex min-h-10 w-full min-w-0 cursor-pointer items-center gap-3 p-2 text-left">
-        <span className="min-w-0 flex-1 truncate text-xs text-general-secondary-foreground" title={label}>{label}</span>
-        <PlanTypeSlot
-          icon={social ? <ChannelIcon channel={item.channel_name} className="size-[15px] rounded-[3px]" /> : undefined}
-          type={social ? item.content_type : item.page_type}
-        />
-        <span className="flex shrink-0 items-center gap-2">
-          {!social && <PlanVolumeMetric volume={item.search_volume} label={expanded ? "Vol" : undefined} />}
-          <PlanRelevanceMetric score={social ? item.cluster_relevance : item.business_relevance_score} label={expanded ? "Rel" : undefined} />
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm text-general-secondary-foreground" title={label}>{label}</span>
+        {social && <span className="flex shrink-0 items-center gap-1.5 text-xs text-general-muted-foreground">
+          <ChannelIcon channel={item.channel_name} className="size-[15px] rounded-[3px]" />
+          <span>{item.channel_name || "—"}</span>
+        </span>}
+        <PlanTypeSlot type={social ? item.content_type : item.page_type} />
       </button>
       {expanded && <div className="border-t border-general-border/60 px-2 pb-2 pt-2">
         {invalid && <p className="mb-2 text-xs text-destructive">Missing from strategy</p>}
-        <p className="text-xs leading-[1.5] text-general-muted-foreground">{description || "No description for this item yet."}</p>
-        <div className={cn("mt-3 grid grid-cols-2 gap-3", social ? "sm:grid-cols-3" : "sm:grid-cols-4")}>
+        <div className="grid gap-3">
           {social ? <>
-            <PlanMetaField label="Campaign">{item.campaign_name}</PlanMetaField>
-            <PlanMetaField label="Tactic">{item.cluster_name}</PlanMetaField>
+            <PlanMetaField label="Description">{item.description}</PlanMetaField>
+            <PlanMetaField label="Rationale">{item.rationale}</PlanMetaField>
           </> : <>
             <PlanMetaField label="Coverage">{item.coverage ?? 0}</PlanMetaField>
-            <PlanMetaField label="Priority"><PlanRelevanceMetric score={item.page_opportunity_score} /></PlanMetaField>
-            <PlanMetaField label="Offerings"><ExpandablePills items={item.offerings ?? []} pillVariant="outline" /></PlanMetaField>
+            <PlanMetaField label="Sub topics"><ExpandablePills items={item.supporting_keywords ?? []} pillVariant="outline" /></PlanMetaField>
+            <PlanMetaField label="Rationale">{item.rationale}</PlanMetaField>
           </>}
-          <PlanMetaField label={social ? "Keywords" : "Sub topics"}>
-            <ExpandablePills items={keywords} pillVariant="outline" />
-          </PlanMetaField>
         </div>
       </div>}
     </div>

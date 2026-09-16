@@ -19,18 +19,48 @@ import type { WebPageRow } from "@/types/web-page-types";
 import { formatPlanDate, PLAN_ACTIONS_CONFIG, planMatchesType } from "./plan-actions-config";
 
 function escapeCsv(value: unknown) {
-  const text = String(value ?? "");
+  const text = value == null ? "" : typeof value === "object" ? JSON.stringify(value) ?? "" : String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+const preferredPlanFieldOrder = [
+  "page_id",
+  "campaign_cluster_id",
+  "cluster_name",
+  "title",
+  "rationale",
+  "description",
+  "page_type",
+  "content_type",
+  "channel_name",
+  "campaign_name",
+  "status",
+  "valid",
+  "coverage",
+  "business_relevance_score",
+  "business_relevance_level",
+  "search_volume",
+  "page_opportunity_score",
+  "cluster_relevance",
+  "supporting_keywords",
+  "related_keywords",
+  "offerings",
+  "cluster_offerings",
+  "supporting_keyword_count",
+  "search_intent",
+  "slug",
+  "url",
+] as const;
+
 function downloadPlan(type: ResourceType, planId: string | number, rows: PlanItem[]) {
   const social = type === "social_channels_plan";
-  const headers = social
-    ? ["Channel", "Campaign", "Type", "Tactic", "Title", "Description", "Keywords"]
-    : ["Page", "Type", "Offerings", "Coverage", "Priority", "Sub Topics"];
-  const data = rows.map(item => social
-    ? [item.channel_name, item.campaign_name, item.content_type, item.cluster_name, item.title, item.description, (item.related_keywords ?? []).join(" | ")]
-    : [item.cluster_name || item.title || "", item.page_type, (item.offerings ?? []).join(" | "), item.coverage ?? 0, item.page_opportunity_score ?? 0, (item.supporting_keywords ?? []).join(" | ")]);
+  const availableFields = new Set(rows.flatMap(item => Object.keys(item)));
+  const preferredFields = preferredPlanFieldOrder.filter(field => availableFields.has(field));
+  const unknownFields = [...availableFields]
+    .filter(field => !preferredPlanFieldOrder.includes(field as (typeof preferredPlanFieldOrder)[number]))
+    .sort();
+  const headers = [...preferredFields, ...unknownFields];
+  const data = rows.map(item => headers.map(header => item[header]));
   const csv = [headers, ...data].map(row => row.map(escapeCsv).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");

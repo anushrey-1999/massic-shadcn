@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
-import { RelevancePill } from "@/components/ui/relevance-pill";
 import { cn } from "@/lib/utils";
 import { allPlanIds, planItemId } from "./agent-model";
 import type { AgentPlan, PlanItem, ResourceType } from "./types";
@@ -41,7 +40,7 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
     onSelection(selectedIds.includes(id) ? selectedIds.filter(value => value !== id) : [...selectedIds, id]);
   };
   const cell = "px-3 py-3 text-left align-top";
-  const columns = (selectable ? 1 : 0) + (social ? 7 : 6) + (renderAction ? 1 : 0);
+  const columns = (selectable ? 1 : 0) + 5 + (renderAction ? 1 : 0);
 
   return <div className={cn("flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm", className)}>
     {showPlanHeader && <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
@@ -52,18 +51,18 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
     </div>}
     {plan.valid === false && <p className="border-b border-border bg-destructive/5 px-3 py-2 text-xs text-destructive">Some items are no longer in your strategy. Replace them before activating this plan.</p>}
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className={cn("w-full table-fixed text-xs", social ? "min-w-[1400px]" : "min-w-[1120px]")}>
+      <table className={cn("w-full table-fixed text-sm", social ? "min-w-[1120px]" : "min-w-[1060px]")}>
         <colgroup>
           {selectable && <col className="w-11" />}
-          {social ? <><col className="w-[130px]" /><col className="w-[180px]" /><col className="w-[160px]" /><col className="w-[180px]" /><col className="w-[220px]" /><col className="w-[260px]" /><col className="w-[250px]" /></>
-            : <><col className="w-[260px]" /><col className="w-[130px]" /><col className="w-[220px]" /><col className="w-[100px]" /><col className="w-[110px]" /><col className="w-[240px]" /></>}
+          {social ? <><col className="w-[130px]" /><col className="w-[150px]" /><col className="w-[240px]" /><col className="w-[300px]" /><col className="w-[300px]" /></>
+            : <><col className="w-[260px]" /><col className="w-[140px]" /><col className="w-[100px]" /><col className="w-[260px]" /><col className="w-[300px]" /></>}
           {renderAction && <col className="w-[100px]" />}
         </colgroup>
         <thead className="sticky top-0 z-10 bg-muted"><tr className="border-b border-border text-muted-foreground">
           {selectable && <th className={cell}><Checkbox aria-label="Select all plan items" checked={allSelected ? true : selectedIds.length ? "indeterminate" : false} disabled={!ids.length} onCheckedChange={() => onSelection?.(allSelected ? [] : ids)} /></th>}
           {(social
-            ? ["Channel", "Campaign", "Type", "Tactic", "Title", "Description", "Keywords"]
-            : ["Page", "Type", "Offerings", "Coverage", "Priority", "Sub Topics"]
+            ? ["Channel", "Type", "Title", "Description", "Rationale"]
+            : ["Page", "Type", "Coverage", "Sub Topics", "Rationale"]
           ).map(title => <th key={title} className={cn(cell, "whitespace-nowrap font-medium")}>{title}</th>)}
           {renderAction && <th className={cn(cell, "whitespace-nowrap text-right font-medium")}>Actions</th>}
         </tr></thead>
@@ -76,19 +75,16 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
               {selectable && <td className={cell}><Checkbox aria-label={`Select ${label}`} checked={selectedIds.includes(id)} disabled={!id} onClick={event => event.stopPropagation()} onCheckedChange={() => toggle(id)} /></td>}
               {social ? <>
                 <td className={cell}><span className="flex min-w-0 items-center gap-1.5"><ChannelIcon channel={item.channel_name} /><span className="min-w-0 truncate whitespace-nowrap" title={item.channel_name ?? undefined}>{item.channel_name ?? "—"}</span></span></td>
-                <td className={cn(cell, "break-words")}>{item.campaign_name ?? "—"}</td>
                 <td className={cn(cell, "break-words")}>{item.content_type ?? "—"}</td>
-                <td className={cn(cell, "break-words font-medium")}>{item.cluster_name ?? "—"}{item.valid === false && <span className="mt-1 block font-normal text-destructive">Missing from strategy</span>}</td>
-                <td className={cn(cell, "break-words")}>{item.title ?? "—"}</td>
+                <td className={cn(cell, "break-words font-medium")}>{item.title ?? "—"}{item.valid === false && <span className="mt-1 block font-normal text-destructive">Missing from strategy</span>}</td>
                 <td className={cn(cell, "break-words text-muted-foreground")}>{item.description ?? "—"}</td>
-                <td className={cell} onClick={event => event.stopPropagation()}><ExpandablePills items={item.related_keywords ?? []} pillVariant="outline" /></td>
+                <td className={cn(cell, "break-words text-muted-foreground")}>{item.rationale ?? "—"}</td>
               </> : <>
                 <td className={cn(cell, "break-words font-medium")}>{label}{item.valid === false && <span className="mt-1 block font-normal text-destructive">Missing from strategy</span>}</td>
                 <td className={cell}>{item.page_type ?? "—"}</td>
-                <td className={cell} onClick={event => event.stopPropagation()}><ExpandablePills items={item.offerings ?? []} pillVariant="outline" /></td>
                 <td className={cell}>{item.coverage ?? 0}</td>
-                <td className={cell}><RelevancePill score={item.page_opportunity_score ?? 0} /></td>
                 <td className={cell} onClick={event => event.stopPropagation()}><ExpandablePills items={item.supporting_keywords ?? []} pillVariant="outline" /></td>
+                <td className={cn(cell, "break-words text-muted-foreground")}>{item.rationale ?? "—"}</td>
               </>}
               {renderAction && <td className={cn(cell, "text-right")} onClick={event => event.stopPropagation()}>{renderAction(item, index)}</td>}
             </tr>;

@@ -1,5 +1,5 @@
 "use client";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, ChevronDown, ChevronRight, CircleAlert, CircleCheckBig, ClockFading, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -16,7 +16,7 @@ import type { AgentMessage, CitationDocument, ResourceRef } from "./types";
 
 function CitationChip({ number, document }: { number: number; document?: CitationDocument }) {
   const entry = document ? citationEntries(document).references.find(entry => entry.reference.ref_id === number) : undefined;
-  return <Popover><PopoverTrigger asChild><button className="mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded bg-general-primary/10 px-1 align-super text-[10px] text-general-primary transition-colors hover:bg-general-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30" aria-label={`Open reference ${number}`}>{number}</button></PopoverTrigger>
+  return <Popover><PopoverTrigger asChild><button className="mx-0.5 inline-flex size-4 cursor-pointer items-center justify-center rounded bg-secondary align-super font-mono text-[10px] text-general-muted-foreground transition-colors hover:bg-general-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30" aria-label={`Open reference ${number}`}>{number}</button></PopoverTrigger>
     <PopoverContent className="max-h-80 w-80 space-y-2 overflow-y-auto break-words text-sm"><p className="font-medium">{readableLabel(entry?.reference.label, `Reference ${number}`)}</p><p className="whitespace-pre-wrap text-muted-foreground">{readableLabel(entry?.reference.detail, "Citation details unavailable")}</p>{entry && <CitationSources sources={entry.sources} />}</PopoverContent>
   </Popover>;
 }
@@ -28,14 +28,27 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const content = cleanContent(message.content, message.role);
   const markdown = useMemo(() => message.role === "user" ? null : renderLightMarkdown(content, [
     { re: /\[ref:(\d+)\]/, wrap: m => <CitationChip number={Number(m[1])} document={message.citations} /> },
     { re: /\[(.+?)\]\((https?:[^\s)]+)\)/, wrap: m => <AgentExternalLink href={m[2]} label={m[1]} /> },
     { re: /https?:\/\/[^\s<>()]+/, wrap: m => <AgentExternalLink href={m[0]} label={m[0]} /> },
   ]), [content, message.citations, message.role]);
-  const copy = async () => { try { await navigator.clipboard.writeText(content); setCopied(true); setCopyError(false); } catch { setCopyError(true); } };
-  if (message.role === "user") return <div className="flex justify-end pl-16"><div className="max-w-full rounded-bl-xl rounded-tl-xl rounded-tr-xl bg-general-secondary p-3 text-right text-xs leading-[1.5] tracking-[0.18px] text-general-foreground">
+  useEffect(() => () => {
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+  }, []);
+  const copy = async () => { try {
+    await navigator.clipboard.writeText(content);
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+    setCopied(true);
+    setCopyError(false);
+    copyResetTimer.current = setTimeout(() => {
+      setCopied(false);
+      copyResetTimer.current = null;
+    }, 1500);
+  } catch { setCopyError(true); } };
+  if (message.role === "user") return <div className="flex justify-end pl-16"><div className="max-w-[78%] rounded-2xl bg-secondary px-4 py-2.5 text-left text-sm leading-[1.5] tracking-[0.18px] text-general-foreground">
     {message.intent && <p className="mb-1 text-[10px] text-general-muted-foreground">{intentLabel(message.intent.kind)}</p>}
     <p className="whitespace-pre-wrap break-words">{content}</p>
     {message.view?.resource && <p className="mt-2 text-[10px] text-general-muted-foreground">Plan #{message.view.resource.id} · {message.view.selected_item_ids?.length ?? 0} selected</p>}
@@ -65,7 +78,7 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
       </div>
     </CollapsibleContent></Collapsible>}
     {message.intent?.kind.startsWith("activate") && <p className="text-xs text-muted-foreground">{intentLabel(message.intent.kind)}</p>}
-    {content && <div className="break-words text-xs leading-[1.5] tracking-[0.18px] text-general-foreground [&_p]:my-2 [&_p:first-child]:mt-0 [&_h1]:mt-4 [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:text-base [&_h3]:mt-3 [&_h3]:font-medium [&_strong]:font-medium [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_a]:text-general-primary [&_a]:underline [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-4 [&_code]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:pl-4">
+    {content && <div className="break-words text-sm leading-[1.5] tracking-[0.18px] text-general-foreground [&_p]:my-2 [&_p:first-child]:mt-0 [&_h1]:mt-4 [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:text-base [&_h3]:mt-3 [&_h3]:font-medium [&_strong]:font-medium [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_a]:text-general-primary [&_a]:underline [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-4 [&_code]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:pl-4">
       {markdown}
     </div>}
     {message.partial && <p className="text-xs text-muted-foreground">{message.status === "cancelled" ? "Response stopped" : "Partial response"}</p>}
@@ -74,6 +87,6 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
       const isOpen = activeResource?.type === part.resource.type && String(activeResource.id) === String(part.resource.id);
       return <button key={`${part.resource.type}:${part.resource.id}`} type="button" aria-pressed={isOpen} data-state={isOpen ? "open" : "closed"} onClick={() => onOpenPlan(part.resource)} className={cn("group/plan flex w-full cursor-pointer items-center gap-2.5 rounded-lg border bg-general-primary-foreground p-2 text-left shadow-sm transition-[background-color,border-color,box-shadow] [transition-duration:160ms] ease-out hover:border-general-primary/25 hover:bg-general-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30 motion-reduce:transition-none", isOpen ? "border-general-primary/30 bg-general-primary/5 shadow-sm" : "border-general-border")}><Map className={cn("size-6 shrink-0 text-general-border-three transition-colors [transition-duration:160ms] motion-reduce:transition-none", isOpen && "text-general-primary")} aria-hidden="true" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium leading-[1.5] tracking-[0.18px] text-general-secondary-foreground">{SURFACES[resourceSurface(part.resource.type)].label} plan #{part.resource.id}</span></span><span className={cn("flex size-6 shrink-0 items-center justify-center rounded border border-general-border-three bg-background transition-[background-color,border-color,color,transform] [transition-duration:160ms] ease-out motion-reduce:transition-none", isOpen ? "border-general-primary/30 bg-general-primary text-primary-foreground" : "text-general-foreground group-hover/plan:translate-x-0.5 group-hover/plan:border-general-primary/30 group-hover/plan:bg-general-primary group-hover/plan:text-primary-foreground")} aria-hidden="true"><ChevronRight className="size-[13.25px]" /></span></button>;
     })}
-    {!streaming && content && <div className={styles.softReveal}><Button variant="ghost" size="icon-sm" onClick={copy} aria-label={copied ? "Copied" : "Copy response"}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</Button>{copyError && <span role="status" className="text-xs text-destructive">Could not copy. Select the text to copy it.</span>}</div>}
+    {!streaming && content && <div className={styles.softReveal}><Button variant="ghost" size="icon-sm" className="size-6 text-general-muted-foreground hover:text-general-foreground" onClick={copy} aria-label={copied ? "Copied" : "Copy response"}>{copied ? <Check className="size-3" /> : <Copy className="size-3" />}</Button>{copyError && <span role="status" className="text-xs text-destructive">Could not copy. Select the text to copy it.</span>}</div>}
   </article>;
 });

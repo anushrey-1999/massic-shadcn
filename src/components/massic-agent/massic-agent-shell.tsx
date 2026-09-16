@@ -251,7 +251,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
           </>}
         </div>
         {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} data-fullscreen={planFullscreen ? "true" : undefined} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>
-          <div key={resourceKey(planRef)} className={cn(styles.planPanelContent, "flex min-h-0 flex-col border-l border-border bg-background")}>
+          <div key={resourceKey(planRef)} className={cn(styles.planPanelContent, "flex min-h-0 flex-col border-l border-border bg-general-primary-foreground")}>
             {!planFullscreen && <div role="separator" tabIndex={0} aria-label="Resize plan panel" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={560} aria-valuemax={1050}
               className="absolute -left-1 top-0 hidden h-full w-2 cursor-col-resize touch-none hover:bg-general-primary/20 focus-visible:bg-general-primary/20 xl:block"
               onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); resize(width + (e.key === "ArrowLeft" ? 20 : -20)); } }}

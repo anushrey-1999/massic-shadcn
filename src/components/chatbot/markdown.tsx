@@ -1,8 +1,16 @@
 import React from "react";
 
-export function renderLightMarkdown(text: string): React.ReactNode {
-  const esc = (s: string) =>
-    s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+export type LightMarkdownInlinePattern = {
+  re: RegExp;
+  wrap: (m: RegExpExecArray) => React.ReactNode;
+};
+
+export function renderLightMarkdown(
+  text: string,
+  inlinePatterns: LightMarkdownInlinePattern[] = []
+): React.ReactNode {
+  // React escapes text nodes; pre-escaping would show literal HTML entities.
+  const esc = (s: string) => s;
 
   const blocks = splitFencedBlocks(text);
 
@@ -98,22 +106,20 @@ export function renderLightMarkdown(text: string): React.ReactNode {
     const parts: React.ReactNode[] = [];
     let rest = src;
 
-    const patterns: Array<{
-      re: RegExp;
-      wrap: (m: RegExpExecArray) => React.ReactNode;
-    }> = [
-        { re: /\*\*(.+?)\*\*/, wrap: (m) => <strong>{m[1]}</strong> },
-        { re: /\*(.+?)\*/, wrap: (m) => <em>{m[1]}</em> },
-        { re: /`([^`]+?)`/, wrap: (m) => <code>{m[1]}</code> },
-        {
-          re: /\[(.+?)\]\((https?:[^\s)]+)\)/,
-          wrap: (m) => (
-            <a href={m[2]} target="_blank" rel="noreferrer">
-              {m[1]}
-            </a>
-          ),
-        },
-      ];
+    const patterns: LightMarkdownInlinePattern[] = [
+      ...inlinePatterns,
+      { re: /\*\*(.+?)\*\*/, wrap: (m) => <strong>{transformInline(m[1])}</strong> },
+      { re: /\*(.+?)\*/, wrap: (m) => <em>{transformInline(m[1])}</em> },
+      { re: /`([^`]+?)`/, wrap: (m) => <code>{m[1]}</code> },
+      {
+        re: /\[(.+?)\]\((https?:[^\s)]+)\)/,
+        wrap: (m) => (
+          <a href={m[2]} target="_blank" rel="noreferrer">
+            {m[1]}
+          </a>
+        ),
+      },
+    ];
 
     while (rest.length) {
       let bestMatch:

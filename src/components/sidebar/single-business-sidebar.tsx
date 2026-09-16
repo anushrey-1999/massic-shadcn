@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useAppSidebarCollapsed } from './use-app-sidebar-collapsed'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -166,7 +167,7 @@ export default function SingleBusinessSidebar() {
 
   const { profiles, sidebarDataLoading } = useBusinessProfiles()
 
-  const [isCollapsed, setIsCollapsed] = React.useState(false)
+  const [isCollapsed, setIsCollapsed] = useAppSidebarCollapsed()
 
   const userName = user?.username || user?.email || 'User'
 

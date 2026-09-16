@@ -1,11 +1,10 @@
 "use client";
 
-import { Download, Settings } from "lucide-react";
+import { Bot, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { Typography } from "../ui/typography";
+import { useParams } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 
 interface BreadcrumbItem {
@@ -114,25 +113,13 @@ export function PageHeader({
             </div>
           ) : null}
 
-          {effectiveShowAskMassic ? (
-            <span title="Coming soon" className="inline-flex cursor-not-allowed">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 pointer-events-none"
-                disabled
-              >
-                <Image
-                  src="/massic-icon-green.svg"
-                  alt="Massic"
-                  width={18}
-                  height={18}
-                />
-                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
-                  Ask Massic
-                </span>
-              </Button>
-            </span>
+          {businessId && effectiveShowAskMassic ? (
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <Link href={`/business/${businessId}/agent`}>
+                <Bot className="h-4 w-4 text-general-primary" />
+                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">Massic Agent</span>
+              </Link>
+            </Button>
           ) : null}
 
           {isButton ? (

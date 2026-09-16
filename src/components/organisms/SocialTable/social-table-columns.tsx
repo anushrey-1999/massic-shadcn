@@ -8,27 +8,7 @@ import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Typography } from "@/components/ui/typography";
 import type { SocialRow } from "@/types/social-types";
-
-function getChannelIcon(channelName: string): string | null {
-  if (!channelName) return null;
-
-  const normalized = channelName.toLowerCase().trim();
-  const iconMap: Record<string, string> = {
-    facebook: "/icons/facebook.png",
-    "facebook group": "/icons/facebook.png",
-    "facebook groups": "/icons/facebook.png",
-    instagram: "/icons/instagram.png",
-    linkedin: "/icons/linkedin.png",
-    quora: "/icons/quora.svg",
-    twitter: "/icons/twitter.png",
-    x: "/icons/twitter.png",
-    youtube: "/icons/youtube.png",
-    tiktok: "/icons/tiktok.png",
-    reddit: "/icons/reddit.png",
-  };
-
-  return iconMap[normalized] || null;
-}
+import { getChannelIconSource } from "@/components/ui/channel-icon";
 
 interface GetSocialTableColumnsProps {
   offeringCounts?: Record<string, number>;
@@ -46,7 +26,7 @@ export function getSocialTableColumns({ offeringCounts = {}, offeringOptions }: 
       ),
       cell: ({ row }) => {
         const channelName = row.getValue<string>("channel_name") || "";
-        const iconPath = getChannelIcon(channelName);
+        const iconPath = getChannelIconSource(channelName);
 
         return (
           <div className="flex items-center gap-2">

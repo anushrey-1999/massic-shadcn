@@ -133,12 +133,9 @@ function formatOverlayDate(dateKey: string): string {
   });
 }
 
-function formatChartMetricValue(
-  value: number | undefined,
-  isMovingAverage: boolean
-): string {
+function formatChartMetricValue(value: number | undefined): string {
   return (value ?? 0).toLocaleString("en-US", {
-    maximumFractionDigits: isMovingAverage ? 1 : 0,
+    maximumFractionDigits: 0,
   });
 }
 
@@ -1547,7 +1544,7 @@ export function OrganicPerformanceSection({
                                         Impressions
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.impressions, showMovingAverage)}
+                                        {formatChartMetricValue(data?.impressions)}
                                       </span>
                                     </div>
                                   )}
@@ -1558,7 +1555,7 @@ export function OrganicPerformanceSection({
                                         Clicks
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.clicks, showMovingAverage)}
+                                        {formatChartMetricValue(data?.clicks)}
                                       </span>
                                     </div>
                                   )}
@@ -1570,7 +1567,7 @@ export function OrganicPerformanceSection({
                                           Sessions
                                         </p>
                                         <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.sessions, showMovingAverage)}
+                                          {formatChartMetricValue(data?.sessions)}
                                         </span>
                                       </div>
                                     )}
@@ -1582,7 +1579,7 @@ export function OrganicPerformanceSection({
                                           Goals
                                         </p>
                                         <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.goals, showMovingAverage)}
+                                          {formatChartMetricValue(data?.goals)}
                                         </span>
                                       </div>
                                     )}

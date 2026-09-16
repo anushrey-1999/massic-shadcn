@@ -82,7 +82,10 @@ import {
 import { Typography } from "@/components/ui/typography";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
-import { gbpLocations } from "@/lib/business-locations";
+import {
+  gbpLocations,
+  normalizeGbpLocationId,
+} from "@/lib/business-locations";
 import { toast } from "sonner";
 import {
   formatGscPermissionLevel,
@@ -280,6 +283,14 @@ interface GbpCellApi {
 
 const GbpCellContext = React.createContext<GbpCellApi | null>(null);
 
+function getGbpSelectionKey(
+  gbp: Pick<GBPLocation, "locationId" | "location">
+): string {
+  const locationId = normalizeGbpLocationId(gbp.locationId);
+  if (locationId) return locationId;
+  return normalizeGbpLocationId(gbp.location);
+}
+
 /**
  * TanStack renders `columnDef.cell` through `flexRender`, which turns the
  * function into the element type. An inline closure would therefore be a new
@@ -313,20 +324,47 @@ function GbpSelectCell({ row }: CellContext<LinkedBusiness, unknown>) {
     (b) => (b.siteUrl || b.id) === businessKey
   );
   const selectedGbps = localRow?.selectedGbp || rowData.selectedGbp || [];
-  const selectedLocationIds = selectedGbps.map((gbp) => gbp.locationId);
+  const selectedLocationIds = Array.from(
+    new Set(selectedGbps.map(getGbpSelectionKey).filter(Boolean))
+  );
+  const selectedLocationIdSet = new Set(selectedLocationIds);
   const hasNoLocation = localRow?.noLocation ?? rowData.noLocation ?? false;
 
-  // Create options from allGBP, filtering out already selected by other businesses
-  const availableGbps = allGBP.filter(
-    (gbp) =>
-      !localBusinesses.some(
-        (business) =>
-          (business.siteUrl || business.id) !== businessKey &&
-          business.selectedGbp?.some(
-            (selected) => selected.location === gbp.location
-          )
-      )
-  );
+  // A row's saved selections must always remain visible. Other rows can reserve
+  // locations, but cannot make this row's current state disappear. The Map also
+  // handles duplicate API entries and resource-name/id representation differences.
+  const availableGbpsById = new Map<string, GBPLocation>();
+  allGBP.forEach((gbp) => {
+    const locationId = getGbpSelectionKey(gbp);
+    if (!locationId) return;
+
+    const isSelectedHere = selectedLocationIdSet.has(locationId);
+    const isSelectedElsewhere = localBusinesses.some(
+      (business) =>
+        (business.siteUrl || business.id) !== businessKey &&
+        business.selectedGbp?.some(
+          (selected) => getGbpSelectionKey(selected) === locationId
+        )
+    );
+
+    if (isSelectedHere || !isSelectedElsewhere) {
+      availableGbpsById.set(locationId, gbp);
+    }
+  });
+
+  // Include persisted selections that are missing from Google's current response
+  // (for example after an account permission change or a partial API response).
+  selectedGbps.forEach((gbp) => {
+    const locationId = getGbpSelectionKey(gbp);
+    if (locationId && locationId !== "no-location-exist") {
+      availableGbpsById.set(locationId, {
+        ...gbp,
+        locationId,
+      });
+    }
+  });
+
+  const availableGbps = Array.from(availableGbpsById.values());
 
   // Create options including "No locations exist"
   const gbpOptions: CustomSelectOption[] = [
@@ -335,11 +373,14 @@ function GbpSelectCell({ row }: CellContext<LinkedBusiness, unknown>) {
       label: "No locations exist",
       locationId: "no-location-exist",
     },
-    ...availableGbps.map((gbp) => ({
-      value: gbp.locationId,
-      label: `${gbp.title} (${gbp.locationId})`,
-      locationId: gbp.locationId,
-    })),
+    ...availableGbps.map((gbp) => {
+      const locationId = getGbpSelectionKey(gbp);
+      return {
+        value: locationId,
+        label: `${gbp.title} (${locationId})`,
+        locationId,
+      };
+    }),
   ];
 
   const currentValues = hasNoLocation
@@ -590,12 +631,24 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           if (selectedLocationIds.length === 0) {
             return { ...b, selectedGbp: [], noLocation: false, gbpCleared: true };
           }
-          const selectedGbp = allGBP
-            .filter((gbp) => selectedLocationIds.includes(gbp.locationId))
-            .map((gbp) => ({
-              ...gbp,
-              label: `${gbp.title} (${gbp.locationId})`,
-            }));
+          // Keep saved selections that are absent from the current Google response,
+          // while still resolving newly selected options from the live list.
+          const selectableGbps = new Map<string, GBPLocation>();
+          [...allGBP, ...(b.selectedGbp || [])].forEach((gbp) => {
+            const locationId = getGbpSelectionKey(gbp);
+            if (locationId) selectableGbps.set(locationId, gbp);
+          });
+          const selectedGbp = selectedLocationIds
+            .map((locationId) => selectableGbps.get(locationId))
+            .filter((gbp): gbp is GBPLocation => Boolean(gbp))
+            .map((gbp) => {
+              const locationId = getGbpSelectionKey(gbp);
+              return {
+                ...gbp,
+                locationId,
+                label: `${gbp.title} (${locationId})`,
+              };
+            });
           return { ...b, selectedGbp, noLocation: false, gbpCleared: false };
         }
         return b;

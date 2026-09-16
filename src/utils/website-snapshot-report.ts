@@ -484,14 +484,6 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     if (trafficRead) lines.push("", trafficRead);
   }
 
-  const scale = report.scale_comparison;
-  if (scale && (scale.you != null || scale.peer != null || scale.ratio != null)) {
-    lines.push("", "## You vs peer");
-    if (scale.you != null) lines.push("", `You: ${scale.you}`);
-    if (scale.peer != null) lines.push("", `Peer: ${scale.peer}`);
-    if (scale.ratio != null) lines.push("", `Ratio: ${scale.ratio}`);
-  }
-
   const youWin = Array.isArray(search.you_win) ? search.you_win : [];
   if (youWin.length) {
     lines.push("", "## Who already knows you");
@@ -529,12 +521,10 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     [];
   const shouldBeNote = mdLine(report.should_be_note || competitorBuckets.should_be_note || "");
   const market = mdLine(competitorBuckets.setup?.market || "");
-  const delivery = formatDeliveryMode(competitorBuckets.setup?.delivery);
   const gap = mdLine(competitorBuckets.gap || "");
   if (Object.keys(showsUp).length || shouldBe.length || market || gap) {
     lines.push("", "## Who is taking that demand?");
     if (market) lines.push("", market);
-    if (delivery) lines.push("", delivery);
 
     const directCompetitors = Array.isArray(showsUp.direct_competitors) ? showsUp.direct_competitors : [];
     if (directCompetitors.length) {

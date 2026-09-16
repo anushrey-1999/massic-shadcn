@@ -4,7 +4,13 @@ import { useAuthStore } from "@/store/auth-store";
 import { useBusinessStore } from "@/store/business-store";
 import { toast } from "sonner";
 import type { GscPermissionLevel } from "@/utils/gsc-permissions";
-import { LOCATION_KINDS, gbpLocations } from "@/lib/business-locations";
+import {
+  LOCATION_KINDS,
+  gbpLocationId,
+  gbpLocations,
+  normalizeGbpLocationId,
+  type BusinessLocation,
+} from "@/lib/business-locations";
 
 const LINKED_BUSINESSES_KEY = "linkedBusinesses";
 
@@ -22,6 +28,7 @@ export interface GBPLocation {
   location: string;
   account?: string;
   websiteUri?: string;
+  label?: string;
 }
 
 export interface BusinessProfile {
@@ -29,7 +36,7 @@ export interface BusinessProfile {
   UniqueId?: string;
   IsActive: boolean;
   NoLocationExist?: boolean;
-  Locations?: { Name: string; DisplayName?: string }[];
+  Locations?: BusinessLocation[];
 }
 
 export interface LinkedBusiness {
@@ -204,9 +211,23 @@ export function useFetchBusinesses() {
         return (data.unmatchedGa4 || []).find((g) => String(g.propertyId) === normalized);
       };
 
+      // Saved links are authoritative. A fuzzy suggestion must not claim a GBP
+      // location that is already persisted on a connected business.
+      const persistedGbpLocationIds = new Set(
+        data.businesses.flatMap((business) =>
+          business.businessProfile?.Id
+            ? gbpLocations(business.businessProfile.Locations).map(gbpLocationId)
+            : []
+        )
+      );
+
       // Process businesses to add selectedGbp and selectedGa4 based on businessProfile
       const processedBusinesses = data.businesses.map((business) => {
-        const selectedGbp = getSelectedGbp(business, data.allGBP || []);
+        const selectedGbp = getSelectedGbp(
+          business,
+          data.allGBP || [],
+          persistedGbpLocationIds
+        );
         const noLocation = business.businessProfile?.NoLocationExist === true;
 
         const isAlreadyLinked = !!business.businessProfile?.Id;
@@ -245,7 +266,17 @@ export function useFetchBusinesses() {
   });
 }
 
-function getSelectedGbp(business: LinkedBusiness, allGBP: GBPLocation[]): GBPLocation[] {
+function getGbpKey(gbp: Pick<GBPLocation, "locationId" | "location">): string {
+  const locationId = normalizeGbpLocationId(gbp.locationId);
+  if (locationId) return locationId;
+  return normalizeGbpLocationId(gbp.location);
+}
+
+function getSelectedGbp(
+  business: LinkedBusiness,
+  allGBP: GBPLocation[],
+  persistedGbpLocationIds: ReadonlySet<string>
+): GBPLocation[] {
   const { businessProfile, matchedGbp } = business;
 
   if (businessProfile?.Id) {
@@ -257,16 +288,37 @@ function getSelectedGbp(business: LinkedBusiness, allGBP: GBPLocation[]): GBPLoc
       } as GBPLocation];
     }
 
-    const linkedResourceNames = new Set(
-      gbpLocations(businessProfile.Locations).map((location) => location.Name)
+    const liveLocationsById = new Map(
+      allGBP.map((gbp) => [getGbpKey(gbp), gbp])
     );
-    return allGBP
-      .filter((gbp) => linkedResourceNames.has(gbp.location))
-      .map((gbp) => ({ ...gbp, label: `${gbp.title} (${gbp.locationId})` } as GBPLocation));
+
+    return gbpLocations(businessProfile.Locations).map((savedLocation) => {
+      const locationId = gbpLocationId(savedLocation);
+      const liveLocation = liveLocationsById.get(locationId);
+      const title =
+        liveLocation?.title || savedLocation.DisplayName?.trim() || locationId;
+      const resolvedLocation: GBPLocation = {
+        title,
+        locationId,
+        location: liveLocation?.location || savedLocation.Name,
+        account: liveLocation?.account || savedLocation.AccountName || undefined,
+        websiteUri: liveLocation?.websiteUri || savedLocation.Url || undefined,
+      };
+
+      return {
+        ...resolvedLocation,
+        label: `${title} (${locationId})`,
+      };
+    });
   }
 
   if (matchedGbp?.length) {
-    return matchedGbp.map((gbp) => ({ ...gbp, label: `${gbp.title} (${gbp.locationId})` } as GBPLocation));
+    return matchedGbp
+      .filter((gbp) => !persistedGbpLocationIds.has(getGbpKey(gbp)))
+      .map((gbp) => ({
+        ...gbp,
+        label: `${gbp.title} (${gbp.locationId})`,
+      }));
   }
 
   return [];

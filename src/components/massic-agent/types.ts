@@ -29,6 +29,7 @@ export type ThreadMessage = { turn_id: string; role: "user" | "assistant"; conte
 export type MessagesPage = { turns: ThreadMessage[]; next_cursor: string | null; has_more: boolean };
 export type ThreadsPage = { threads: AgentThread[]; total: number; limit: number; offset: number };
 export type PlanItem = {
+  [key: string]: unknown;
   page_id?: string; campaign_cluster_id?: string; cluster_name?: string | null; title?: string | null;
   rationale?: string | null; description?: string | null; page_type?: string | null; status?: string | null; valid?: boolean;
   business_relevance_score?: number | null; business_relevance_level?: string | null; search_volume?: number | null; coverage?: number | null;

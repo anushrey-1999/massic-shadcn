@@ -42,7 +42,7 @@ export function AgentComposerDock({ centered, children, chatKey }: { centered: b
   useLayoutEffect(() => () => animation.current?.cancel(), []);
   return <div className={cn(centered ? styles.composerCentered : "shrink-0 px-4 pb-4")}>
     <div ref={element} className="relative mx-auto w-full max-w-3xl">
-      <div aria-hidden={!centered} className={cn(styles.welcomeHeading, !centered && styles.welcomeHidden)}><MassicAmoebaLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">Ask Me Anything</h1></div>
+      <div aria-hidden={!centered} className={cn(styles.welcomeHeading, !centered && styles.welcomeHidden)}><MassicAmoebaLoader size={28} animate={false} /><h1 className="text-2xl font-medium tracking-tight">How can I help you grow?</h1></div>
       {children}
     </div>
   </div>;

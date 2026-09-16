@@ -36,6 +36,6 @@ export function PlanRelevanceMetric({ score, label, className }: { score?: numbe
 export function PlanMetaField({ label, children }: { label: string; children?: React.ReactNode }) {
   return <div className="min-w-0">
     <p className="text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground">{label}</p>
-    <div className="mt-0.5 break-words text-xs text-general-secondary-foreground">{children ?? <span className="text-general-muted-foreground">—</span>}</div>
+    <div className="mt-0.5 break-words text-sm leading-5 text-general-secondary-foreground">{children ?? <span className="text-general-muted-foreground">—</span>}</div>
   </div>;
 }

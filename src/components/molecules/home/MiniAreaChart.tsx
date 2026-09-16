@@ -364,7 +364,7 @@ export function MiniAreaChart({
                       <span className="text-muted-foreground">{label}</span>
                       <span className="text-foreground font-mono font-medium tabular-nums">
                         {Number.isFinite(displayValue)
-                          ? displayValue.toLocaleString("en-US", { maximumFractionDigits: 1 })
+                          ? displayValue.toLocaleString("en-US", { maximumFractionDigits: 0 })
                           : "0"}
                       </span>
                     </>

@@ -24,6 +24,8 @@ import {
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import {
   buildBusinessProfilePayload,
   profileFormDefaults,
@@ -89,6 +91,15 @@ export default function CreateBusinessPage() {
     validators: {
       onChange: businessInfoSchema as any,
     },
+  });
+
+  // Anything entered or autofilled on top of the empty defaults is unsaved work.
+  const { isDirty, resetBaseline } = useFormDirtyState({
+    form,
+    baseline: profileFormDefaults,
+  });
+  const { requestNavigation, allowNavigation } = useUnsavedChangesGuard({
+    isDirty,
   });
 
   useEffect(() => {
@@ -203,9 +214,11 @@ export default function CreateBusinessPage() {
 
           await refetchBusinessProfiles();
 
-          router.push(`/business/${businessId}/profile`);
+          resetBaseline();
+          allowNavigation(() => router.push(`/business/${businessId}/profile`));
         } else {
-          router.push("/");
+          resetBaseline();
+          allowNavigation(() => router.push("/"));
         }
       } catch (error) {
         console.error("Failed to finish business setup:", error);
@@ -215,10 +228,12 @@ export default function CreateBusinessPage() {
       }
     },
     [
+      allowNavigation,
       form,
       createBusiness,
       createJob,
       refetchBusinessProfiles,
+      resetBaseline,
       router,
       offeringsExtractor.isExtracting,
       locationOptions,
@@ -270,7 +285,7 @@ export default function CreateBusinessPage() {
   });
 
   const handleCancel = () => {
-    router.push("/");
+    requestNavigation("/");
   };
 
   if (!allowed) return null;

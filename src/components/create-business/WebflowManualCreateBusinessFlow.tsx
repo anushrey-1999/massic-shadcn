@@ -35,6 +35,8 @@ import {
   buildBusinessProfilePayload,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
+import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import {
   applyWebflowPrefill,
   describeWebflowPrefillSources,
@@ -161,6 +163,12 @@ export function WebflowManualCreateBusinessFlow({
       serviceAreaType: "",
     },
     validators: { onChange: webflowManualBusinessSchema as any },
+  });
+
+  // Anything entered or prefilled on top of the empty defaults is unsaved work.
+  const { isDirty, resetBaseline } = useFormDirtyState({ form });
+  const { requestNavigation, allowNavigation } = useUnsavedChangesGuard({
+    isDirty,
   });
 
   // Once the business exists the form has already been prefilled, so a session change
@@ -335,16 +343,19 @@ export function WebflowManualCreateBusinessFlow({
 
       await refetchBusinessProfiles();
       onComplete();
-      router.push(`/business/${businessId}/profile`);
+      resetBaseline();
+      allowNavigation(() => router.push(`/business/${businessId}/profile`));
       return true;
     },
     [
+      allowNavigation,
       attachConnection,
       createJob,
       form.state.values,
       locationOptions,
       onComplete,
       refetchBusinessProfiles,
+      resetBaseline,
       router,
     ],
   );
@@ -540,8 +551,10 @@ export function WebflowManualCreateBusinessFlow({
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    onComplete();
-                    router.push("/");
+                    requestNavigation(() => {
+                      onComplete();
+                      router.push("/");
+                    });
                   }}
                   disabled={pending}
                 >

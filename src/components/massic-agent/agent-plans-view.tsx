@@ -65,7 +65,7 @@ function PlansList({ businessId, surface, onPreview }: {
     {items.map(plan => {
         const active = String(plan.status).toLowerCase() === "active";
         const view = () => onPreview(plan);
-        return <button key={String(plan.id)} type="button" aria-label={`View Plan ${plan.id}`} onClick={view} className="group flex min-h-32 w-full cursor-pointer flex-col rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-general-primary/30 hover:bg-general-primary/[0.03] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30 motion-reduce:transform-none">
+        return <button key={String(plan.id)} type="button" aria-label={`View Plan ${plan.id}`} onClick={view} className="group flex min-h-32 w-full cursor-pointer flex-col rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow] hover:border-general-primary/30 hover:bg-general-primary/[0.03] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30">
           <span className="flex w-full items-start justify-between gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-general-primary/10 text-general-primary"><FileText className="size-4" /></span>
             <span className="flex min-w-0 items-center gap-2">

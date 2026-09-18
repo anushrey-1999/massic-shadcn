@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import type { SocialStrategyType, TacticRow } from "@/types/social-types";
 import { Tag, FileText, TrendingUp, Hash, CheckCircle2, Sparkles, Share2, Megaphone } from "lucide-react";
 import { SocialActionCell } from "./social-action-cell";
+import { getUrlDisplayPath } from "@/lib/url-display";
 
 interface GetTacticsTableColumnsProps {
   channelName?: string;
@@ -36,16 +37,6 @@ function extractRedditThreadPath(url: string): string {
     return "";
   } catch {
     return "";
-  }
-}
-
-function getUrlDisplayPath(url: string): string {
-  if (!url) return "";
-  try {
-    const parsedUrl = new URL(url);
-    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}` || "/";
-  } catch {
-    return url.startsWith("/") ? url : `/${url}`;
   }
 }
 
@@ -306,7 +297,7 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         ),
         cell: ({ row }) => {
           const url = row.original.url || "";
-          const displayPath = getUrlDisplayPath(url);
+          const displayPath = getUrlDisplayPath(url, { ensureLeadingSlash: true });
 
           if (!url) {
             return (

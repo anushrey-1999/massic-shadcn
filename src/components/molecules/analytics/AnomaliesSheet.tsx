@@ -14,6 +14,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPageDisplayLabel, replaceUrlsWithDisplayPaths } from "@/lib/url-display";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -143,7 +144,7 @@ function HeadlinePanel({
             <React.Fragment key={`${reel.text}-${idx}`}>
               {idx > 0 && <span className="mx-[6px] text-[18px] leading-none text-foreground/70">·</span>}
               <span className={REEL_COLOR_CLS[DIRECTION_TO_COLOR[reel.direction] || "neutral"]}>
-                {reel.text}
+                {replaceUrlsWithDisplayPaths(reel.text)}
               </span>
             </React.Fragment>
           ))}
@@ -151,7 +152,7 @@ function HeadlinePanel({
       ) : null}
       {bottomLine ? (
         <p className="mt-1 text-[12px] leading-[1.45] text-muted-foreground">
-          {bottomLine}
+          {replaceUrlsWithDisplayPaths(bottomLine)}
         </p>
       ) : null}
     </div>
@@ -272,11 +273,6 @@ function hasNonZeroPageContribution(page: PageBreakdown) {
   ].some((value) => Math.abs(Number(value || 0)) > 0);
 }
 
-function getPageLabel(page: string) {
-  if (!page || page === "/") return "Homepage";
-  return page;
-}
-
 function metricLabel(metric: "goals" | "sessions" | "clicks" | "impr", value: number | null | undefined) {
   const base = metric === "goals" ? "Goals" : metric === "sessions" ? "Sessions" : metric === "clicks" ? "Clicks" : "Impr";
   if (!value) return base;
@@ -320,7 +316,7 @@ function ContributorPageRows({ pages, isTraffic = false }: { pages: PageBreakdow
           <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
             <div className="min-w-0 flex-1 overflow-hidden">
               <TruncatedTooltipText
-                text={getPageLabel(p.page)}
+                text={getPageDisplayLabel(p.page)}
                 className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground"
                 tooltipClassName="max-w-[400px] break-all text-xs"
               />
@@ -587,7 +583,7 @@ function PositivePointCards({ wins }: { wins: Win[] }) {
       {visiblePoints.map((win, idx) => (
         <TruncatedTooltipText
           key={`${win.text}-${idx}`}
-          text={win.text}
+          text={replaceUrlsWithDisplayPaths(win.text)}
           className={cn(SINGLE_LINE_PILL_CLASS, "font-medium", POSITIVE_PILL_CLASS)}
         />
       ))}
@@ -623,7 +619,7 @@ function LikelyDrivers({ diagnoses }: { diagnoses: Diagnosis[] }) {
                     </p>
                   ) : null}
                   <p className="min-w-0 break-words text-[12px] leading-5 text-[#633806]">
-                    {fallbackDriverText(diagnosis)}
+                    {replaceUrlsWithDisplayPaths(fallbackDriverText(diagnosis))}
                   </p>
                 </div>
               </div>
@@ -666,13 +662,13 @@ function GoalExpandedContent({ goal }: { goal: GoalData }) {
       ) : null}
 
       {isNegative && goal.crossEventContext ? (
-        <p className="text-[11px] italic leading-snug text-muted-foreground">{goal.crossEventContext}</p>
+        <p className="text-[11px] italic leading-snug text-muted-foreground">{replaceUrlsWithDisplayPaths(goal.crossEventContext)}</p>
       ) : null}
 
       {goal.direction === "up" ? <PositivePointCards wins={goal.wins} /> : null}
 
       {goal.contextLine ? (
-        <p className="text-xs leading-snug text-muted-foreground">{goal.contextLine}</p>
+        <p className="text-xs leading-snug text-muted-foreground">{replaceUrlsWithDisplayPaths(goal.contextLine)}</p>
       ) : null}
 
       {config.note ? <InfoBar text={config.note} /> : null}
@@ -689,7 +685,7 @@ function GoalExpandedContent({ goal }: { goal: GoalData }) {
             {goal.topContributors.map((contributor, idx) => (
               <ChannelBlock
                 key={`${idx}-${contributor.key || ""}`}
-                channelName={contributor.key || "Unknown contributor"}
+                channelName={getPageDisplayLabel(contributor.key || "Unknown contributor")}
                 anchorDelta={contributor.delta_goals ?? contributor.delta_conversions ?? 0}
                 anchorUnit="conversions"
                 deltaGoals={contributor.delta_goals}
@@ -812,7 +808,7 @@ function TrafficExpandedContent({ traffic }: { traffic: TrafficData }) {
       </div>
 
       {traffic.narrative?.context_line ? (
-        <p className="text-xs leading-snug text-muted-foreground">{traffic.narrative.context_line}</p>
+        <p className="text-xs leading-snug text-muted-foreground">{replaceUrlsWithDisplayPaths(traffic.narrative.context_line)}</p>
       ) : null}
 
       {attributionCopy ? <InfoBar text={attributionCopy} /> : null}
@@ -852,7 +848,7 @@ function TrafficExpandedContent({ traffic }: { traffic: TrafficData }) {
             {topContributors.map((contributor, idx) => (
               <ChannelBlock
                 key={`${contributor.key || "page"}-${idx}`}
-                channelName={contributor.key || "Unknown page"}
+                channelName={getPageDisplayLabel(contributor.key || "Unknown page")}
                 anchorDelta={contributor.delta_clicks ?? 0}
                 anchorUnit="clicks"
                 deltaGoals={contributor.delta_clicks}

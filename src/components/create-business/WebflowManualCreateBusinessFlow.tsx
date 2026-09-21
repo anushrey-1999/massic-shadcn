@@ -45,6 +45,15 @@ import { CreateBusinessGateLayout } from "./CreateBusinessGateLayout";
 import { WebflowAttachRecovery } from "./WebflowAttachRecovery";
 import { WebflowBusinessOnboarding } from "./WebflowBusinessOnboarding";
 import { WebflowManualBusinessTemplate } from "./WebflowManualBusinessTemplate";
+import { DuplicateBusinessConflictDialog } from "./DuplicateBusinessConflictDialog";
+import {
+  CreateBusinessConflictError,
+  type ExistingBusinessSummary,
+} from "@/lib/business-conflict";
+import {
+  useConvertPitchToBusiness,
+  useReactivateBusiness,
+} from "@/hooks/use-business-actions";
 
 const REQUIRED_FIELDS = [
   "website",
@@ -129,6 +138,8 @@ export function WebflowManualCreateBusinessFlow({
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const createBusiness = useCreateBusiness();
   const createJob = useCreateJob();
+  const convertPitch = useConvertPitchToBusiness();
+  const reactivateBusiness = useReactivateBusiness();
   const finalizeWebflow = useFinalizeWebflowOnboarding();
   const { connect: authorizeWebflow, isConnecting: isReconnectingWebflow } =
     useWebflowOauthPopup();
@@ -150,6 +161,8 @@ export function WebflowManualCreateBusinessFlow({
   const [importedFromWebflow, setImportedFromWebflow] =
     React.useState<WebflowOnboardingPrefill | null>(null);
   const [isFinishing, setIsFinishing] = React.useState(false);
+  const [conflictingBusiness, setConflictingBusiness] =
+    React.useState<ExistingBusinessSummary | null>(null);
   const createdBusinessRef = React.useRef<BusinessProfile | null>(null);
   const connectionAttachedRef = React.useRef(false);
   const profilePersistedRef = React.useRef(false);
@@ -337,6 +350,7 @@ export function WebflowManualCreateBusinessFlow({
           businessId,
           businessProfilePayload,
           offerings: offeringRows(values),
+          suppressErrorToast: true,
         });
         jobCreatedRef.current = true;
       }
@@ -383,6 +397,7 @@ export function WebflowManualCreateBusinessFlow({
                 ? "both"
                 : "online",
           offerType: values.offerings,
+          suppressErrorToast: true,
         });
         businessId = result?.createdBusiness?.UniqueId || null;
         if (!businessId) {
@@ -394,10 +409,16 @@ export function WebflowManualCreateBusinessFlow({
 
       await finishBusinessSetup(businessId, true);
     } catch (error) {
+      if (error instanceof CreateBusinessConflictError) {
+        setConflictingBusiness(error.conflict.existingBusiness);
+        return;
+      }
       console.error("Failed to finish Webflow business setup:", error);
       toast.error("Failed to finish business setup", {
         description:
-          "Your business will not be created again. Retry to finish the existing setup.",
+          error instanceof Error
+            ? error.message
+            : "Your business will not be created again. Retry to finish the existing setup.",
       });
     } finally {
       setIsFinishing(false);
@@ -461,6 +482,71 @@ export function WebflowManualCreateBusinessFlow({
     selection,
   ]);
 
+  const openConflictingBusiness = React.useCallback(() => {
+    if (!conflictingBusiness?.UniqueId) return;
+    const target = conflictingBusiness.IsPitch
+      ? `/pitches/${conflictingBusiness.UniqueId}/profile`
+      : `/business/${conflictingBusiness.UniqueId}/profile`;
+    setConflictingBusiness(null);
+    onComplete();
+    allowNavigation(() => router.push(target));
+  }, [allowNavigation, conflictingBusiness, onComplete, router]);
+
+  const convertConflictingPitch = React.useCallback(async () => {
+    if (!conflictingBusiness?.UniqueId || !conflictingBusiness.IsPitch) return;
+
+    try {
+      await convertPitch.mutateAsync({
+        businessId: conflictingBusiness.UniqueId,
+        suppressConflictToast: true,
+      });
+      const businessId = conflictingBusiness.UniqueId;
+      setConflictingBusiness(null);
+      onComplete();
+      allowNavigation(() => router.push(`/business/${businessId}/profile`));
+    } catch (error) {
+      if (error instanceof CreateBusinessConflictError) {
+        setConflictingBusiness(error.conflict.existingBusiness);
+        return;
+      }
+      // The mutation owns actionable error feedback.
+    }
+  }, [
+    allowNavigation,
+    conflictingBusiness,
+    convertPitch,
+    onComplete,
+    router,
+  ]);
+
+  const reactivateConflictingBusiness = React.useCallback(async () => {
+    if (
+      !conflictingBusiness?.UniqueId ||
+      conflictingBusiness.IsPitch ||
+      conflictingBusiness.IsActive
+    ) {
+      return;
+    }
+
+    try {
+      await reactivateBusiness.mutateAsync({
+        businessId: conflictingBusiness.UniqueId,
+      });
+      const businessId = conflictingBusiness.UniqueId;
+      setConflictingBusiness(null);
+      onComplete();
+      allowNavigation(() => router.push(`/business/${businessId}/profile`));
+    } catch {
+      // The mutation owns actionable error feedback.
+    }
+  }, [
+    allowNavigation,
+    conflictingBusiness,
+    onComplete,
+    reactivateBusiness,
+    router,
+  ]);
+
   if (attachError && createdBusinessId) {
     return (
       <WebflowAttachRecovery
@@ -499,88 +585,112 @@ export function WebflowManualCreateBusinessFlow({
     createJob.isPending;
 
   return (
-    <CreateBusinessGateLayout className="min-h-0 items-stretch justify-stretch overflow-hidden">
-      <LoaderOverlay
-        isLoading={pending || isImportingFromWebflow}
-        message={
-          isImportingFromWebflow
-            ? "Importing your details from Webflow..."
-            : finalizeWebflow.isPending
-              ? "Connecting Webflow..."
-              : "Creating business..."
-        }
-      >
-        <form
-          id="webflow-manual-create-business-form"
-          className="flex min-h-0 w-full flex-1 overflow-hidden"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleCreate();
-          }}
+    <>
+      <CreateBusinessGateLayout className="min-h-0 items-stretch justify-stretch overflow-hidden">
+        <LoaderOverlay
+          isLoading={pending || isImportingFromWebflow}
+          message={
+            isImportingFromWebflow
+              ? "Importing your details from Webflow..."
+              : finalizeWebflow.isPending
+                ? "Connecting Webflow..."
+                : "Creating business..."
+          }
         >
-          <WebflowManualBusinessTemplate
-            form={form}
-            leftTitle="Create Business"
-            webflowSource={{
-              collections: describeWebflowPrefillSources(importedFromWebflow),
-              importedCount: importedFromWebflow?.offerings.items.length ?? 0,
-              truncated: importedFromWebflow?.offerings.truncated ?? false,
-              isImporting: isImportingFromWebflow,
-              onReimport: handleReimportFromWebflow,
+          <form
+            id="webflow-manual-create-business-form"
+            className="flex min-h-0 w-full flex-1 overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleCreate();
             }}
-            onSaveChanges={() => {}}
-            onSaveAndUpdateStrategy={() => {}}
-            showDefaultActions={false}
-            showUnlinkBusiness={false}
-            customHeaderActions={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    form.setFieldValue("website", "");
-                    setSelection(null);
-                  }}
-                  disabled={pending}
-                  className="gap-2"
-                >
-                  <ArrowLeft className="size-4" />
-                  Webflow site
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    requestNavigation(() => {
-                      onComplete();
-                      router.push("/");
-                    });
-                  }}
-                  disabled={pending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  form="webflow-manual-create-business-form"
-                  disabled={pending || locationsLoading}
-                  className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                >
-                  {pending ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create"
-                  )}
-                </Button>
-              </>
-            }
-            className="flex-1"
-          />
-        </form>
-      </LoaderOverlay>
-    </CreateBusinessGateLayout>
+          >
+            <WebflowManualBusinessTemplate
+              form={form}
+              leftTitle="Create Business"
+              webflowSource={{
+                collections: describeWebflowPrefillSources(importedFromWebflow),
+                importedCount: importedFromWebflow?.offerings.items.length ?? 0,
+                truncated: importedFromWebflow?.offerings.truncated ?? false,
+                isImporting: isImportingFromWebflow,
+                onReimport: handleReimportFromWebflow,
+              }}
+              onSaveChanges={() => {}}
+              onSaveAndUpdateStrategy={() => {}}
+              showDefaultActions={false}
+              showUnlinkBusiness={false}
+              customHeaderActions={
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      form.setFieldValue("website", "");
+                      setSelection(null);
+                    }}
+                    disabled={pending}
+                    className="gap-2"
+                  >
+                    <ArrowLeft className="size-4" />
+                    Webflow site
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      requestNavigation(() => {
+                        onComplete();
+                        router.push("/");
+                      });
+                    }}
+                    disabled={pending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    form="webflow-manual-create-business-form"
+                    disabled={pending || locationsLoading}
+                    className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                  >
+                    {pending ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create"
+                    )}
+                  </Button>
+                </>
+              }
+              className="flex-1"
+            />
+          </form>
+        </LoaderOverlay>
+      </CreateBusinessGateLayout>
+      <DuplicateBusinessConflictDialog
+        open={Boolean(conflictingBusiness)}
+        business={conflictingBusiness}
+        isConverting={convertPitch.isPending}
+        isReactivating={reactivateBusiness.isPending}
+        onOpenChange={(open) => {
+          if (
+            !open &&
+            !convertPitch.isPending &&
+            !reactivateBusiness.isPending
+          ) {
+            setConflictingBusiness(null);
+          }
+        }}
+        onOpenExisting={openConflictingBusiness}
+        onConvertPitch={() => {
+          void convertConflictingPitch();
+        }}
+        onReactivate={() => {
+          void reactivateConflictingBusiness();
+        }}
+      />
+    </>
   );
 }

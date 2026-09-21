@@ -5,6 +5,10 @@ import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
+import {
+  CreateBusinessConflictError,
+  parseCreateBusinessConflict,
+} from "@/lib/business-conflict";
 
 const BUSINESS_PROFILES_KEY = "businessProfiles";
 
@@ -383,6 +387,7 @@ interface CreateBusinessPayload {
   offerType: "products" | "services" | "both";
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
+  suppressErrorToast?: boolean;
 }
 
 interface CreateBusinessResponse {
@@ -403,6 +408,8 @@ export function useCreateBusiness() {
     Error,
     CreateBusinessPayload
   >({
+    // Creating is not safely repeatable when the response is lost or rejected.
+    retry: false,
     mutationFn: async (formData: CreateBusinessPayload) => {
       if (!userUniqueId) {
         throw new Error("User not authenticated");
@@ -494,12 +501,19 @@ export function useCreateBusiness() {
 
         // Check if the API returned an error in the response body
         if (response.err === true || response.success === false) {
+          const conflictError = parseCreateBusinessConflict(response);
+          if (conflictError) throw conflictError;
           throw new Error(response.message || "Failed to create business");
         }
       } catch (error: any) {
+        if (error instanceof CreateBusinessConflictError) {
+          throw error;
+        }
         // If axios error with response (status code error like 409)
         if (error.response?.data) {
           const errorData = error.response.data;
+          const conflictError = parseCreateBusinessConflict(errorData);
+          if (conflictError) throw conflictError;
           throw new Error(errorData.message || errorData.error || "Failed to create business");
         }
         throw error;
@@ -609,7 +623,13 @@ export function useCreateBusiness() {
     onSuccess: () => {
       toast.success("Business is created");
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables: CreateBusinessPayload) => {
+      if (
+        error instanceof CreateBusinessConflictError ||
+        variables.suppressErrorToast
+      ) {
+        return;
+      }
       toast.error("Failed to create business", {
         description: error.message || "Please try again later.",
       });

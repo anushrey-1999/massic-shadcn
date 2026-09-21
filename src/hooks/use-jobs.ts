@@ -722,6 +722,7 @@ interface CreateJobParams {
   businessId: string;
   businessProfilePayload: BusinessProfilePayload;
   offerings: Offering[];
+  suppressErrorToast?: boolean;
 }
 
 /**
@@ -779,7 +780,8 @@ export function useCreateJob() {
         data
       );
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables: CreateJobParams) => {
+      if (variables.suppressErrorToast) return;
       toast.error("Failed to create job", {
         description: error.message || "Please try again later.",
       });

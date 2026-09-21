@@ -69,26 +69,6 @@ function normalizePageForDisplay(value: string): string {
   return raw;
 }
 
-function withZeroFallback<T extends { value: string | number; change?: number }>(
-  cell: T | undefined
-): { value: string | number; change?: number } {
-  if (!cell) return { value: 0 };
-  const rawValue = cell.value;
-
-  if (
-    rawValue === "—" ||
-    rawValue === "-" ||
-    rawValue === "–" ||
-    rawValue === "" ||
-    rawValue === null ||
-    rawValue === undefined
-  ) {
-    return { value: 0 };
-  }
-
-  return cell;
-}
-
 const DiscoveryPerformanceSection = ({
   period = "3 months",
   visibleMetrics,
@@ -135,6 +115,8 @@ const DiscoveryPerformanceSection = ({
     hasContentGroupsData,
     hasTopPagesData,
     hasTopQueriesData,
+    isGa4MetricsAvailable,
+    isGa4ConnectionBlocked,
   } = useGSCAnalytics(businessUniqueId, website, period, filters, ga4TrafficScope);
 
   const {
@@ -360,9 +342,17 @@ const DiscoveryPerformanceSection = ({
   );
   const hasGscMetricSelected = metricVisibility.impressions || metricVisibility.clicks;
   const hasActiveQueryFilter = filters.some((filter) => filter.dimension === "query");
+  const ga4MetricsAvailable =
+    isGa4MetricsAvailable && !isGa4ConnectionBlocked && !hasActiveQueryFilter;
+  const hasAvailableDiscoveryMetric =
+    hasGscMetricSelected ||
+    (ga4MetricsAvailable && (metricVisibility.sessions || metricVisibility.goals));
   const shouldShowNoGscMetricsState = hasActiveQueryFilter && !hasGscMetricSelected;
-  const showContentGroupsLoader = loadingState.contentGroups && !hasContentGroupsData;
-  const showTopPagesLoader = loadingState.topPages && !hasTopPagesData;
+  const showContentGroupsLoader =
+    loadingState.contentGroups &&
+    (!hasContentGroupsData || !hasAvailableDiscoveryMetric);
+  const showTopPagesLoader =
+    loadingState.topPages && (!hasTopPagesData || !hasAvailableDiscoveryMetric);
   const showTopQueriesLoader = loadingState.topQueries && !hasTopQueriesData;
 
   const contentGroupColumns = useMemo<DataTableColumn[]>(() => {
@@ -375,14 +365,14 @@ const DiscoveryPerformanceSection = ({
     if (metricVisibility.clicks) {
       columns.push({ key: "clicks", label: "Clicks", sortable: true });
     }
-    if (metricVisibility.sessions) {
+    if (ga4MetricsAvailable && metricVisibility.sessions) {
       columns.push({ key: "sessions", label: "Sessions", sortable: true });
     }
-    if (metricVisibility.goals) {
+    if (ga4MetricsAvailable && metricVisibility.goals) {
       columns.push({ key: "goals", label: "Goals", sortable: true });
     }
     return columns;
-  }, [metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
+  }, [ga4MetricsAvailable, metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
 
   const topPagesColumns = useMemo<DataTableColumn[]>(() => {
     const columns: DataTableColumn[] = [
@@ -394,14 +384,14 @@ const DiscoveryPerformanceSection = ({
     if (metricVisibility.clicks) {
       columns.push({ key: "clicks", label: "Clicks", sortable: true });
     }
-    if (metricVisibility.sessions) {
+    if (ga4MetricsAvailable && metricVisibility.sessions) {
       columns.push({ key: "sessions", label: "Sessions", sortable: true });
     }
-    if (metricVisibility.goals) {
+    if (ga4MetricsAvailable && metricVisibility.goals) {
       columns.push({ key: "goals", label: "Goals", sortable: true });
     }
     return columns;
-  }, [metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
+  }, [ga4MetricsAvailable, metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
 
   const topQueriesColumns = useMemo<DataTableColumn[]>(() => {
     const columns: DataTableColumn[] = [
@@ -424,14 +414,14 @@ const DiscoveryPerformanceSection = ({
     if (metricVisibility.clicks) {
       columns.push({ key: "clicks", label: "Clicks", sortable: true });
     }
-    if (metricVisibility.sessions) {
+    if (ga4MetricsAvailable && metricVisibility.sessions) {
       columns.push({ key: "sessions", label: "Sessions", sortable: true });
     }
-    if (metricVisibility.goals) {
+    if (ga4MetricsAvailable && metricVisibility.goals) {
       columns.push({ key: "goals", label: "Goals", sortable: true });
     }
     return columns;
-  }, [metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
+  }, [ga4MetricsAvailable, metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
 
   const topPagesModalColumns = useMemo<DataTableColumn[]>(() => {
     const columns: DataTableColumn[] = [{ key: "key", label: "Top Page" }];
@@ -441,14 +431,14 @@ const DiscoveryPerformanceSection = ({
     if (metricVisibility.clicks) {
       columns.push({ key: "clicks", label: "Clicks", sortable: true });
     }
-    if (metricVisibility.sessions) {
+    if (ga4MetricsAvailable && metricVisibility.sessions) {
       columns.push({ key: "sessions", label: "Sessions", sortable: true });
     }
-    if (metricVisibility.goals) {
+    if (ga4MetricsAvailable && metricVisibility.goals) {
       columns.push({ key: "goals", label: "Goals", sortable: true });
     }
     return columns;
-  }, [metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
+  }, [ga4MetricsAvailable, metricVisibility.clicks, metricVisibility.goals, metricVisibility.impressions, metricVisibility.sessions]);
 
   const topQueriesModalColumns = useMemo<DataTableColumn[]>(() => {
     const columns: DataTableColumn[] = [{ key: "key", label: "Top Queries" }];
@@ -467,12 +457,16 @@ const DiscoveryPerformanceSection = ({
         key: item.key,
         _rawKey: item.rawKey || item.key,
         _source: item.source || "default",
-        impressions: withZeroFallback(item.impressions),
-        clicks: withZeroFallback(item.clicks),
-        sessions: withZeroFallback(item.sessions),
-        goals: withZeroFallback(item.goals),
+        impressions: item.impressions,
+        clicks: item.clicks,
+        ...(ga4MetricsAvailable
+          ? {
+              sessions: item.sessions ?? { value: 0 },
+              goals: item.goals ?? { value: 0 },
+            }
+          : {}),
       })),
-    [contentGroupsData]
+    [contentGroupsData, ga4MetricsAvailable]
   );
 
   const renderContentGroupLabel = useCallback((row: DataTableRow, value: string) => {
@@ -518,13 +512,24 @@ const DiscoveryPerformanceSection = ({
       topPagesData.map((item) => ({
         key: normalizePageForDisplay(item.key),
         _rawKey: item.key,
-        impressions: withZeroFallback(item.impressions),
-        clicks: withZeroFallback(item.clicks),
-        sessions: withZeroFallback(item.sessions),
-        goals: withZeroFallback(item.goals),
+        impressions: item.impressions,
+        clicks: item.clicks,
+        ...(ga4MetricsAvailable
+          ? {
+              sessions: item.sessions ?? { value: 0 },
+              goals: item.goals ?? { value: 0 },
+            }
+          : {}),
       })),
-    [topPagesData]
+    [ga4MetricsAvailable, topPagesData]
   );
+
+  const visibleContentGroupsTableData = hasAvailableDiscoveryMetric
+    ? contentGroupsTableData
+    : [];
+  const visibleTopPagesTableData = hasAvailableDiscoveryMetric
+    ? topPagesTableData
+    : [];
 
   const topQueriesTableData = useMemo(
     () =>
@@ -571,10 +576,14 @@ const DiscoveryPerformanceSection = ({
                 handleContentGroupsFilterChange(value as TableFilterType)
               }
               columns={contentGroupColumns}
-              data={contentGroupsTableData}
+              data={visibleContentGroupsTableData}
               isLoading={showContentGroupsLoader}
-              hasData={hasContentGroupsData}
-              emptyState={contentGroupsEmptyState}
+              hasData={hasAvailableDiscoveryMetric && hasContentGroupsData}
+              emptyState={
+                hasAvailableDiscoveryMetric
+                  ? contentGroupsEmptyState
+                  : "No data available"
+              }
               sortConfig={contentGroupsSort}
               onSort={(column) =>
                 handleContentGroupsSort(
@@ -615,9 +624,9 @@ const DiscoveryPerformanceSection = ({
               }
               firstColumnTruncate="max-w-[300px]"
               columns={topPagesColumns}
-              data={topPagesTableData}
+              data={visibleTopPagesTableData}
               isLoading={showTopPagesLoader}
-              hasData={hasTopPagesData}
+              hasData={hasAvailableDiscoveryMetric && hasTopPagesData}
               sortConfig={topPagesSort}
               onSort={(column) =>
                 handleTopPagesSort(
@@ -765,7 +774,7 @@ const DiscoveryPerformanceSection = ({
           handleContentGroupsFilterChange(value as TableFilterType)
         }
         columns={contentGroupModalColumns}
-        data={contentGroupsTableData}
+        data={visibleContentGroupsTableData}
         sortConfig={contentGroupsSort}
         onSort={(column) =>
           handleContentGroupsSort(
@@ -805,7 +814,7 @@ const DiscoveryPerformanceSection = ({
           handleTopPagesFilterChange(value as TableFilterType)
         }
         columns={topPagesModalColumns}
-        data={topPagesTableData}
+        data={visibleTopPagesTableData}
         sortConfig={topPagesSort}
         onSort={(column) =>
           handleTopPagesSort(

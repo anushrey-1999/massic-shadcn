@@ -11,6 +11,12 @@ import {
   normalizeGbpLocationId,
   type BusinessLocation,
 } from "@/lib/business-locations";
+import {
+  CreateBusinessConflictError,
+  parseCreateBusinessConflict,
+} from "@/lib/business-conflict";
+
+export { CreateBusinessConflictError } from "@/lib/business-conflict";
 
 const LINKED_BUSINESSES_KEY = "linkedBusinesses";
 
@@ -131,33 +137,6 @@ interface LinkPropertyPayload {
 interface BusinessStatusPayload {
   businessId: string;
   isActive: boolean;
-}
-
-export interface ExistingBusinessConflict {
-  code: "BUSINESS_ALREADY_EXISTS";
-  existingBusiness: {
-    UniqueId: string;
-    Name: string;
-    Website: string;
-    IsPitch: boolean;
-    LinkedAuthId: string | null;
-  };
-  incomingBusiness: {
-    website: string;
-    authId: string | null;
-  };
-}
-
-export class CreateBusinessConflictError extends Error {
-  code: "BUSINESS_ALREADY_EXISTS";
-  conflict: ExistingBusinessConflict;
-
-  constructor(conflict: ExistingBusinessConflict, message?: string) {
-    super(message || "Business already exists");
-    this.name = "CreateBusinessConflictError";
-    this.code = "BUSINESS_ALREADY_EXISTS";
-    this.conflict = conflict;
-  }
 }
 
 export class InsufficientGscAccessError extends Error {
@@ -331,6 +310,8 @@ export function useCreateAgencyBusiness() {
   const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
 
   return useMutation<void, Error, CreateAgencyBusinessVariables>({
+    // This POST can create or link records, so it must never be replayed automatically.
+    retry: false,
     mutationFn: async ({
       businesses,
       mergeExisting = false,
@@ -407,15 +388,8 @@ export function useCreateAgencyBusiness() {
               throw new InsufficientGscAccessError(response.message);
             }
             if (response.code === "BUSINESS_ALREADY_EXISTS") {
-              const conflict: ExistingBusinessConflict = {
-                code: "BUSINESS_ALREADY_EXISTS",
-                existingBusiness: response.existingBusiness,
-                incomingBusiness: response.incomingBusiness,
-              };
-              throw new CreateBusinessConflictError(
-                conflict,
-                response.message || "Business already exists"
-              );
+              const conflictError = parseCreateBusinessConflict(response);
+              if (conflictError) throw conflictError;
             }
             throw new Error(response.message || "Failed to connect businesses");
           }
@@ -429,15 +403,8 @@ export function useCreateAgencyBusiness() {
               throw new InsufficientGscAccessError(errorData.message);
             }
             if (errorData.code === "BUSINESS_ALREADY_EXISTS") {
-              const conflict: ExistingBusinessConflict = {
-                code: "BUSINESS_ALREADY_EXISTS",
-                existingBusiness: errorData.existingBusiness,
-                incomingBusiness: errorData.incomingBusiness,
-              };
-              throw new CreateBusinessConflictError(
-                conflict,
-                errorData.message || "Business already exists"
-              );
+              const conflictError = parseCreateBusinessConflict(errorData);
+              if (conflictError) throw conflictError;
             }
             throw new Error(errorData.message || errorData.error || "Failed to connect businesses");
           }

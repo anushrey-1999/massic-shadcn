@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
+import {
+  CreateBusinessConflictError,
+  parseCreateBusinessConflict,
+} from "@/lib/business-conflict";
 
 interface CancelSubscriptionParams {
   businessId: string;
@@ -17,6 +21,11 @@ interface UpdateBusinessStatusParams {
 }
 
 interface ConvertPitchToBusinessParams {
+  businessId: string;
+  suppressConflictToast?: boolean;
+}
+
+interface ReactivateBusinessParams {
   businessId: string;
 }
 
@@ -98,13 +107,26 @@ export function useConvertPitchToBusiness() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.patch<{
+      let response: {
         err?: boolean;
         message?: string;
         data?: any;
-      }>(`/business/convert-to-business/${businessId}`, "node");
+      };
+      try {
+        response = await api.patch<{
+          err?: boolean;
+          message?: string;
+          data?: any;
+        }>(`/business/convert-to-business/${businessId}`, "node");
+      } catch (error: any) {
+        const conflictError = parseCreateBusinessConflict(error?.response?.data);
+        if (conflictError) throw conflictError;
+        throw error;
+      }
 
       if (response.err === true) {
+        const conflictError = parseCreateBusinessConflict(response);
+        if (conflictError) throw conflictError;
         throw new Error(response.message || "Failed to convert business");
       }
 
@@ -139,7 +161,17 @@ export function useConvertPitchToBusiness() {
         refetchType: "all",
       });
     },
-    onError: (error: any) => {
+    onError: (error: any, variables) => {
+      if (error instanceof CreateBusinessConflictError) {
+        if (!variables.suppressConflictToast) {
+          toast.error("Business already exists", {
+            description:
+              error.message ||
+              "Open the existing business instead of converting this pitch.",
+          });
+        }
+        return;
+      }
       const status = error?.response?.status;
       const code = error?.response?.data?.code;
       if (status === 403 || code === "ACCOUNT_ROLE_FORBIDDEN") {
@@ -148,6 +180,63 @@ export function useConvertPitchToBusiness() {
       }
 
       toast.error("Failed to convert to business", {
+        description: error.message || "Please try again later.",
+      });
+    },
+  });
+}
+
+export function useReactivateBusiness() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { err?: boolean; message?: string; data?: { businessId?: string; isActive?: boolean } },
+    Error,
+    ReactivateBusinessParams
+  >({
+    mutationFn: async ({ businessId }) => {
+      if (!businessId) {
+        throw new Error("Business ID is required");
+      }
+
+      const response = await api.patch<{
+        err?: boolean;
+        message?: string;
+        data?: { businessId?: string; isActive?: boolean };
+      }>(`/business/reactivate/${businessId}`, "node");
+
+      if (response.err === true) {
+        throw new Error(response.message || "Failed to reactivate business");
+      }
+
+      return response;
+    },
+    onSuccess: async (_, variables) => {
+      const { user } = useAuthStore.getState();
+      const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+
+      toast.success("Business reactivated successfully");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["linkedBusinesses"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["businessProfiles", userUniqueId],
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["businessProfiles", "detail", variables.businessId],
+          refetchType: "all",
+        }),
+      ]);
+    },
+    onError: (error: any) => {
+      const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      if (status === 403 || code === "ACCOUNT_ROLE_FORBIDDEN") {
+        toast.error(ANALYST_RESTRICTED_MESSAGE);
+        return;
+      }
+
+      toast.error("Failed to reactivate business", {
         description: error.message || "Please try again later.",
       });
     },

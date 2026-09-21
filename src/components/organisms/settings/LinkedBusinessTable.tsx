@@ -87,6 +87,7 @@ import {
   normalizeGbpLocationId,
 } from "@/lib/business-locations";
 import { toast } from "sonner";
+import type { ExistingBusinessSummary } from "@/lib/business-conflict";
 import {
   formatGscPermissionLevel,
   hasRequiredGscAccess,
@@ -419,13 +420,8 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     useState<LinkedBusiness | null>(null);
   const [mergeConfirmOpen, setMergeConfirmOpen] = useState(false);
   const [mergeConfirmRow, setMergeConfirmRow] = useState<LinkedBusiness | null>(null);
-  const [mergeTarget, setMergeTarget] = useState<{
-    UniqueId: string;
-    Name: string;
-    Website: string;
-    IsPitch: boolean;
-    LinkedAuthId: string | null;
-  } | null>(null);
+  const [mergeTarget, setMergeTarget] =
+    useState<ExistingBusinessSummary | null>(null);
   const [stickySummaryTopPx, setStickySummaryTopPx] = useState(0);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 

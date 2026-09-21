@@ -487,6 +487,7 @@ function buildMergedRows({
   gscPrevious,
   ga4Current,
   ga4Previous,
+  ga4SourceAvailable,
   keyNormalizer,
   rawKeyResolver,
   sourceResolver,
@@ -497,6 +498,7 @@ function buildMergedRows({
   gscPrevious: GscMetricRow[]
   ga4Current: Ga4MetricRow[]
   ga4Previous: Ga4MetricRow[]
+  ga4SourceAvailable: boolean
   keyNormalizer: (row: GscMetricRow | Ga4MetricRow, value: string) => string | null
   rawKeyResolver?: (row: GscMetricRow | Ga4MetricRow, displayValue: string) => string
   sourceResolver?: (row: GscMetricRow | Ga4MetricRow) => ContentGroupFilterSource | undefined
@@ -522,7 +524,7 @@ function buildMergedRows({
     const ga4PreviousRow = ga4PreviousMap.get(key)
 
     const gscAvailable = !!gscCurrentMap.get(key) || !!gscPreviousMap.get(key)
-    const ga4Available = !!ga4CurrentMap.get(key) || !!ga4PreviousMap.get(key)
+    const ga4Available = ga4SourceAvailable
     const displayKey = gscCurrentMap.get(key)?.key || ga4CurrentMap.get(key)?.key || key
     const metadataRow =
       (gscCurrentRow || gscPreviousRow || ga4CurrentRow || ga4PreviousRow || {}) as
@@ -1107,6 +1109,7 @@ export function useGSCAnalytics(
       gscPrevious: gscContentData.data.previous,
       ga4Current: ga4ContentData.data.current,
       ga4Previous: ga4ContentData.data.previous,
+      ga4SourceAvailable: ga4Enabled,
       keyNormalizer: (row, value) => {
         if (row.source === "custom") {
           const customName = String((row as GscMetricRow).group || row.keys?.[0] || value || "").trim()
@@ -1122,7 +1125,7 @@ export function useGSCAnalytics(
       gscDisplayResolver: (row) => row.keys?.[0] || row.group || row.displayName || "",
       ga4DisplayResolver: (row) => row.keys?.[0] || "",
     })
-  }, [ga4ContentData.data.current, ga4ContentData.data.previous, gscContentData.data.current, gscContentData.data.previous])
+  }, [ga4ContentData.data.current, ga4ContentData.data.previous, ga4Enabled, gscContentData.data.current, gscContentData.data.previous])
 
   const normalizedContentGroupRows = useMemo(() => {
     const map = new Map<string, MergedRow>()
@@ -1149,12 +1152,13 @@ export function useGSCAnalytics(
       gscPrevious: gscPagesData.data.previous,
       ga4Current: ga4PagesData.data.current,
       ga4Previous: ga4PagesData.data.previous,
+      ga4SourceAvailable: ga4Enabled,
       keyNormalizer: (_row, value) => normalizePageKey(value),
       rawKeyResolver: (row, displayValue) => String(row.keys?.[0] || displayValue || "").trim(),
       gscDisplayResolver: (row) => row.keys?.[0] || "",
       ga4DisplayResolver: (row) => row.keys?.[0] || "",
     })
-  }, [ga4PagesData.data.current, ga4PagesData.data.previous, gscPagesData.data.current, gscPagesData.data.previous])
+  }, [ga4Enabled, ga4PagesData.data.current, ga4PagesData.data.previous, gscPagesData.data.current, gscPagesData.data.previous])
 
   const topQueryRows = useMemo(() => {
     return buildGscOnlyRows(gscQueriesData.data.current, gscQueriesData.data.previous)
@@ -1185,12 +1189,22 @@ export function useGSCAnalytics(
   }, [])
 
   const contentGroupsData = useMemo(() => {
-    return filterAndSortMergedTableData(normalizedContentGroupRows, contentGroupsFilter, contentGroupsSort, true)
-  }, [contentGroupsFilter, contentGroupsSort, filterAndSortMergedTableData, normalizedContentGroupRows])
+    return filterAndSortMergedTableData(
+      normalizedContentGroupRows,
+      contentGroupsFilter,
+      contentGroupsSort,
+      ga4Enabled
+    )
+  }, [contentGroupsFilter, contentGroupsSort, filterAndSortMergedTableData, ga4Enabled, normalizedContentGroupRows])
 
   const topPagesData = useMemo(() => {
-    return filterAndSortMergedTableData(mergedTopPageRows, topPagesFilter, topPagesSort, true)
-  }, [filterAndSortMergedTableData, mergedTopPageRows, topPagesFilter, topPagesSort])
+    return filterAndSortMergedTableData(
+      mergedTopPageRows,
+      topPagesFilter,
+      topPagesSort,
+      ga4Enabled
+    )
+  }, [filterAndSortMergedTableData, ga4Enabled, mergedTopPageRows, topPagesFilter, topPagesSort])
 
   const topQueriesData = useMemo(() => {
     const topQuerySort: { column: SortColumn; direction: SortDirection } =
@@ -1340,6 +1354,7 @@ export function useGSCAnalytics(
     hasTopPagesData,
     hasTopQueriesData,
     loadingState,
+    isGa4MetricsAvailable: ga4Enabled,
     isConnectionBlocked: gscGate.isBlocked,
     isGa4ConnectionBlocked: ga4Gate.isBlocked,
   }

@@ -184,6 +184,7 @@ export function CreatePitchTemplate() {
           businessId: createdBusinessId,
           businessProfilePayload,
           offerings,
+          suppressErrorToast: true,
         });
 
         router.push(`/pitches/${createdBusinessId}/reports`);

@@ -9,6 +9,7 @@ import {
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
 import { AnalyticsToolbar } from "@/components/organisms/analytics/AnalyticsToolbar";
 import {
+  MonitoringSheet,
   PeriodSelector,
   PrimaryDriversSheet,
   type AnalyticsGroupBy,
@@ -219,6 +220,9 @@ export function AnalyticsTemplate() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [customContentGroupsOpen, setCustomContentGroupsOpen] = useState(false);
   const [primaryDriversOpen, setPrimaryDriversOpen] = useState(false);
+  const [monitoringOpen, setMonitoringOpen] = useState(
+    searchParams.get("monitoring") === "1"
+  );
   const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -423,6 +427,10 @@ export function AnalyticsTemplate() {
     if (searchParams.get("tab") === "organic") {
       setSelectedTab("organic");
     }
+    // Lets a specific business be handed over as a URL with the sheet already open.
+    if (searchParams.get("monitoring") === "1") {
+      setMonitoringOpen(true);
+    }
   }, [searchParams]);
 
   const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
@@ -591,6 +599,10 @@ export function AnalyticsTemplate() {
             if (!businessId) return;
             setPrimaryDriversOpen(true);
           }}
+          onMonitoring={() => {
+            if (!businessId) return;
+            setMonitoringOpen(true);
+          }}
           onViewReports={() => {
             if (!businessId) return;
             router.push(`/business/${businessId}/reports`);
@@ -612,6 +624,7 @@ export function AnalyticsTemplate() {
             setCustomContentGroupsOpen(true);
           }}
           primaryDriversDisabled={!businessId}
+          monitoringDisabled={!businessId}
           reportsDisabled={!businessId}
           indexingDisabled={!businessId}
           contentGroupsDisabled={!businessId || isGa4DataBlocked}
@@ -745,6 +758,13 @@ export function AnalyticsTemplate() {
       <PrimaryDriversSheet
         open={primaryDriversOpen}
         onOpenChange={setPrimaryDriversOpen}
+        businessId={businessId}
+        businessName={businessName}
+      />
+
+      <MonitoringSheet
+        open={monitoringOpen}
+        onOpenChange={setMonitoringOpen}
         businessId={businessId}
         businessName={businessName}
       />

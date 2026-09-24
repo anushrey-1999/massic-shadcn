@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { getMessages, getCitations } from "./agent-api";
-import { hydrateMessage } from "./agent-model";
+import { hydrateMessage, isSummaryMarker } from "./agent-model";
 import { citationEntries, citationMessages, readableLabel, responseExcerpt, sourceLabel, sourceUrl } from "./agent-citations";
-import type { AgentMessage, CitationSource } from "./types";
+import type { ChatEntry, CitationSource, ThreadMessage } from "./types";
 import styles from "./agent.module.css";
 
 export function CitationSources({ sources }: { sources: CitationSource[] }) {
@@ -17,7 +17,7 @@ export function CitationSources({ sources }: { sources: CitationSource[] }) {
     return <li key={source.source_id} className="min-w-0 text-xs text-muted-foreground">{url ? <a href={url} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-start gap-1.5 rounded text-general-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30"><span className="min-w-0 break-words [overflow-wrap:anywhere]">{sourceLabel(source)}</span><ExternalLink className="mt-0.5 size-3 shrink-0" /></a> : <span className="break-words">{sourceLabel(source)}</span>}</li>;
   })}</ul>;
 }
-export function AgentCitationsDrawer({ business, thread, title, messages, streaming }: { business: string; thread: string; title: string; messages: AgentMessage[]; streaming: boolean }) {
+export function AgentCitationsDrawer({ business, thread, title, messages, streaming }: { business: string; thread: string; title: string; messages: ChatEntry[]; streaming: boolean }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const history = useInfiniteQuery({
@@ -27,7 +27,7 @@ export function AgentCitationsDrawer({ business, thread, title, messages, stream
     queryFn: async ({ pageParam, signal }) => {
       const page = await getMessages(business, thread, pageParam, signal);
       if (page.has_more && (!page.next_cursor || page.next_cursor === pageParam)) throw new Error("Citation history could not be fully loaded.");
-      const turns = page.turns.filter(turn => turn.role === "assistant");
+      const turns = (page.items ?? []).filter((item): item is ThreadMessage => !isSummaryMarker(item) && item.role === "assistant");
       const documents = await getCitations(business, thread, turns.map(turn => turn.turn_id), signal);
       return { ...page, messages: turns.map(turn => ({ ...hydrateMessage(turn), citations: documents[turn.turn_id] ?? undefined })) };
     },
@@ -37,7 +37,7 @@ export function AgentCitationsDrawer({ business, thread, title, messages, stream
   useEffect(() => {
     if (open && history.hasNextPage && !history.isFetching && !history.isError) void history.fetchNextPage();
   }, [open, history.hasNextPage, history.isFetching, history.isError, history.fetchNextPage]);
-  const entries = useMemo(() => open ? citationMessages([...(history.data?.pages.flatMap(page => page.messages) ?? []), ...messages]) : [], [open, history.data, messages]);
+  const entries = useMemo(() => open ? citationMessages([...(history.data?.pages.flatMap(page => page.messages) ?? []), ...messages.flatMap(entry => entry.kind === "message" ? [entry.message] : [])]) : [], [open, history.data, messages]);
   const loading = !thread.startsWith("draft:") && (history.isFetching || (!history.isError && (history.isPending || history.hasNextPage)));
   const count = entries.reduce((sum, message) => sum + citationEntries(message.citations!).references.length, 0);
   return <>

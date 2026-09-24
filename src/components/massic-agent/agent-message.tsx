@@ -11,7 +11,7 @@ import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { renderLightMarkdown } from "@/components/chatbot/markdown";
 import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
 import { cn } from "@/lib/utils";
-import { cleanContent, intentLabel, resourceSurface, SURFACES } from "./agent-model";
+import { cleanContent, resourceSurface, SURFACES } from "./agent-model";
 import type { AgentMessage, CitationDocument, ResourceRef } from "./types";
 
 function CitationChip({ number, document }: { number: number; document?: CitationDocument }) {
@@ -49,7 +49,6 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
     }, 1500);
   } catch { setCopyError(true); } };
   if (message.role === "user") return <div className="flex justify-end pl-16"><div className="max-w-[78%] rounded-2xl bg-secondary px-4 py-2.5 text-left text-sm leading-[1.5] tracking-[0.18px] text-general-foreground">
-    {message.intent && <p className="mb-1 text-[10px] text-general-muted-foreground">{intentLabel(message.intent.kind)}</p>}
     <p className="whitespace-pre-wrap break-words">{content}</p>
     {message.view?.resource && <p className="mt-2 text-[10px] text-general-muted-foreground">Plan #{message.view.resource.id} · {message.view.selected_item_ids?.length ?? 0} selected</p>}
   </div></div>;
@@ -77,7 +76,6 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
         {!streaming && <div className="flex items-end gap-2 text-[10px] leading-[1.5] tracking-[0.15px] text-general-muted-foreground"><span className="flex w-[23px] shrink-0 flex-col items-center"><span className="h-[17px] w-px bg-general-border" aria-hidden="true" /><CircleCheckBig className="size-3.5 shrink-0" /></span><span>Done</span></div>}
       </div>
     </CollapsibleContent></Collapsible>}
-    {message.intent?.kind.startsWith("activate") && <p className="text-xs text-muted-foreground">{intentLabel(message.intent.kind)}</p>}
     {content && <div className="break-words text-sm leading-[1.5] tracking-[0.18px] text-general-foreground [&_p]:my-2 [&_p:first-child]:mt-0 [&_h1]:mt-4 [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:text-base [&_h3]:mt-3 [&_h3]:font-medium [&_strong]:font-medium [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_a]:text-general-primary [&_a]:underline [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-4 [&_code]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:pl-4">
       {markdown}
     </div>}

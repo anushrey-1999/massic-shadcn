@@ -76,7 +76,7 @@ export const AgentMessageView = memo(function AgentMessageView({ message, stream
         {!streaming && <div className="flex items-end gap-2 text-[10px] leading-[1.5] tracking-[0.15px] text-general-muted-foreground"><span className="flex w-[23px] shrink-0 flex-col items-center"><span className="h-[17px] w-px bg-general-border" aria-hidden="true" /><CircleCheckBig className="size-3.5 shrink-0" /></span><span>Done</span></div>}
       </div>
     </CollapsibleContent></Collapsible>}
-    {content && <div className="break-words text-sm leading-[1.5] tracking-[0.18px] text-general-foreground [&_p]:my-2 [&_p:first-child]:mt-0 [&_h1]:mt-4 [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:text-base [&_h3]:mt-3 [&_h3]:font-medium [&_strong]:font-medium [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_a]:text-general-primary [&_a]:underline [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-4 [&_code]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:pl-4">
+    {content && <div className={cn("break-words text-sm leading-[1.5] tracking-[0.18px] text-general-foreground", styles.markdown)}>
       {markdown}
     </div>}
     {message.partial && <p className="text-xs text-muted-foreground">{message.status === "cancelled" ? "Response stopped" : "Partial response"}</p>}

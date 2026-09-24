@@ -6,19 +6,6 @@ import { Button } from "@/components/ui/button";
 import { AgentMessageView } from "./agent-message";
 import type { ChatEntry, ResourceRef } from "./types";
 
-function SummaryDivider({ summaryText }: { summaryText: string | null }) {
-  return (
-    <div className="flex items-center gap-3 py-1" role="separator" aria-label="Earlier messages were summarised">
-      <span className="h-px min-w-0 flex-1 bg-general-border" aria-hidden="true" />
-      <div className="max-w-[80%] text-center">
-        <p className="text-[11px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">Earlier messages were summarised</p>
-        {summaryText?.trim() ? <p className="mt-1 text-[11px] leading-[1.5] tracking-[0.18px] text-general-muted-foreground">{summaryText.trim()}</p> : null}
-      </div>
-      <span className="h-px min-w-0 flex-1 bg-general-border" aria-hidden="true" />
-    </div>
-  );
-}
-
 export function AgentChatThread({ messages, streaming, activeResource, onOpenPlan, hasMore, loadingMore, onLoadMore }: { messages: ChatEntry[]; streaming: boolean; activeResource: ResourceRef | null; onOpenPlan: (resource: ResourceRef) => void; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void }) {
   const openPlanRef = useRef(onOpenPlan);
   useLayoutEffect(() => { openPlanRef.current = onOpenPlan; });
@@ -40,11 +27,10 @@ export function AgentChatThread({ messages, streaming, activeResource, onOpenPla
     resize.observe(el);
     return () => resize.disconnect();
   }, []);
+  const lastMessageIndex = messages.findLastIndex(entry => entry.kind === "message");
   return <div className={`relative min-h-0 flex-1 ${styles.threadReveal}`}><div ref={scroll} className="h-full overflow-y-auto overscroll-contain" onScroll={() => { const el = scroll.current!; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120; setAway(!follow.current); }}>
     <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">{hasMore && <div className="text-center"><Button variant="ghost" size="sm" disabled={loadingMore} onClick={() => { olderHeight.current = scroll.current?.scrollHeight ?? null; onLoadMore(); }}>{loadingMore ? "Loading…" : "Load older messages"}</Button></div>}
-      {messages.map((entry, i) => entry.kind === "summary"
-        ? <SummaryDivider key={entry.id} summaryText={entry.summaryText} />
-        : <div key={entry.message.presentationId ?? entry.message.id} className={entry.message.presentationId && !initial.current.has(entry.message.presentationId) ? styles.messageReveal : undefined}><AgentMessageView message={entry.message} streaming={streaming && i === messages.length - 1} activeResource={activeResource} onOpenPlan={openPlan} /></div>)}
+      {messages.map((entry, i) => entry.kind === "summary" ? null : <div key={entry.message.presentationId ?? entry.message.id} className={entry.message.presentationId && !initial.current.has(entry.message.presentationId) ? styles.messageReveal : undefined}><AgentMessageView message={entry.message} streaming={streaming && i === lastMessageIndex} activeResource={activeResource} onOpenPlan={openPlan} /></div>)}
     </div>
   </div>{away && <Button variant="outline" size="icon-sm" className={`${styles.softReveal} absolute bottom-4 left-1/2 rounded-full bg-background shadow-md transition-shadow hover:shadow-lg`} aria-label="Jump to latest message" onClick={() => { const el = scroll.current; if (el) { el.scrollTo({ top: el.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); follow.current = true; } }}><ArrowDown className="h-4 w-4" /></Button>}</div>;
 }

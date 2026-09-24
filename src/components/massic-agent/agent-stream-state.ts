@@ -5,7 +5,7 @@ const labels: Record<string, string> = { search_knowledge: "Searching knowledge"
 export const toolLabel = (name: string) => labels[name] ?? name.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
 export function reduceAgentEvent(message: AgentMessage, event: AgentEvent): AgentMessage {
   const activity = [...(message.activity ?? [])];
-  const scope = event.path ?? event.agent ?? "orchestrator";
+  const scope = event.path ?? event.agent ?? "planner";
   const depth = event.depth ?? 0;
   const settle = (status: ActivityStep["status"]) => activity.map(s => s.status === "running" ? { ...s, status } : s);
   switch (event.type) {

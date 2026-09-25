@@ -59,8 +59,16 @@ export async function getCitations(business: string, thread: string, ids: string
   return batches;
 }
 export async function cancelTurn(business: string, thread: string, turn: string) {
-  const response = await api.post<{ accepted: boolean }>("/agent/cancel", "python", { thread_id: thread, turn_id: turn }, { params: tenant(business) });
-  if (!response.accepted) throw new Error("The server could not stop this response. It is still running.");
+  try {
+    const response = await api.post<{ accepted: boolean; error?: string }>("/agent/cancel", "python", { thread_id: thread, turn_id: turn }, { params: tenant(business) });
+    if (!response.accepted) throw new Error("The server could not stop this response. It is still running.");
+  } catch (error) {
+    const response = (error as { response?: { status?: number; data?: { error?: string; detail?: unknown } } })?.response;
+    if (response?.status === 503 && (response.data?.error === "redis_unavailable" || response.data?.detail === "redis_unavailable")) {
+      throw new Error("The stop signal could not be stored. The response is still running.");
+    }
+    throw error;
+  }
 }
 export async function startChatStream(business: string, request: ChatRequest, signal: AbortSignal) {
   const token = Cookies.get("token");

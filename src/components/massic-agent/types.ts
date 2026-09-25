@@ -1,13 +1,11 @@
 export type Surface = "global" | "webpages" | "social_channels";
+export type AgentId = "main" | "planner";
 export type ResourceType = "webpage_plan" | "social_channels_plan";
 export type ResourceRef = { type: ResourceType; id: number | string };
-export type IntentKind = `${"create" | "refine" | "activate"}_${"webpages" | "social_channels"}_plan`;
-export type PlanIntent = { kind: IntentKind; payload?: { plan_id?: number | string; timeframe?: number } };
 export type ChatMetadata = {
   view?: { resource: ResourceRef; selected_item_ids: string[] };
-  intent?: PlanIntent;
 };
-export type ChatRequest = { thread_id?: string; surface?: Surface; message?: string; metadata?: ChatMetadata };
+export type ChatRequest = { agent_id: AgentId; thread_id?: string; message: string; metadata?: ChatMetadata };
 export type WidgetPart = {
   kind: "widget"; widget: "resource_table"; schema_version: 1;
   resource: ResourceRef; source?: { tool_call_id?: string; tool_name?: string };
@@ -21,12 +19,17 @@ export type ActivityStep = { id: string; label: string; detail?: string; scope: 
 export type AgentMessage = {
   id: string; presentationId?: string; turnId?: string; role: "user" | "assistant"; content: string; createdAt: number;
   status?: TurnStatus; partial?: boolean; error?: string; activity?: ActivityStep[];
-  citations?: CitationDocument; widgetParts?: WidgetPart[]; intent?: PlanIntent; view?: ChatMetadata["view"];
+  citations?: CitationDocument; widgetParts?: WidgetPart[]; view?: ChatMetadata["view"];
 };
-export type AgentThread = { thread_id: string; surface: Surface; title: string | null; created_at: string; updated_at: string };
-export type AgentConversation = { id: string; title: string; surface: Surface; updatedAt: number };
-export type ThreadMessage = { turn_id: string; role: "user" | "assistant"; content: string; status: TurnStatus; metadata?: Record<string, unknown>; created_at: string };
-export type MessagesPage = { turns: ThreadMessage[]; next_cursor: string | null; has_more: boolean };
+export type ChatEntry =
+  | { kind: "message"; message: AgentMessage }
+  | { kind: "summary"; id: string; eventId: number; summaryText: string | null };
+export type AgentThread = { thread_id: string; title: string | null; summary?: string | null; status?: string; metadata?: Record<string, unknown>; created_at: string; updated_at: string };
+export type AgentConversation = { id: string; title: string; updatedAt: number };
+export type ThreadMessage = { turn_id: string; thread_id?: string; role: "user" | "assistant"; content: string; status: TurnStatus; token_usage?: Record<string, unknown>; metadata?: Record<string, unknown>; created_at: string };
+export type SummaryMarker = { type: "summary"; event_id: number; created_at: string; summary_text: string | null; watermark_turn_id: number };
+export type ThreadItem = ThreadMessage | SummaryMarker;
+export type MessagesPage = { thread_id?: string; items: ThreadItem[]; limit?: number; next_cursor: string | null; has_more: boolean };
 export type ThreadsPage = { threads: AgentThread[]; total: number; limit: number; offset: number };
 export type PlanItem = {
   [key: string]: unknown;

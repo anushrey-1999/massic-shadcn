@@ -10,6 +10,8 @@ const PUBLIC_ROUTES = [
   "/r",
   "/email/verify",
   "/snapshot",
+  "/admin/login",
+  "/email/verify",
 ];
 
 export function proxy(request: NextRequest) {

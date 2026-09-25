@@ -152,6 +152,8 @@ export interface AdminApiCostBusiness {
   cost: number;
   percentOfTotal: number;
   attributed: boolean;
+  /** Per-workflow costs for this business; percentOfTotal is share of this business. */
+  workflows: AdminApiCostWorkflow[];
 }
 
 export interface AdminApiCostWorkflow {

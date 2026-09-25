@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -96,6 +96,18 @@ export default function CreateBusinessPage() {
   const [conflictingBusiness, setConflictingBusiness] =
     useState<ExistingBusinessSummary | null>(null);
 
+  // Bug-fix: covers the entire handleSubmitCreate span (including the gap between
+  // the two mutations where both isPending flags are momentarily false).
+  const [isBusy, setIsBusy] = useState(false);
+  // Bug-fix: synchronous guard that prevents a second invocation before React
+  // has re-rendered with the updated isBusy/isPending flags.
+  const isSubmittingRef = useRef(false);
+  // Bug-fix: idempotency refs so a retry after partial failure re-uses the
+  // already-created business/job instead of creating a second one.
+  const createdBusinessIdRef = useRef<string | null>(null);
+  const jobCreatedRef = useRef(false);
+  const createdForWebsiteRef = useRef<string | null>(null);
+
   const form = useForm({
     defaultValues: profileFormDefaults,
     validators: {
@@ -122,11 +134,16 @@ export default function CreateBusinessPage() {
     setLocationsLoading,
   ]);
 
+
   const handleSubmitCreate = useCallback(
     async (options?: {
       values?: FormData;
       autofillData?: NormalizedProfileResult | null;
     }) => {
+      // Bug-fix 1: synchronous guard — prevents a second call before React
+      // re-renders with updated isPending/isBusy flags (avoids double-submit race).
+      if (isSubmittingRef.current) return;
+
       if (offeringsExtractor.isExtracting) {
         toast.error("Please wait for offerings extraction to finish.");
         return;
@@ -134,6 +151,19 @@ export default function CreateBusinessPage() {
 
       const values = options?.values ?? (form.state.values as FormData);
       const activeAutofillData = options?.autofillData ?? null;
+
+      // Bug-fix 3: reset idempotency state when the user switches to a different
+      // website so a fresh attempt doesn't re-use the previous run's business/job.
+      if (
+        createdBusinessIdRef.current &&
+        createdForWebsiteRef.current &&
+        String(values.website || "").trim() !== createdForWebsiteRef.current
+      ) {
+        createdBusinessIdRef.current = null;
+        jobCreatedRef.current = false;
+        createdForWebsiteRef.current = null;
+      }
+
       const validation = businessInfoSchema.safeParse(values);
 
       formFieldNames.forEach((fieldName) => {
@@ -164,74 +194,106 @@ export default function CreateBusinessPage() {
         return;
       }
 
+      // Bug-fix 1 + 2: set the synchronous guard and the busy state together so
+      // the loading overlay covers the entire flow — including the gap between the
+      // two mutations where both mutation isPending flags are momentarily false.
+      isSubmittingRef.current = true;
+      setIsBusy(true);
+
       try {
-        const result = await createBusiness.mutateAsync({
-          website: values.website,
-          businessName: values.businessName,
-          primaryLocation: values.primaryLocation,
-          serveCustomers:
-            values.serviceType === "physical"
-              ? "local"
-              : values.serviceType === "both"
-                ? "both"
-                : "online",
-          offerType: values.offerings,
-          suppressErrorToast: true,
-        });
+        // Bug-fix 3a: skip business creation if a prior attempt already succeeded.
+        // This allows safe retry after job-creation failure without spawning a
+        // second business for the same domain.
+        let businessId = createdBusinessIdRef.current;
+        let resultCreatedBusiness: BusinessProfile | null = null;
 
-        await refetchBusinessProfiles();
-
-        const businessId = result?.createdBusiness?.UniqueId;
-        if (businessId) {
-          const formOfferings = Array.isArray(values.offeringsList)
-            ? values.offeringsList
-                .filter((row: any) => Boolean(row?.name?.trim()))
-                .map((row: any) => ({
-                  name: String(row.name || ""),
-                  description: String(row.description || ""),
-                  link: String(row.link || ""),
-                  offering_type: String((row as any).offeringType || ""),
-                  price_range: String(
-                    (row as any).priceRange || row.pricePositioning || "",
-                  ),
-                  duration: String((row as any).duration || ""),
-                  inclusions: Array.isArray((row as any).inclusions)
-                    ? (row as any).inclusions
-                    : typeof (row as any).inclusions === "string"
-                      ? (row as any).inclusions
-                      : [],
-                }))
-            : [];
-          const offerings = formOfferings;
-          const businessProfilePayload = buildBusinessProfilePayload(values, {
-            autofillResult: activeAutofillData,
-            locationOptions,
-            normalizeWebsite: true,
-            ctasMode: "wrapped-json",
+        if (!businessId) {
+          const result = await createBusiness.mutateAsync({
+            website: values.website,
+            businessName: values.businessName,
+            primaryLocation: values.primaryLocation,
+            serveCustomers:
+              values.serviceType === "physical"
+                ? "local"
+                : values.serviceType === "both"
+                  ? "both"
+                  : "online",
+            offerType: values.offerings,
+            suppressErrorToast: true,
           });
 
-          await updateCreatedBusinessProfile(
-            businessId,
-            result.createdBusiness,
-            businessProfilePayload,
-            values.website,
-          );
+          await refetchBusinessProfiles();
 
+          businessId = result?.createdBusiness?.UniqueId || null;
+          resultCreatedBusiness = result?.createdBusiness || null;
+
+          if (businessId) {
+            createdBusinessIdRef.current = businessId;
+            createdForWebsiteRef.current = String(values.website || "").trim();
+          }
+        }
+
+        if (!businessId) {
+          resetBaseline();
+          allowNavigation(() => router.push("/"));
+          return;
+        }
+
+        const formOfferings = Array.isArray(values.offeringsList)
+          ? values.offeringsList
+              .filter((row: any) => Boolean(row?.name?.trim()))
+              .map((row: any) => ({
+                name: String(row.name || ""),
+                description: String(row.description || ""),
+                link: String(row.link || ""),
+                offering_type: String((row as any).offeringType || ""),
+                price_range: String(
+                  (row as any).priceRange || row.pricePositioning || "",
+                ),
+                duration: String((row as any).duration || ""),
+                inclusions: Array.isArray((row as any).inclusions)
+                  ? (row as any).inclusions
+                  : typeof (row as any).inclusions === "string"
+                    ? (row as any).inclusions
+                    : [],
+              }))
+          : [];
+        const offerings = formOfferings;
+        const businessProfilePayload = buildBusinessProfilePayload(values, {
+          autofillResult: activeAutofillData,
+          locationOptions,
+          normalizeWebsite: true,
+          ctasMode: "wrapped-json",
+        });
+
+        await updateCreatedBusinessProfile(
+          businessId,
+          resultCreatedBusiness,
+          businessProfilePayload,
+          values.website,
+        );
+
+        // Bug-fix 3b: skip job creation if a prior attempt already succeeded.
+        if (!jobCreatedRef.current) {
           await createJob.mutateAsync({
             businessId,
             businessProfilePayload,
             offerings,
             suppressErrorToast: true,
           });
-
-          await refetchBusinessProfiles();
-
-          resetBaseline();
-          allowNavigation(() => router.push(`/business/${businessId}/profile`));
-        } else {
-          resetBaseline();
-          allowNavigation(() => router.push("/"));
+          jobCreatedRef.current = true;
         }
+
+        await refetchBusinessProfiles();
+
+        // Clean up idempotency state after full success (component will unmount
+        // shortly via navigation, but this keeps state clean if it doesn't).
+        createdBusinessIdRef.current = null;
+        jobCreatedRef.current = false;
+        createdForWebsiteRef.current = null;
+
+        resetBaseline();
+        allowNavigation(() => router.push(`/business/${businessId}/profile`));
       } catch (error) {
         if (error instanceof CreateBusinessConflictError) {
           setConflictingBusiness(error.conflict.existingBusiness);
@@ -244,6 +306,11 @@ export default function CreateBusinessPage() {
               ? error.message
               : "Please try again before continuing.",
         });
+      } finally {
+        // Always release the guards so the form is interactive again after the
+        // flow completes (success, error, or conflict).
+        isSubmittingRef.current = false;
+        setIsBusy(false);
       }
     },
     [
@@ -366,7 +433,7 @@ export default function CreateBusinessPage() {
         locationOptions={locationOptions}
         locationsLoading={locationsLoading}
         isSubmitting={form.state.isSubmitting}
-        isPending={createBusiness.isPending || createJob.isPending}
+        isPending={createBusiness.isPending || createJob.isPending || isBusy}
         isAutofillLoading={isAutofillLoading}
         offeringsExtractor={offeringsExtractor}
         hasAutofilledProfile={hasAutofilledProfile}

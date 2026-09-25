@@ -273,6 +273,14 @@ export function PitchProfileTemplate() {
     }
     if (isSaving) return false;
 
+    // Bug-fix 4: don't decide create-vs-update until the job query has returned.
+    // If we read jobQuery.data before it's fetched, data is undefined and jobExists
+    // would be false — causing a second job to be created for the same business.
+    if (!jobQuery.isFetched) {
+      toast.error("Loading pitch data, please wait a moment and try again.");
+      return false;
+    }
+
     const values = form.state.values as BusinessInfoFormData;
     const blockReason = getSaveBlockReason(values);
     if (blockReason) {

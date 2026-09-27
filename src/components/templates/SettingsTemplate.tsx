@@ -6,8 +6,9 @@ import { ProfileSettings } from "@/components/organisms/settings/ProfileSettings
 import { BillingSettings } from "@/components/organisms/settings/BillingSettings";
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
 import { AccessRequestSettings } from "@/components/organisms/settings/AccessRequestSettings";
+import { McpAccessSettings } from "@/components/organisms/settings/McpAccessSettings";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { ReceiptText, Settings, Users, Share2 } from "lucide-react";
+import { Bot, ReceiptText, Settings, Users, Share2 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -49,6 +50,9 @@ const SettingsTemplate = () => {
     } else if (normalizedTab === "access-requests") {
       setActiveTab("access-requests");
       router.replace(pathname, { scroll: false });
+    } else if (normalizedTab === "ai-access") {
+      setActiveTab("ai-access");
+      router.replace(pathname, { scroll: false });
     }
   }, [canManageBilling, pathname, router, searchParams]);
 
@@ -81,6 +85,9 @@ const SettingsTemplate = () => {
               <TabsTrigger value="access-requests">
                 <Share2 /> Access Requests
               </TabsTrigger>
+              <TabsTrigger value="ai-access">
+                <Bot /> AI Access
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
@@ -101,6 +108,10 @@ const SettingsTemplate = () => {
 
             <TabsContent value="access-requests" className="mt-6">
               <AccessRequestSettings isActive={activeTab === "access-requests"} />
+            </TabsContent>
+
+            <TabsContent value="ai-access" className="mt-6">
+              <McpAccessSettings />
             </TabsContent>
           </Tabs>
         </div>

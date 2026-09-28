@@ -59,15 +59,17 @@ export function AgentComposer(p: Props) {
       </button>}</AgentComposerRow>
       <div className="relative">
         <Textarea ref={ref} value={p.value} onChange={e => p.onChange(e.target.value)} aria-label="Message Massic Agent" rows={1} style={{ fieldSizing: "fixed" } as CSSProperties}
+          aria-keyshortcuts="Enter"
           placeholder={p.resource ? "How would you like to refine this plan?" : "Ask Massic"}
           className={cn(styles.composerTextarea, "min-h-0 max-h-[180px] resize-none overflow-y-hidden border-0 bg-transparent pr-14 pl-4 text-sm leading-5 shadow-none focus-visible:ring-0", p.centered ? "py-4" : "py-3")}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (p.value.trim() && !busy) p.onSend(); } }} />
         <div className={cn("absolute right-2 flex items-center transition-[top,bottom,transform] duration-150 motion-reduce:transition-none", expanded ? "top-[calc(100%-44px)]" : "top-[calc(50%-18px)]")}>
-          {p.streaming ? <Button size="icon" onClick={p.onStop} disabled={p.stopping} aria-label={p.stopping ? "Stopping response" : "Stop response"} className="rounded-lg shadow-sm"><Square className="h-3.5 w-3.5 fill-current" /></Button>
-            : <Button size="icon" onClick={() => p.onSend()} disabled={busy || !p.value.trim()} aria-label="Send message" className="rounded-lg shadow-sm"><SendHorizontal className="h-4 w-4" /></Button>}
+          {p.streaming ? <Button size="icon" onClick={p.onStop} disabled={p.stopping} aria-label={p.stopping ? "Stopping response" : "Stop response"} title={p.stopping ? "Stopping response" : "Stop response"} className="rounded-lg shadow-sm"><Square className="h-3.5 w-3.5 fill-current" /></Button>
+            : <Button size="icon" onClick={() => p.onSend()} disabled={busy || !p.value.trim()} aria-label="Send message" title="Send message" className="rounded-lg shadow-sm"><SendHorizontal className="h-4 w-4" /></Button>}
         </div>
       </div>
     </div>
+    {!p.centered && <p className="mt-1.5 hidden px-1 text-right text-[10px] leading-[1.5] text-general-muted-foreground sm:block">Enter to send · Shift + Enter for a new line</p>}
     <AgentComposerRow visible={showQuickActions}><div className={cn(styles.softReveal, "mt-2 flex flex-wrap items-center gap-1.5 pb-1")}>
       {!planType ? <>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => p.onSend(planActionMessage("create", "webpage_plan"))} className={quickActionClass}>Create web plan</Button>

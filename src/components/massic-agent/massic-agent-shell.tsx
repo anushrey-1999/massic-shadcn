@@ -25,7 +25,7 @@ import { AgentPlanHeader } from "./agent-plan-header";
 import { AgentPlansView } from "./agent-plans-view";
 import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
 import type { AgentEntryAction } from "./agent-links";
-import { allPlanIds, planActionMessage, resourceKey, resourceSurface, SURFACES } from "./agent-model";
+import { allPlanIds, PLAN_SURFACES, planActionMessage, resourceKey, resourcePlanSurface } from "./agent-model";
 import { useAgentChat } from "./use-agent-chat";
 import type { AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
@@ -78,7 +78,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const entrySurface = entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels" ? entrySurfaceRaw : null;
   const preferredAction: AgentEntryAction | undefined = entryActionRaw === "create" || entryActionRaw === "refine" || entryActionRaw === "activate" ? entryActionRaw : undefined;
   const planRef = chat.draft.resource;
-  const preferredSurface = planRef ? resourceSurface(planRef.type) : chat.draft.preferredSurface;
+  const preferredSurface = planRef ? resourcePlanSurface(planRef.type) : chat.draft.preferredSurface;
   const planQuery = useQuery({ queryKey: agentKeys.plan(businessId, planRef?.id ?? ""), queryFn: ({ signal }) => getPlan(businessId, planRef!.id, signal), enabled: !!planRef, retry: false });
   const expectedPlanType = planRef?.type === "webpage_plan" ? "webpages" : "social_channels";
   const planSurface = preferredSurface ?? "webpages";
@@ -268,6 +268,6 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
         </aside>}
       </div>
     </main>
-    {preferredSurface && <AgentPlanPicker businessId={businessId} type={SURFACES[preferredSurface].resource!} open={planPicker} onOpenChange={setPlanPicker} onPick={openPlan} />}
+    {preferredSurface && <AgentPlanPicker businessId={businessId} type={PLAN_SURFACES[preferredSurface].resource} open={planPicker} onOpenChange={setPlanPicker} onPick={openPlan} />}
   </div>;
 }

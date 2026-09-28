@@ -1,8 +1,9 @@
 "use client";
 import { useMemo } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { agentKeys, getCitations, getMessages, getThreads } from "./agent-api";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
+import { agentKeys, getCitations, getMessages, getThreads, getTurnTrace } from "./agent-api";
 import { hydrateThreadItem } from "./agent-model";
+import { activityFromTrace } from "./agent-stream-state";
 
 export function useAgentHistory(business: string, thread: string | null) {
   const threads = useInfiniteQuery({
@@ -24,9 +25,25 @@ export function useAgentHistory(business: string, thread: string | null) {
     queryKey: agentKeys.citations(business, thread ?? "", ids), enabled: !!thread && ids.length > 0,
     queryFn: ({ signal }) => getCitations(business, thread!, ids, signal), retry: false, staleTime: Infinity,
   });
-  const withCitations = useMemo(() => hydrated.map(entry => {
+  const traceTurns = hydrated.flatMap(entry => entry.kind === "message" && entry.message.role === "assistant" && entry.message.turnId && entry.message.trace?.available
+    ? [{ turnId: entry.message.turnId, status: entry.message.status ?? "complete" }]
+    : []);
+  const traces = useQueries({ queries: traceTurns.map(turn => ({
+    queryKey: agentKeys.trace(business, turn.turnId),
+    queryFn: ({ signal }: { signal: AbortSignal }) => getTurnTrace(business, turn.turnId, signal),
+    retry: false,
+    staleTime: Infinity,
+  })) });
+  const activityByTurn = new Map(traceTurns.flatMap((turn, index) => traces[index]?.data
+    ? [[turn.turnId, activityFromTrace(traces[index].data.events ?? [], turn.status)] as const]
+    : []));
+  const withCitations = hydrated.map(entry => {
     if (entry.kind !== "message") return entry;
-    return { ...entry, message: { ...entry.message, citations: citations.data?.[entry.message.turnId!] ?? undefined } };
-  }), [hydrated, citations.data]);
+    return { ...entry, message: {
+      ...entry.message,
+      citations: citations.data?.[entry.message.turnId!] ?? undefined,
+      activity: activityByTurn.get(entry.message.turnId!) ?? entry.message.activity,
+    } };
+  });
   return { threads, messages, citations, hydrated: withCitations };
 }

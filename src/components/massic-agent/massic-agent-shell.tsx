@@ -60,6 +60,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
   const [planFullscreen, setPlanFullscreen] = useState(false);
+  const [citationsOpen, setCitationsOpen] = useState(false);
   const [width, setWidth] = useState(940);
   const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(null);
   const [title, setTitle] = useState("");
@@ -68,6 +69,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const pendingPlanClearRef = useRef<string | null>(null);
   const entryRef = useRef<string | null>(null);
   const autoSubmitRef = useRef<string | null>(null);
+  const citationsReturnFocus = useRef<HTMLElement | null>(null);
   const entrySurfaceRaw = searchParams.get("surface");
   const entryActionRaw = searchParams.get("action");
   const entryPlanId = searchParams.get("plan");
@@ -146,6 +148,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   useEffect(() => {
     pendingPlanClearRef.current = null;
     setPlanFullscreen(false);
+    setCitationsOpen(false);
     if (planRef) setPlanVisible(true);
   }, [chat.presentationKey, planRef?.type, planRef?.id]);
   const updateViewRoute = (nextView: "chat" | "chats" | "plans") => {
@@ -240,7 +243,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
               : showCenteredEmpty ? <div className="min-h-0 flex-1" />
               : showEmpty ? <div className="min-h-0 flex-1" />
-              : <AgentChatThread key={`thread:${chat.presentationKey}`} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
+              : <AgentChatThread key={`thread:${chat.presentationKey}`} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} onOpenCitations={trigger => { citationsReturnFocus.current = trigger; setCitationsOpen(true); }} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
             <div className="mx-auto w-full max-w-3xl space-y-2 px-4 pb-2">
               {chat.error && <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/5 p-3 text-sm text-destructive"><p className="flex-1">{chat.error}</p><button aria-label="Dismiss error" onClick={() => chat.setError(null)}><X className="h-4 w-4" /></button></div>}
               {busyElsewhere && <p role="status" className="text-xs text-muted-foreground">A response is running in another chat. <button className="cursor-pointer underline" onClick={() => select(chat.runningKey!)}>Open that chat</button> to view or stop it.</p>}
@@ -249,7 +252,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               {chat.history.citations.isError && <p className="text-xs text-muted-foreground">Sources could not be loaded. <button onClick={() => chat.history.citations.refetch()} className="underline">Retry sources</button></p>}
             </div>
             <AgentComposerDock centered={showCenteredEmpty} chatKey={chat.presentationKey}>{composer}</AgentComposerDock>
-            <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} />
+            <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} open={citationsOpen} onOpenChange={open => { if (open) citationsReturnFocus.current = null; setCitationsOpen(open); }} returnFocus={citationsReturnFocus.current} />
           </>}
         </div>
         {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} data-fullscreen={planFullscreen ? "true" : undefined} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>

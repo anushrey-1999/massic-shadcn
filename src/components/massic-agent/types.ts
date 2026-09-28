@@ -77,3 +77,11 @@ export type AgentEvent = Envelope & (
   | { type: "turn_end"; status: TurnStatus; widget_parts?: WidgetPart[]; credit_warning?: boolean; credit_balance?: number; trace?: TraceMetadata }
 );
 export type TurnTraceResponse = { events: AgentEvent[] };
+export type AgentCreditsResponse = {
+  business_id: string;
+  balance_usd: number;
+  total_purchased_usd: number;
+  total_spent_usd: number;
+  created_at: string;
+  updated_at: string;
+};

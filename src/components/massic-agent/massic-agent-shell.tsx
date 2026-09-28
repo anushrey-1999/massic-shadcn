@@ -23,7 +23,7 @@ import { AgentPlanWidget } from "./agent-plan-widget";
 import { AgentPlanPicker } from "./agent-plan-picker";
 import { AgentPlanHeader } from "./agent-plan-header";
 import { AgentPlansView } from "./agent-plans-view";
-import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
+import { agentKeys, errorMessage, getAgentCredits, getPlan, renameThread } from "./agent-api";
 import type { AgentEntryAction } from "./agent-links";
 import { allPlanIds, PLAN_SURFACES, planActionMessage, resourceKey, resourcePlanSurface } from "./agent-model";
 import { useAgentChat } from "./use-agent-chat";
@@ -33,6 +33,14 @@ import styles from "./agent.module.css";
 export function MassicAgentShell({ businessId }: { businessId: string }) {
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
+  useEffect(() => {
+    document.documentElement.dataset.massicAgentWorkspace = "active";
+    window.dispatchEvent(new Event("massic-agent-workspace-change"));
+    return () => {
+      delete document.documentElement.dataset.massicAgentWorkspace;
+      window.dispatchEvent(new Event("massic-agent-workspace-change"));
+    };
+  }, []);
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: businessName },
@@ -208,6 +216,17 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
   const showCenteredEmpty = showEmpty && !planRef && preferredAction !== "refine";
+  const creditsQuery = useQuery({
+    queryKey: agentKeys.credits(businessId),
+    queryFn: ({ signal }) => getAgentCredits(businessId, signal),
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const creditLabel = creditsQuery.data
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(
+        Math.max(0, Number(creditsQuery.data.balance_usd) || 0)
+      )
+    : null;
   const fallbackHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const goBack = () => {
     if (typeof window !== "undefined" && (window.history.length > 1 || document.referrer.startsWith(window.location.origin))) {
@@ -220,6 +239,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     conversations: chat.conversations, activeId: chat.activeKey, activeView: view, onSelect: select, onRename: openRename, onNewChat: newChat, onPlans: () => updateViewRoute("plans"), onSearch: () => setSearch(true), onChats: () => updateViewRoute("chats"),
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, onBack: goBack,
+    creditBalance: creditLabel, creditsLoading: creditsQuery.isLoading || creditsQuery.isFetching, creditsError: creditsQuery.isError, onRefreshCredits: () => { void creditsQuery.refetch(); },
   };
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} preferredSurface={preferredSurface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}

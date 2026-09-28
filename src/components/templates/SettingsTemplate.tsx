@@ -22,6 +22,7 @@ const SettingsTemplate = () => {
   const isAnalyst = user?.accountRole === "ANALYST" || (!permissions.canManageBilling && !permissions.canManageTeam);
   const canManageBilling = permissions.canManageBilling;
   const canManageTeam = permissions.canManageTeam;
+  const isMcpEnabled = process.env.NEXT_PUBLIC_MCP_ENABLED === "true";
   const [activeTab, setActiveTab] = useState("profile");
   const breadcrumbs = useMemo(
     () => [
@@ -50,11 +51,11 @@ const SettingsTemplate = () => {
     } else if (normalizedTab === "access-requests") {
       setActiveTab("access-requests");
       router.replace(pathname, { scroll: false });
-    } else if (normalizedTab === "ai-access") {
+    } else if (normalizedTab === "ai-access" && isMcpEnabled) {
       setActiveTab("ai-access");
       router.replace(pathname, { scroll: false });
     }
-  }, [canManageBilling, pathname, router, searchParams]);
+  }, [canManageBilling, isMcpEnabled, pathname, router, searchParams]);
 
   return (
     <div className="bg-muted min-h-screen">
@@ -85,9 +86,11 @@ const SettingsTemplate = () => {
               <TabsTrigger value="access-requests">
                 <Share2 /> Access Requests
               </TabsTrigger>
-              <TabsTrigger value="ai-access">
-                <Bot /> AI Access
-              </TabsTrigger>
+              {isMcpEnabled && (
+                <TabsTrigger value="ai-access">
+                  <Bot /> AI Access
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
@@ -110,9 +113,11 @@ const SettingsTemplate = () => {
               <AccessRequestSettings isActive={activeTab === "access-requests"} />
             </TabsContent>
 
-            <TabsContent value="ai-access" className="mt-6">
-              <McpAccessSettings />
-            </TabsContent>
+            {isMcpEnabled && (
+              <TabsContent value="ai-access" className="mt-6">
+                <McpAccessSettings />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

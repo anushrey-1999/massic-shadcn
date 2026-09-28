@@ -2951,7 +2951,8 @@ export async function POST(request: NextRequest) {
     await page.setViewport(PDF_VIEWPORT);
     await page.emulateMediaType("screen");
 
-    await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+    await page.setContent(fullHtml, { waitUntil: "domcontentloaded" });
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 30_000 });
     await page.evaluateHandle("document.fonts.ready");
 
     const pdf = await page.pdf(

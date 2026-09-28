@@ -3,16 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQueryState } from "nuqs";
 import { agentKeys, cancelTurn, errorMessage, startChatStream, streamErrorMessage } from "./agent-api";
-import { buildChatRequest, lastMatchingPlan, mergeMessages, resourceSurface } from "./agent-model";
+import { buildChatRequest, lastMatchingPlan, mergeMessages, resourcePlanSurface } from "./agent-model";
 import { parseAgentStream } from "./agent-sse";
 import { createStreamPublisher } from "./stream-publisher";
 import { reduceAgentEvent } from "./agent-stream-state";
 import { useAgentHistory } from "./use-agent-history";
-import type { AgentConversation, AgentMessage, ChatRequest, ResourceRef, Surface } from "./types";
+import type { AgentConversation, AgentMessage, ChatRequest, PlanSurface, ResourceRef } from "./types";
 
-type Draft = { input: string; resource: ResourceRef | null; selectedIds: string[]; preferredSurface?: Exclude<Surface, "global"> };
+type Draft = { input: string; resource: ResourceRef | null; selectedIds: string[]; preferredSurface?: PlanSurface };
 const emptyDraft = (): Draft => ({ input: "", resource: null, selectedIds: [] });
-type Running = { key: string; thread?: string; turn?: string; controller: AbortController; stopRequested: boolean };
+type Running = { key: string; thread?: string; turn?: string; controller: AbortController; stopRequested: boolean; cancelSent: boolean };
 
 /** This controller is mounted per business. Async work captures its own conversation, never the visible chat. */
 export function useAgentChat(business: string) {
@@ -53,26 +53,29 @@ export function useAgentChat(business: string) {
       if (prev[urlThread]) return prev;
       const restored = mergeMessages(history.hydrated, []).flatMap(entry => entry.kind === "message" ? entry.message.widgetParts ?? [] : []);
       const resource = lastMatchingPlan(restored);
-      return { ...prev, [urlThread]: { ...emptyDraft(), resource, preferredSurface: resource ? resourceSurface(resource.type) : undefined } };
+      return { ...prev, [urlThread]: { ...emptyDraft(), resource, preferredSurface: resource ? resourcePlanSurface(resource.type) : undefined } };
     });
   }, [urlThread, conversation, history.messages.data]); // restore once; don't override a user closing a plan
 
   const updateDraft = useCallback((patch: Partial<Draft>) => {
     setDrafts(prev => ({ ...prev, [activeKey]: { ...draft, ...patch } }));
   }, [activeKey, draft]);
-  const newChat = useCallback((resource: ResourceRef | null = null, preferredSurface?: Exclude<Surface, "global">) => {
+  const newChat = useCallback((resource: ResourceRef | null = null, preferredSurface?: PlanSurface) => {
     const key = `draft:${crypto.randomUUID()}`;
     setDraftId(key); activeRef.current = key;
-    setDrafts(prev => ({ ...prev, [key]: { ...emptyDraft(), resource, preferredSurface: preferredSurface ?? (resource ? resourceSurface(resource.type) : undefined) } }));
+    setDrafts(prev => ({ ...prev, [key]: { ...emptyDraft(), resource, preferredSurface: preferredSurface ?? (resource ? resourcePlanSurface(resource.type) : undefined) } }));
     void setUrlThread(null); setError(null);
   }, [setUrlThread]);
   const selectChat = (id: string) => { activeRef.current = id; void setUrlThread(id); setError(null); };
   const openPlan = (resource: ResourceRef) => {
-    updateDraft({ resource, selectedIds: [], preferredSurface: resourceSurface(resource.type) });
+    updateDraft({ resource, selectedIds: [], preferredSurface: resourcePlanSurface(resource.type) });
   };
   const requestStop = useCallback(async (run: Running) => {
+    if (run.cancelSent) return;
     if (!run.thread || !run.turn) { run.stopRequested = true; return; }
-    await cancelTurn(business, run.thread, run.turn);
+    run.cancelSent = true;
+    try { await cancelTurn(business, run.thread, run.turn); }
+    catch (error) { run.cancelSent = false; throw error; }
   }, [business]);
   const stop = async () => {
     const run = running.current; if (!run || stopping) return;
@@ -103,7 +106,7 @@ export function useAgentChat(business: string) {
     catch (e) { setError(errorMessage(e)); return; }
     const requestKey = activeKey;
     const originalDraft = { ...draft };
-    const run: Running = { key: requestKey, thread: urlThread ?? undefined, controller: new AbortController(), stopRequested: false };
+    const run: Running = { key: requestKey, thread: urlThread ?? undefined, controller: new AbortController(), stopRequested: false, cancelSent: false };
     running.current = run; setRunningKey(run.key); setError(null); setStopping(false);
     const now = Date.now();
     let user: AgentMessage = { id: `pending:${now}-user`, presentationId: `pending:${now}-user`, role: "user", content: request.message, createdAt: now, view: request.metadata?.view };
@@ -111,7 +114,6 @@ export function useAgentChat(business: string) {
     setLive(prev => ({ ...prev, [run.key]: [...(prev[run.key] ?? []), user, assistant] }));
     setDrafts(prev => ({ ...prev, [run.key]: { ...originalDraft, input: "" } }));
     // Publish accumulated text at a bounded cadence without replaying tokens.
-    const iterationBuffers = new Map<number, string>();
     const publish = () => {
       if (!mounted.current) return;
       const snapshot = assistant;
@@ -140,15 +142,7 @@ export function useAgentChat(business: string) {
           if (run.stopRequested) void requestStop(run).catch(e => { if (mounted.current) { setError(errorMessage(e)); setStopping(false); } });
         }
         if (event.type === "thread_title") setLocalThreads(prev => ({ ...prev, [event.thread_id]: { ...prev[event.thread_id], id: event.thread_id, title: event.title, updatedAt: now } }));
-        // Iteration-tagged tokens can be private scratch work. Buffer them until
-        // the server marks the iteration as final so only conversational text is shown.
-        if (event.type === "token" && typeof event.iteration === "number" && (event.depth ?? 0) === 0) {
-          iterationBuffers.set(event.iteration, (iterationBuffers.get(event.iteration) ?? "") + event.text);
-        } else if (event.type === "iteration_end") {
-          const buffered = iterationBuffers.get(event.iteration) ?? "";
-          iterationBuffers.delete(event.iteration);
-          if (event.phase === "final" && buffered) assistant = reduceAgentEvent(assistant, { type: "token", text: buffered, depth: 0 });
-        } else if (event.type === "error") {
+        if (event.type === "error") {
           const friendly = streamErrorMessage(event.code, event.message);
           assistant = reduceAgentEvent(assistant, { ...event, message: friendly });
           setError(friendly);
@@ -158,14 +152,13 @@ export function useAgentChat(business: string) {
         if (event.type === "turn_end" && (event.depth ?? 0) === 0) {
           terminal = true; setCreditWarning(event.credit_warning === true);
           const resource = lastMatchingPlan(assistant.widgetParts ?? []);
-          if (resource) setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[run.key] ?? originalDraft), resource, selectedIds: [], preferredSurface: resourceSurface(resource.type) } }));
+          if (resource) setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[run.key] ?? originalDraft), resource, selectedIds: [], preferredSurface: resourcePlanSurface(resource.type) } }));
           void queryClient.invalidateQueries({ queryKey: agentKeys.plans(business) });
           for (const part of assistant.widgetParts ?? []) void queryClient.invalidateQueries({ queryKey: agentKeys.plan(business, part.resource.id) });
         }
         if (assistant !== previous || user !== previousUser) {
           publisher.schedule((!previous.content && !!assistant.content) || ["message_complete", "cancelled", "error", "turn_end"].includes(event.type));
         }
-        if (terminal) break;
       }
       if (!terminal && assistant.status !== "error" && assistant.status !== "cancelled") {
         throw new Error("The connection ended before the response finished. Your partial response is saved; reload this chat before retrying.");

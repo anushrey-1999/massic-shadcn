@@ -1,10 +1,10 @@
-import type { ResourceType, Surface } from "./types";
+import type { PlanSurface, ResourceType } from "./types";
 
 export type AgentEntryAction = "create" | "refine" | "activate";
 
 export function agentPlansHref({ businessId, surface }: {
   businessId: string;
-  surface?: Exclude<Surface, "global">;
+  surface?: PlanSurface;
 }) {
   const params = new URLSearchParams({ view: "plans" });
   if (surface) params.set("surface", surface);
@@ -14,7 +14,7 @@ export function agentPlansHref({ businessId, surface }: {
 
 export function agentPlanHref({ businessId, surface, action, planId, autoSubmit = false }: {
   businessId: string;
-  surface: Exclude<Surface, "global">;
+  surface: PlanSurface;
   action: AgentEntryAction;
   planId?: string | number;
   autoSubmit?: boolean;
@@ -25,6 +25,6 @@ export function agentPlanHref({ businessId, surface, action, planId, autoSubmit 
   return `/business/${encodeURIComponent(businessId)}/agent?${params.toString()}`;
 }
 
-export function resourceTypeForSurface(surface: Exclude<Surface, "global">): ResourceType {
+export function resourceTypeForSurface(surface: PlanSurface): ResourceType {
   return surface === "webpages" ? "webpage_plan" : "social_channels_plan";
 }

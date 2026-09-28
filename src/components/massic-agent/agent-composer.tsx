@@ -3,16 +3,16 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { planActionMessage, resourceSurface, SURFACES } from "./agent-model";
-import { SurfaceIcon } from "./agent-icons";
+import { PLAN_SURFACES, planActionMessage, resourcePlanSurface } from "./agent-model";
+import { PlanSurfaceIcon } from "./agent-icons";
 import { AgentComposerRow } from "./agent-composer-row";
 import styles from "./agent.module.css";
 import { cn } from "@/lib/utils";
 import type { AgentEntryAction } from "./agent-links";
-import type { ResourceRef, ResourceType, Surface } from "./types";
+import type { PlanSurface, ResourceRef, ResourceType } from "./types";
 
 type Props = {
-  value: string; onChange: (text: string) => void; preferredSurface?: Exclude<Surface, "global">; locked: boolean;
+  value: string; onChange: (text: string) => void; preferredSurface?: PlanSurface; locked: boolean;
   resource: ResourceRef | null; selectedCount: number; totalCount: number; planValid?: boolean;
   planLoaded: boolean; onOpenPlans: () => void; onShowPlan: () => void;
   onSend: (message?: string, options?: { omitView?: boolean }) => void; onStop: () => void;
@@ -46,8 +46,8 @@ export function AgentComposer(p: Props) {
   }, [p.centered, p.value]);
   useEffect(() => { ref.current?.focus(); }, [p.focusKey]);
   const busy = p.disabled || p.streaming;
-  const actionSurface = p.resource ? resourceSurface(p.resource.type) : p.preferredSurface;
-  const planType: ResourceType | null = p.resource?.type ?? (actionSurface ? SURFACES[actionSurface].resource : null);
+  const actionSurface = p.resource ? resourcePlanSurface(p.resource.type) : p.preferredSurface;
+  const planType: ResourceType | null = p.resource?.type ?? (actionSurface ? PLAN_SURFACES[actionSurface].resource : null);
   const createMessage = planType ? planActionMessage("create", planType) : null;
   const showQuickActions = !p.locked;
   const quickActionClass = "h-8 border-general-primary/15 bg-general-primary/5 text-xs text-general-primary shadow-sm hover:border-general-primary/30 hover:bg-general-primary hover:text-primary-foreground hover:shadow-md";
@@ -55,7 +55,7 @@ export function AgentComposer(p: Props) {
   return <div className="w-full">
     <div className="flex w-full flex-col rounded-xl border border-border bg-card shadow-sm transition-[border-color,box-shadow] hover:shadow-md focus-within:border-general-primary/40 focus-within:shadow-md">
       <AgentComposerRow visible={!!p.resource}>{p.resource && <button type="button" onClick={p.onShowPlan} className="mx-4 mt-3 flex w-fit max-w-[calc(100%-2rem)] cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground transition-[color,box-shadow] hover:text-foreground hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30">
-        <SurfaceIcon surface={actionSurface ?? "global"} className="h-3.5 w-3.5 shrink-0" /><span className="truncate">Plan #{p.resource.id} · {p.selectedCount} selected</span>
+        <PlanSurfaceIcon surface={resourcePlanSurface(p.resource.type)} className="h-3.5 w-3.5 shrink-0" /><span className="truncate">Plan #{p.resource.id} · {p.selectedCount} selected</span>
       </button>}</AgentComposerRow>
       <div className="relative">
         <Textarea ref={ref} value={p.value} onChange={e => p.onChange(e.target.value)} aria-label="Message Massic Agent" rows={1} style={{ fieldSizing: "fixed" } as CSSProperties}

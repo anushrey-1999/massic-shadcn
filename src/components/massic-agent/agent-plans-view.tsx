@@ -11,7 +11,7 @@ import { agentKeys, errorMessage, getPlan, getPlans } from "./agent-api";
 import { agentPlanHref } from "./agent-links";
 import { AgentPlanHeader } from "./agent-plan-header";
 import { AgentPlanTable } from "./agent-plan-table";
-import type { AgentPlan, ResourceType, Surface } from "./types";
+import type { AgentPlan, ResourceType } from "./types";
 
 type PlanTab = "webpages" | "social_channels";
 
@@ -119,7 +119,7 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
   }, [initialSurface]);
 
   if (preview) return <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <AgentPlanHeader plan={selectedPlan ?? undefined} planId={preview.id} surface={surface as Surface} onBack={() => setPreview(null)} onRefine={() => go("refine")} onActivate={() => go("activate")} />
+    <AgentPlanHeader plan={selectedPlan ?? undefined} planId={preview.id} surface={surface} onBack={() => setPreview(null)} onRefine={() => go("refine")} onActivate={() => go("activate")} />
     <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
       {detail.isLoading ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 size-4 animate-spin" />Loading plan…</div>
         : detail.isError ? <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>

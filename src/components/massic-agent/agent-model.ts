@@ -1,9 +1,9 @@
-import type { AgentMessage, ChatEntry, ChatRequest, PlanItem, ResourceRef, ResourceType, SummaryMarker, Surface, ThreadItem, ThreadMessage, WidgetPart } from "./types";
+import type { AgentMessage, ChatEntry, ChatRequest, PlanItem, PlanSurface, ResourceRef, ResourceType, SummaryMarker, ThreadItem, ThreadMessage, TraceMetadata, WidgetPart } from "./types";
 
-export const SURFACES: Record<Surface, { label: string; resource: ResourceType | null }> = {
-  global: { label: "Global", resource: null }, webpages: { label: "Web", resource: "webpage_plan" }, social_channels: { label: "Social", resource: "social_channels_plan" },
+export const PLAN_SURFACES: Record<PlanSurface, { label: string; resource: ResourceType }> = {
+  webpages: { label: "Web", resource: "webpage_plan" }, social_channels: { label: "Social", resource: "social_channels_plan" },
 };
-export const resourceSurface = (type: ResourceType): Exclude<Surface, "global"> => type === "webpage_plan" ? "webpages" : "social_channels";
+export const resourcePlanSurface = (type: ResourceType): PlanSurface => type === "webpage_plan" ? "webpages" : "social_channels";
 export const resourceKey = (resource: ResourceRef) => `${resource.type}:${resource.id}`;
 export const planItemId = (item: PlanItem, type: ResourceType) => String((type === "webpage_plan" ? item.page_id : item.campaign_cluster_id) ?? "");
 export const allPlanIds = (items: PlanItem[], type: ResourceType) => [...new Set(items.map(item => planItemId(item, type)).filter(Boolean))];
@@ -51,6 +51,7 @@ export function hydrateMessage(turn: ThreadMessage): AgentMessage {
     content: cleanContent(turn.content, turn.role), createdAt: Date.parse(turn.created_at), status: turn.status,
     partial: turn.status === "cancelled", widgetParts: widgetParts(metadata.parts),
     view: metadata.view as AgentMessage["view"],
+    trace: metadata.trace as TraceMetadata | undefined,
   };
 }
 export function hydrateThreadItem(item: ThreadItem): ChatEntry {

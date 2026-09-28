@@ -1,13 +1,13 @@
 "use client";
 import { useRef } from "react";
-import { ArrowLeft, ClipboardList, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { ArrowLeft, ClipboardList, Gem, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { cn } from "@/lib/utils";
 import { AgentConversationMenu } from "./agent-conversation-menu";
 import type { AgentConversation } from "./types";
-export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void }) {
+export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditBalance, creditsLoading, creditsError, onRefreshCredits }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditBalance: string | null; creditsLoading: boolean; creditsError: boolean; onRefreshCredits: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useInfiniteScroll({ enabled: hasMore && !error, loading: loading || loadingMore, onLoadMore: onMore, rootRef: scrollRef });
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
@@ -32,6 +32,24 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
       {loadingMore && <ConversationSkeleton count={3} label="Loading more conversations" />}
       {hasMore && !error && <div ref={sentinelRef} className="h-px" aria-hidden="true" />}
     </div></>}
+    <div className={cn("mt-auto border-t border-border p-2", collapsed && "flex justify-center px-0")}>
+      {collapsed ? (
+        <Button variant="ghost" size="icon-sm" aria-label="Agent credits" title={creditBalance ? `${creditBalance} credits` : "Agent credits"} onClick={onRefreshCredits} disabled={creditsLoading}>
+          <Gem className="h-4 w-4" />
+        </Button>
+      ) : (
+        <div className="flex h-8 items-center gap-2 px-2 text-xs">
+          <Gem className="h-4 w-4 shrink-0" />
+          <span className="font-medium">Credits</span>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground" role="status">
+            {creditsLoading && !creditBalance ? "Loading…" : creditsError ? "Unavailable" : creditBalance ?? "—"}
+          </span>
+          <Button variant="ghost" size="icon-sm" className="size-6 shrink-0" aria-label="Refresh Agent credits" title="Refresh credits" onClick={onRefreshCredits} disabled={creditsLoading}>
+            <RefreshCw className={cn("h-3.5 w-3.5", creditsLoading && "animate-spin")} />
+          </Button>
+        </div>
+      )}
+    </div>
   </aside>;
 }
 

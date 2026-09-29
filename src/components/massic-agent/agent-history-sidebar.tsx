@@ -1,13 +1,13 @@
 "use client";
 import { useRef } from "react";
-import { ArrowLeft, ClipboardList, Gem, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, ClipboardList, Gauge, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { cn } from "@/lib/utils";
 import { AgentConversationMenu } from "./agent-conversation-menu";
 import type { AgentConversation } from "./types";
-export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditBalance, creditsLoading, creditsError, onRefreshCredits }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditBalance: string | null; creditsLoading: boolean; creditsError: boolean; onRefreshCredits: () => void }) {
+export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading, creditsError, onRefreshCredits }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean; creditsError: boolean; onRefreshCredits: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useInfiniteScroll({ enabled: hasMore && !error, loading: loading || loadingMore, onLoadMore: onMore, rootRef: scrollRef });
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
@@ -34,17 +34,21 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
     </div></>}
     <div className={cn("mt-auto border-t border-border p-2", collapsed && "flex justify-center px-0")}>
       {collapsed ? (
-        <Button variant="ghost" size="icon-sm" aria-label="Agent credits" title={creditBalance ? `${creditBalance} credits` : "Agent credits"} onClick={onRefreshCredits} disabled={creditsLoading}>
-          <Gem className="h-4 w-4" />
+        <Button variant="ghost" size="icon-sm" aria-label="Agent credit usage remaining" title={creditRemainingPercent !== null ? `${creditRemainingPercent}% remaining` : "Agent credit usage remaining"} onClick={onRefreshCredits} disabled={creditsLoading}>
+          <Gauge className="h-4 w-4" />
         </Button>
       ) : (
-        <div className="flex h-8 items-center gap-2 px-2 text-xs">
-          <Gem className="h-4 w-4 shrink-0" />
-          <span className="font-medium">Credits</span>
-          <span className="min-w-0 flex-1 truncate text-muted-foreground" role="status">
-            {creditsLoading && !creditBalance ? "Loading…" : creditsError ? "Unavailable" : creditBalance ?? "—"}
-          </span>
-          <Button variant="ghost" size="icon-sm" className="size-6 shrink-0" aria-label="Refresh Agent credits" title="Refresh credits" onClick={onRefreshCredits} disabled={creditsLoading}>
+        <div className="relative flex h-9 items-center gap-2 overflow-hidden rounded-lg border border-general-primary/20 bg-general-primary/[0.06] px-2 shadow-xs">
+          <div aria-hidden="true" className="absolute -right-3 size-10 rounded-full bg-general-primary/15 blur-lg" />
+          <Gauge className="relative h-4 w-4 shrink-0 text-general-primary" />
+          <div className="relative min-w-0 flex-1 text-xs font-medium text-general-primary" role="status">
+            {creditsLoading && creditRemainingPercent === null
+              ? <Skeleton className="h-3 w-20" />
+              : creditsError || creditRemainingPercent === null
+                ? "Usage unavailable"
+                : `${creditRemainingPercent}% remaining`}
+          </div>
+          <Button variant="ghost" size="icon-sm" className="relative size-6 shrink-0 text-general-primary hover:bg-general-primary/10 hover:text-general-primary" aria-label="Refresh Agent usage" title="Refresh usage" onClick={onRefreshCredits} disabled={creditsLoading}>
             <RefreshCw className={cn("h-3.5 w-3.5", creditsLoading && "animate-spin")} />
           </Button>
         </div>

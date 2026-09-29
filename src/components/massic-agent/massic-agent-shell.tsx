@@ -222,10 +222,9 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     staleTime: 30_000,
     retry: 1,
   });
-  const creditLabel = creditsQuery.data
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(
-        Math.max(0, Number(creditsQuery.data.balance_usd) || 0)
-      )
+  const creditBalance = Number(creditsQuery.data?.balance_usd);
+  const creditRemainingPercent = Number.isFinite(creditBalance)
+    ? Math.min(100, Math.max(0, Math.round((creditBalance / 50) * 100)))
     : null;
   const fallbackHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const goBack = () => {
@@ -239,7 +238,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     conversations: chat.conversations, activeId: chat.activeKey, activeView: view, onSelect: select, onRename: openRename, onNewChat: newChat, onPlans: () => updateViewRoute("plans"), onSearch: () => setSearch(true), onChats: () => updateViewRoute("chats"),
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, onBack: goBack,
-    creditBalance: creditLabel, creditsLoading: creditsQuery.isLoading || creditsQuery.isFetching, creditsError: creditsQuery.isError, onRefreshCredits: () => { void creditsQuery.refetch(); },
+    creditRemainingPercent, creditsLoading: creditsQuery.isLoading || creditsQuery.isFetching, creditsError: creditsQuery.isError, onRefreshCredits: () => { void creditsQuery.refetch(); },
   };
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} preferredSurface={preferredSurface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}

@@ -9,7 +9,9 @@ import {
   MonitoringRow,
   NOTIFICATION_KIND_LABEL,
   SectionLabel,
+  formatMonitoringDate,
   formatMonitoringTimestamp,
+  monitoringRunDay,
 } from "./monitoring-ui";
 
 /**
@@ -52,10 +54,19 @@ export function MonitoringNotificationFeed({
     );
   }
 
+  const ordered = [...notifications].sort((left, right) => {
+    const byRunDate = monitoringRunDay(right).localeCompare(monitoringRunDay(left));
+    if (byRunDate !== 0) return byRunDate;
+    const byCreatedAt = right.createdAt.localeCompare(left.createdAt);
+    return byCreatedAt !== 0
+      ? byCreatedAt
+      : right.notificationId.localeCompare(left.notificationId);
+  });
+
   return (
     <>
       <SectionLabel>{label}</SectionLabel>
-      {notifications.map((notification) => (
+      {ordered.map((notification) => (
         <MonitoringRow key={notification.notificationId}>
           <div className="flex items-start gap-3">
             <span
@@ -81,7 +92,16 @@ export function MonitoringNotificationFeed({
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {NOTIFICATION_KIND_LABEL[notification.kind] ??
                   notification.kind}{" "}
-                · {formatMonitoringTimestamp(notification.createdAt)}
+                ·{" "}
+                {/* The run the alert is about, not when the row was written. A backfill
+                    writes a month of alerts within minutes, so a timestamp would show them
+                    all as the same moment and make a September story look like tonight. */}
+                Monitoring day{" "}
+                {formatMonitoringDate(
+                  monitoringRunDay(notification),
+                )}
+                {" · Delivered "}
+                {formatMonitoringTimestamp(notification.createdAt)}
               </p>
             </div>
           </div>

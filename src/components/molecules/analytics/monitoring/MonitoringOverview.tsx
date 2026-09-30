@@ -30,6 +30,7 @@ import {
   daysSince,
   GOAL_VISUAL,
   formatMonitoringDate,
+  monitoringRunDay,
   isGoalMetric,
   metricLabel,
   metricVisual,
@@ -118,10 +119,13 @@ export function MonitoringOverviewView({
   const dataIssues = selectedDate ? [] : overview.dataIssues;
   const annotations = selectedDate ? [] : overview.annotations;
 
+  // Matched on the run the alert describes. Matching on `createdAt` dated every alert to the
+  // day its row was written, so a backfilled month collapsed onto whichever day the backfill
+  // ran and every other day in the strip looked empty.
   const shownNotifications = selectedDate
     ? notifications.filter(
         (notification) =>
-          notification.createdAt.slice(0, 10) === selectedDate,
+          monitoringRunDay(notification) === selectedDate,
       )
     : notifications;
 
@@ -175,6 +179,7 @@ export function MonitoringOverviewView({
             dataIssues={dataIssues}
             annotations={annotations}
             goals={overview.goals}
+            blockedCount={overview.projection.blockedCount}
             onOpenIncident={onOpenIncident}
             // Closed alerts are a history query against the business, not against a day.
             allowShowClosed={!selectedDate}

@@ -84,6 +84,10 @@ export interface MonitoringIncident {
   lines: string[];
   checkLine: string | null;
   createdOn: string | null;
+  evaluatedOn: string | null;
+  reconciledOn: string | null;
+  projectionStatus: "CURRENT" | "BLOCKED" | "RETIRED" | null;
+  projectionReason: string | null;
   lastNotifiedOn: string | null;
   snoozedUntil: string | null;
   acknowledgedAt: string | null;
@@ -224,6 +228,11 @@ export interface MonitoringOverview {
   goals: MonitoringGoal[];
   annotations: MonitoringAnnotation[];
   dataIssues: MonitoringDataIssue[];
+  projection: {
+    blockedCount: number;
+    retiredCount: number;
+    reasons: string[];
+  };
   lastRun: MonitoringRun | null;
 }
 
@@ -301,6 +310,12 @@ export interface MonitoringNotification {
   kind: MonitoringNotificationKind;
   headline: string | null;
   lines: string[];
+  /**
+   * The run the alert describes. Distinct from `createdAt`, which is when the row was
+   * written: a backfill writes weeks of alerts within minutes, so only this dates them
+   * correctly. Null on rows written before the engine recorded it.
+   */
+  runDate: string | null;
   createdAt: string;
   readAt: string | null;
 }

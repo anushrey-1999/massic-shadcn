@@ -35,6 +35,7 @@ interface MonitoringIncidentListProps {
   annotations: MonitoringAnnotation[];
   goals: MonitoringGoal[];
   onOpenIncident: (incidentId: string) => void;
+  blockedCount?: number;
   /**
    * Closed alerts are fetched for the whole business, so the control is hidden when the list
    * has been narrowed to a single day — the results would ignore that narrowing.
@@ -49,6 +50,7 @@ export function MonitoringIncidentList({
   annotations,
   goals,
   onOpenIncident,
+  blockedCount = 0,
   allowShowClosed = true,
 }: MonitoringIncidentListProps) {
   const [showResolved, setShowResolved] = React.useState(false);
@@ -69,9 +71,21 @@ export function MonitoringIncidentList({
     <>
       {nothingOpen ? (
         <MonitoringEmpty
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          title="Nothing open"
-          description="No confirmed change and no data issue on the last run."
+          icon={
+            blockedCount > 0 ? (
+              <Unplug className="h-4 w-4" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )
+          }
+          title={blockedCount > 0 ? "Alerts temporarily unavailable" : "Nothing open"}
+          description={
+            blockedCount > 0
+              ? `${blockedCount} open ${
+                  blockedCount === 1 ? "alert was" : "alerts were"
+                } not evaluated on the latest run because source data was unavailable.`
+              : "No confirmed change and no data issue on the last completed run."
+          }
         />
       ) : null}
 
@@ -233,10 +247,28 @@ function IncidentRow({
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <LifecyclePill lifecycle={incident.lifecycle} />
+            {incident.parent?.type ? (
+              <span
+                className="inline-flex shrink-0 items-center rounded-[4px] bg-muted px-1.5 py-0.5 text-[11px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+                title="Temporary diagnostic finding type"
+              >
+                {incident.parent.type}
+              </span>
+            ) : null}
             {incident.parent ? (
               <span>{metricLabel(incident.parent.metricKey, goals)}</span>
             ) : null}
             <span>Raised {formatMonitoringDate(incident.createdOn)}</span>
+            {incident.evaluatedOn ? (
+              <span>
+                Evaluated {formatMonitoringDate(incident.evaluatedOn)}
+              </span>
+            ) : null}
+            {incident.lastNotifiedOn ? (
+              <span>
+                Last notified {formatMonitoringDate(incident.lastNotifiedOn)}
+              </span>
+            ) : null}
             {incident.snoozedUntil ? (
               <span>
                 Snoozed to {formatMonitoringDate(incident.snoozedUntil)}

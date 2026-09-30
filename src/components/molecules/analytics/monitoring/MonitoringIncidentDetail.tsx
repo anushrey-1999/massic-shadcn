@@ -79,6 +79,11 @@ export function MonitoringIncidentDetailView({
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               <LifecyclePill lifecycle={incident.lifecycle} />
               <span>Raised {formatMonitoringDate(incident.createdOn)}</span>
+              {incident.evaluatedOn ? (
+                <span>
+                  Evaluated {formatMonitoringDate(incident.evaluatedOn)}
+                </span>
+              ) : null}
               {incident.lastNotifiedOn ? (
                 <span>
                   Last notified{" "}

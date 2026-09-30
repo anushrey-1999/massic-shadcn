@@ -253,6 +253,16 @@ export function formatMonitoringTimestamp(
   }).format(date);
 }
 
+export function monitoringRunDay({
+  runDate,
+  createdAt,
+}: {
+  runDate: string | null | undefined;
+  createdAt: string;
+}): string {
+  return runDate ?? createdAt.slice(0, 10);
+}
+
 export function daysSince(value: string | null | undefined): number | null {
   if (!value) return null;
 

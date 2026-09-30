@@ -13,9 +13,9 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
     <div className={cn("flex items-center pt-3 pb-2", collapsed ? "flex-col gap-1 px-0" : "justify-between px-2")}>
       <Button variant="ghost" size="icon-sm" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon-sm" className="size-6" aria-label="Search chats" title="Search" onClick={onSearch}><Search className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon-sm" className="size-6" aria-label={collapsed ? "Expand history" : "Collapse history"} onClick={onCollapse}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</Button>
+      <div className={cn("flex items-center gap-1", collapsed && "flex-col")}>
+        <Button variant="ghost" size="icon-sm" aria-label="Search chats" title="Search" onClick={onSearch}><Search className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon-sm" aria-label={collapsed ? "Expand history" : "Collapse history"} onClick={onCollapse}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</Button>
       </div>
     </div>
     <nav className="space-y-1 px-2 pb-3">

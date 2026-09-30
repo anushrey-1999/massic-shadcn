@@ -8,7 +8,7 @@ import { parseAgentStream } from "./agent-sse";
 import { createStreamPublisher } from "./stream-publisher";
 import { reduceAgentEvent } from "./agent-stream-state";
 import { useAgentHistory } from "./use-agent-history";
-import type { AgentConversation, AgentMessage, ChatRequest, PlanSurface, ResourceRef } from "./types";
+import type { AgentConversation, AgentCreditsResponse, AgentMessage, ChatRequest, PlanSurface, ResourceRef } from "./types";
 
 type Draft = { input: string; resource: ResourceRef | null; selectedIds: string[]; preferredSurface?: PlanSurface };
 const emptyDraft = (): Draft => ({ input: "", resource: null, selectedIds: [] });
@@ -121,8 +121,11 @@ export function useAgentChat(business: string) {
     };
     const publisher = createStreamPublisher(publish);
     let terminal = false;
+    let streamStarted = false;
+    let creditsInvalidated = false;
     try {
       const body = await startChatStream(business, request, run.controller.signal);
+      streamStarted = true;
       for await (const event of parseAgentStream(body)) {
         if (running.current !== run) break;
         const previous = assistant;
@@ -151,6 +154,12 @@ export function useAgentChat(business: string) {
         }
         if (event.type === "turn_end" && (event.depth ?? 0) === 0) {
           terminal = true; setCreditWarning(event.credit_warning === true);
+          const balance = event.credit_balance;
+          if (typeof balance === "number" && Number.isFinite(balance)) {
+            queryClient.setQueryData<AgentCreditsResponse>(agentKeys.credits(business), current => current ? { ...current, balance_usd: balance } : current);
+          }
+          creditsInvalidated = true;
+          void queryClient.invalidateQueries({ queryKey: agentKeys.credits(business) });
           const resource = lastMatchingPlan(assistant.widgetParts ?? []);
           if (resource) setDrafts(prev => ({ ...prev, [run.key]: { ...(prev[run.key] ?? originalDraft), resource, selectedIds: [], preferredSurface: resourcePlanSurface(resource.type) } }));
           void queryClient.invalidateQueries({ queryKey: agentKeys.plans(business) });
@@ -173,6 +182,7 @@ export function useAgentChat(business: string) {
     } finally {
       publisher.schedule(true);
       publisher.cancel(); run.controller.abort();
+      if (streamStarted && !creditsInvalidated) void queryClient.invalidateQueries({ queryKey: agentKeys.credits(business) });
       if (running.current === run) running.current = null;
       if (mounted.current) {
         setRunningKey(null); setStopping(false);

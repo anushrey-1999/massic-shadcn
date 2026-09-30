@@ -221,6 +221,9 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     queryFn: ({ signal }) => getAgentCredits(businessId, signal),
     staleTime: 30_000,
     retry: 1,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const creditBalance = Number(creditsQuery.data?.balance_usd);
   const creditRemainingPercent = Number.isFinite(creditBalance)
@@ -238,7 +241,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     conversations: chat.conversations, activeId: chat.activeKey, activeView: view, onSelect: select, onRename: openRename, onNewChat: newChat, onPlans: () => updateViewRoute("plans"), onSearch: () => setSearch(true), onChats: () => updateViewRoute("chats"),
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, onBack: goBack,
-    creditRemainingPercent, creditsLoading: creditsQuery.isLoading || creditsQuery.isFetching, creditsError: creditsQuery.isError, onRefreshCredits: () => { void creditsQuery.refetch(); },
+    creditRemainingPercent, creditsLoading: creditsQuery.isLoading,
   };
   const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} preferredSurface={preferredSurface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}

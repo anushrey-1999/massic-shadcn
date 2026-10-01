@@ -6,9 +6,8 @@ import { ProfileSettings } from "@/components/organisms/settings/ProfileSettings
 import { BillingSettings } from "@/components/organisms/settings/BillingSettings";
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
 import { AccessRequestSettings } from "@/components/organisms/settings/AccessRequestSettings";
-import { McpAccessSettings } from "@/components/organisms/settings/McpAccessSettings";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { Bot, ReceiptText, Settings, Users, Share2 } from "lucide-react";
+import { ReceiptText, Settings, Users, Share2 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -22,7 +21,6 @@ const SettingsTemplate = () => {
   const isAnalyst = user?.accountRole === "ANALYST" || (!permissions.canManageBilling && !permissions.canManageTeam);
   const canManageBilling = permissions.canManageBilling;
   const canManageTeam = permissions.canManageTeam;
-  const isMcpEnabled = process.env.NEXT_PUBLIC_MCP_ENABLED === "true";
   const [activeTab, setActiveTab] = useState("profile");
   const breadcrumbs = useMemo(
     () => [
@@ -51,11 +49,8 @@ const SettingsTemplate = () => {
     } else if (normalizedTab === "access-requests") {
       setActiveTab("access-requests");
       router.replace(pathname, { scroll: false });
-    } else if (normalizedTab === "ai-access" && isMcpEnabled) {
-      setActiveTab("ai-access");
-      router.replace(pathname, { scroll: false });
     }
-  }, [canManageBilling, isMcpEnabled, pathname, router, searchParams]);
+  }, [canManageBilling, pathname, router, searchParams]);
 
   return (
     <div className="bg-muted min-h-screen">
@@ -86,11 +81,6 @@ const SettingsTemplate = () => {
               <TabsTrigger value="access-requests">
                 <Share2 /> Access Requests
               </TabsTrigger>
-              {isMcpEnabled && (
-                <TabsTrigger value="ai-access">
-                  <Bot /> AI Access
-                </TabsTrigger>
-              )}
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
@@ -113,11 +103,6 @@ const SettingsTemplate = () => {
               <AccessRequestSettings isActive={activeTab === "access-requests"} />
             </TabsContent>
 
-            {isMcpEnabled && (
-              <TabsContent value="ai-access" className="mt-6">
-                <McpAccessSettings />
-              </TabsContent>
-            )}
           </Tabs>
         </div>
       </div>

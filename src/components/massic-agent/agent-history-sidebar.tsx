@@ -1,21 +1,21 @@
 "use client";
 import { useRef } from "react";
-import { ArrowLeft, ClipboardList, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { ArrowLeft, ClipboardList, Gauge, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { cn } from "@/lib/utils";
 import { AgentConversationMenu } from "./agent-conversation-menu";
 import type { AgentConversation } from "./types";
-export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void }) {
+export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useInfiniteScroll({ enabled: hasMore && !error, loading: loading || loadingMore, onLoadMore: onMore, rootRef: scrollRef });
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
     <div className={cn("flex items-center pt-3 pb-2", collapsed ? "flex-col gap-1 px-0" : "justify-between px-2")}>
       <Button variant="ghost" size="icon-sm" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon-sm" className="size-6" aria-label="Search chats" title="Search" onClick={onSearch}><Search className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon-sm" className="size-6" aria-label={collapsed ? "Expand history" : "Collapse history"} onClick={onCollapse}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</Button>
+      <div className={cn("flex items-center gap-1", collapsed && "flex-col")}>
+        <Button variant="ghost" size="icon-sm" aria-label="Search chats" title="Search" onClick={onSearch}><Search className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon-sm" aria-label={collapsed ? "Expand history" : "Collapse history"} onClick={onCollapse}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</Button>
       </div>
     </div>
     <nav className="space-y-1 px-2 pb-3">
@@ -32,6 +32,25 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
       {loadingMore && <ConversationSkeleton count={3} label="Loading more conversations" />}
       {hasMore && !error && <div ref={sentinelRef} className="h-px" aria-hidden="true" />}
     </div></>}
+    <div className={cn("mt-auto border-t border-border p-2", collapsed && "flex justify-center px-0")}>
+      {collapsed ? (
+        <div className="flex size-8 items-center justify-center" role="status" aria-label={creditRemainingPercent !== null ? `Agent credits: ${creditRemainingPercent}% remaining` : "Agent credit usage unavailable"} title={creditRemainingPercent !== null ? `${creditRemainingPercent}% remaining` : "Agent credit usage unavailable"}>
+          <Gauge className="h-4 w-4" />
+        </div>
+      ) : (
+        <div className="relative flex h-9 items-center gap-2 overflow-hidden rounded-lg border border-general-primary/20 bg-general-primary/[0.06] px-2 shadow-xs">
+          <div aria-hidden="true" className="absolute -right-3 size-10 rounded-full bg-general-primary/15 blur-lg" />
+          <Gauge className="relative h-4 w-4 shrink-0 text-general-primary" />
+          <div className="relative min-w-0 flex-1 text-xs font-medium text-general-primary" role="status">
+            {creditRemainingPercent !== null
+              ? `${creditRemainingPercent}% remaining`
+              : creditsLoading
+                ? <Skeleton className="h-3 w-20" />
+                : "Usage unavailable"}
+          </div>
+        </div>
+      )}
+    </div>
   </aside>;
 }
 

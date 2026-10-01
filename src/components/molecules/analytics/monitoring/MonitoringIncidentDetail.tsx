@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useMonitoringIncident } from "@/hooks/use-monitoring";
 import type {
   MonitoringContributor,
+  MonitoringContextEvidence,
   MonitoringFinding,
   MonitoringGoal,
 } from "@/hooks/use-monitoring";
@@ -37,6 +38,33 @@ interface MonitoringIncidentDetailProps {
   goals: MonitoringGoal[];
   onOpenIncident: (incidentId: string) => void;
   onOpenMetric: (metricKey: string) => void;
+}
+
+function contextEvidenceKey(item: MonitoringContextEvidence): string {
+  return [
+    item.type,
+    item.event ?? item.name,
+    item.classification,
+    item.start,
+    item.end,
+    item.date,
+    item.location,
+    item.category_plural,
+    item.affects_attention,
+  ].join("|");
+}
+
+function uniqueContextEvidence(
+  evidence: MonitoringContextEvidence[],
+): MonitoringContextEvidence[] {
+  const seen = new Set<string>();
+
+  return evidence.filter((item) => {
+    const key = contextEvidenceKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function MonitoringIncidentDetailView({
@@ -233,6 +261,10 @@ function FindingBlock({
     () => groupByDimension(finding.contributors),
     [finding.contributors],
   );
+  const contextEvidence = React.useMemo(
+    () => uniqueContextEvidence(finding.contextEvidence),
+    [finding.contextEvidence],
+  );
 
   return (
     <>
@@ -336,7 +368,7 @@ function FindingBlock({
         </>
       ) : null}
 
-      {finding.contextClassification || finding.contextEvidence.length > 0 ? (
+      {finding.contextClassification || contextEvidence.length > 0 ? (
         <>
           <SectionLabel>Context</SectionLabel>
           <div className="px-6">
@@ -348,9 +380,9 @@ function FindingBlock({
                   .toLowerCase()}
               />
             ) : null}
-            {finding.contextEvidence.map((item, index) => (
+            {contextEvidence.map((item) => (
               <FactRow
-                key={index}
+                key={contextEvidenceKey(item)}
                 label={
                   item.affects_attention
                     ? "Explains the change"

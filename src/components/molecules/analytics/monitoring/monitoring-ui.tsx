@@ -423,7 +423,7 @@ export function evidenceLabel(item: MonitoringContextEvidence): string {
         ? formatMonitoringDate(item.date)
         : null;
 
-  const parts = [kind, item.name, period].filter(Boolean);
+  const parts = [kind, item.event ?? item.name, period].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Context";
 }
 

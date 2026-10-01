@@ -1,13 +1,10 @@
-export type Surface = "global" | "webpages" | "social_channels";
+export type PlanSurface = "webpages" | "social_channels";
 export type ResourceType = "webpage_plan" | "social_channels_plan";
 export type ResourceRef = { type: ResourceType; id: number | string };
-export type IntentKind = `${"create" | "refine" | "activate"}_${"webpages" | "social_channels"}_plan`;
-export type PlanIntent = { kind: IntentKind; payload?: { plan_id?: number | string; timeframe?: number } };
 export type ChatMetadata = {
   view?: { resource: ResourceRef; selected_item_ids: string[] };
-  intent?: PlanIntent;
 };
-export type ChatRequest = { thread_id?: string; surface?: Surface; message?: string; metadata?: ChatMetadata };
+export type ChatRequest = { agent_id: "planner"; thread_id?: string; message: string; metadata?: ChatMetadata };
 export type WidgetPart = {
   kind: "widget"; widget: "resource_table"; schema_version: 1;
   resource: ResourceRef; source?: { tool_call_id?: string; tool_name?: string };
@@ -17,16 +14,25 @@ export type CitationReference = { ref_id: number; label?: string; detail?: strin
 export type CitationSegment = { agent_scope: string; sources: CitationSource[]; references: CitationReference[] };
 export type CitationDocument = { thread_id: string; turn_id: string; version: number; segments: CitationSegment[] };
 export type TurnStatus = "complete" | "cancelled" | "error";
-export type ActivityStep = { id: string; label: string; detail?: string; scope: string; depth: number; status: "running" | "done" | "error" | "cancelled" };
+export type TraceMetadata = { available: boolean; bytes?: number; event_count?: number };
+export type ActivityStep = {
+  id: string; kind: "thought" | "tool" | "dispatch" | "summary"; label: string; detail?: string;
+  scope: string; path: string; depth: number; status: "running" | "done" | "error" | "cancelled";
+};
 export type AgentMessage = {
   id: string; presentationId?: string; turnId?: string; role: "user" | "assistant"; content: string; createdAt: number;
   status?: TurnStatus; partial?: boolean; error?: string; activity?: ActivityStep[];
-  citations?: CitationDocument; widgetParts?: WidgetPart[]; intent?: PlanIntent; view?: ChatMetadata["view"];
+  citations?: CitationDocument; widgetParts?: WidgetPart[]; view?: ChatMetadata["view"]; trace?: TraceMetadata;
 };
-export type AgentThread = { thread_id: string; surface: Surface; title: string | null; created_at: string; updated_at: string };
-export type AgentConversation = { id: string; title: string; surface: Surface; updatedAt: number };
-export type ThreadMessage = { turn_id: string; role: "user" | "assistant"; content: string; status: TurnStatus; metadata?: Record<string, unknown>; created_at: string };
-export type MessagesPage = { turns: ThreadMessage[]; next_cursor: string | null; has_more: boolean };
+export type ChatEntry =
+  | { kind: "message"; message: AgentMessage }
+  | { kind: "summary"; id: string; eventId: number; summaryText: string | null };
+export type AgentThread = { thread_id: string; title: string | null; summary?: string | null; status?: string; metadata?: Record<string, unknown>; created_at: string; updated_at: string };
+export type AgentConversation = { id: string; title: string; updatedAt: number };
+export type ThreadMessage = { turn_id: string; thread_id?: string; role: "user" | "assistant"; content: string; status: TurnStatus; token_usage?: Record<string, unknown>; metadata?: Record<string, unknown>; created_at: string };
+export type SummaryMarker = { type: "summary"; event_id: number; created_at: string; summary_text: string | null; watermark_turn_id: number };
+export type ThreadItem = ThreadMessage | SummaryMarker;
+export type MessagesPage = { thread_id?: string; items: ThreadItem[]; limit?: number; next_cursor: string | null; has_more: boolean };
 export type ThreadsPage = { threads: AgentThread[]; total: number; limit: number; offset: number };
 export type PlanItem = {
   [key: string]: unknown;
@@ -41,7 +47,7 @@ export type PlanItem = {
 export type AgentPlan = {
   id: number | string;
   business_id?: string;
-  plan_type?: Exclude<Surface, "global"> | string;
+  plan_type?: PlanSurface | string;
   status: string;
   valid?: boolean;
   timeframe?: number;
@@ -56,11 +62,10 @@ export type AgentPlan = {
 type Envelope = { agent?: string; path?: string; depth?: number; thread_id?: string; turn_id?: string };
 export type AgentEvent = Envelope & (
   | { type: "thread_meta"; thread_id: string; turn_id: string; is_new: boolean; title?: string }
-  | { type: "thread_title"; thread_id: string; title: string }
+  | { type: "thread_title"; thread_id: string; title: string; provisional?: boolean }
   | { type: "turn_start" | "heartbeat" | "summarising_history" }
-  | { type: "token"; text: string; iteration?: number }
-  | { type: "iteration_start"; iteration: number }
-  | { type: "iteration_end"; iteration: number; phase: "thinking" | "final" }
+  | { type: "token"; text: string }
+  | { type: "thinking_token"; text: string }
   | { type: "message_complete"; content: string; partial?: boolean }
   | { type: "dispatch_start"; child: string; task?: string }
   | { type: "dispatch_end"; child: string; summary?: string }
@@ -69,5 +74,14 @@ export type AgentEvent = Envelope & (
   | { type: "citations"; document: CitationDocument }
   | { type: "cancelled"; reason?: string }
   | { type: "error"; code: string; message: string }
-  | { type: "turn_end"; status: TurnStatus; widget_parts?: WidgetPart[]; credit_warning?: boolean; credit_balance?: number }
+  | { type: "turn_end"; status: TurnStatus; widget_parts?: WidgetPart[]; credit_warning?: boolean; credit_balance?: number; trace?: TraceMetadata }
 );
+export type TurnTraceResponse = { events: AgentEvent[] };
+export type AgentCreditsResponse = {
+  business_id: string;
+  balance_usd: number;
+  total_purchased_usd: number;
+  total_spent_usd: number;
+  created_at: string;
+  updated_at: string;
+};

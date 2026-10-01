@@ -23,9 +23,9 @@ import { AgentPlanWidget } from "./agent-plan-widget";
 import { AgentPlanPicker } from "./agent-plan-picker";
 import { AgentPlanHeader } from "./agent-plan-header";
 import { AgentPlansView } from "./agent-plans-view";
-import { agentKeys, errorMessage, getPlan, renameThread } from "./agent-api";
+import { agentKeys, errorMessage, getAgentCredits, getPlan, renameThread } from "./agent-api";
 import type { AgentEntryAction } from "./agent-links";
-import { allPlanIds, intentFor, resourceKey, resourceSurface, SURFACES } from "./agent-model";
+import { allPlanIds, PLAN_SURFACES, planActionMessage, resourceKey, resourcePlanSurface } from "./agent-model";
 import { useAgentChat } from "./use-agent-chat";
 import type { AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
@@ -33,6 +33,14 @@ import styles from "./agent.module.css";
 export function MassicAgentShell({ businessId }: { businessId: string }) {
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
+  useEffect(() => {
+    document.documentElement.dataset.massicAgentWorkspace = "active";
+    window.dispatchEvent(new Event("massic-agent-workspace-change"));
+    return () => {
+      delete document.documentElement.dataset.massicAgentWorkspace;
+      window.dispatchEvent(new Event("massic-agent-workspace-change"));
+    };
+  }, []);
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: businessName },
@@ -60,6 +68,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
   const [planFullscreen, setPlanFullscreen] = useState(false);
+  const [citationsOpen, setCitationsOpen] = useState(false);
   const [width, setWidth] = useState(940);
   const [renameTarget, setRenameTarget] = useState<AgentConversation | null>(null);
   const [title, setTitle] = useState("");
@@ -68,6 +77,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const pendingPlanClearRef = useRef<string | null>(null);
   const entryRef = useRef<string | null>(null);
   const autoSubmitRef = useRef<string | null>(null);
+  const citationsReturnFocus = useRef<HTMLElement | null>(null);
   const entrySurfaceRaw = searchParams.get("surface");
   const entryActionRaw = searchParams.get("action");
   const entryPlanId = searchParams.get("plan");
@@ -76,9 +86,10 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const entrySurface = entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels" ? entrySurfaceRaw : null;
   const preferredAction: AgentEntryAction | undefined = entryActionRaw === "create" || entryActionRaw === "refine" || entryActionRaw === "activate" ? entryActionRaw : undefined;
   const planRef = chat.draft.resource;
+  const preferredSurface = planRef ? resourcePlanSurface(planRef.type) : chat.draft.preferredSurface;
   const planQuery = useQuery({ queryKey: agentKeys.plan(businessId, planRef?.id ?? ""), queryFn: ({ signal }) => getPlan(businessId, planRef!.id, signal), enabled: !!planRef, retry: false });
   const expectedPlanType = planRef?.type === "webpage_plan" ? "webpages" : "social_channels";
-  const planSurface = planRef ? resourceSurface(planRef.type) : chat.surface;
+  const planSurface = preferredSurface ?? "webpages";
   const plan = planQuery.data && (!planQuery.data.plan_type || planQuery.data.plan_type === expectedPlanType) ? planQuery.data : undefined;
   const planError = planQuery.isError ? errorMessage(planQuery.error) : planQuery.data && !plan ? "This plan does not match the opened plan type." : null;
   const ids = plan && planRef ? allPlanIds(plan.plan_json ?? [], planRef.type) : [];
@@ -89,11 +100,11 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     entryRef.current = key;
     const expectedType = entrySurface === "webpages" ? "webpage_plan" : "social_channels_plan";
     if (preferredAction === "create") {
-      chat.newChat(entrySurface);
+      chat.newChat(null, entrySurface);
       return;
     }
     if (!entryPlanId) {
-      chat.newChat(entrySurface);
+      chat.newChat(null, entrySurface);
       chat.setError("The requested plan could not be opened. Choose a plan before continuing.");
       return;
     }
@@ -101,14 +112,14 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     void getPlan(businessId, entryPlanId, controller.signal).then(entryPlan => {
       const actualType = entryPlan.plan_type === "webpages" ? "webpage_plan" : entryPlan.plan_type === "social_channels" ? "social_channels_plan" : null;
       if (actualType !== expectedType) {
-        chat.newChat(entrySurface);
+        chat.newChat(null, entrySurface);
         chat.setError("This plan does not match the requested action. Choose a matching plan and try again.");
         return;
       }
-      chat.newChat(entrySurface, { type: expectedType, id: entryPlan.id });
+      chat.newChat({ type: expectedType, id: entryPlan.id }, entrySurface);
     }).catch(error => {
       if (controller.signal.aborted) return;
-      chat.newChat(entrySurface);
+      chat.newChat(null, entrySurface);
       chat.setError(`The requested plan could not be opened. ${errorMessage(error)}`);
     });
     return () => controller.abort();
@@ -125,15 +136,16 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   useEffect(() => {
     if (!autoSubmit || !entrySurface || !preferredAction || (preferredAction !== "create" && preferredAction !== "activate") || chat.conversation || chat.runningKey) return;
     const key = `${entrySurface}:${preferredAction}:${entryPlanId ?? ""}`;
-    if (autoSubmitRef.current === key || chat.surface !== entrySurface) return;
+    if (autoSubmitRef.current === key || chat.draft.preferredSurface !== entrySurface) return;
     if (preferredAction === "activate" && (!plan || !planRef || String(planRef.id) !== entryPlanId || plan.valid !== true)) return;
     if (preferredAction === "create" && planRef) return;
     autoSubmitRef.current = key;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete("submit");
     window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
-    void chat.send({ kind: intentFor(preferredAction, entrySurface) });
-  }, [autoSubmit, chat.conversation, chat.runningKey, chat.surface, entryPlanId, entrySurface, plan, planRef, preferredAction]);
+    const type = entrySurface === "webpages" ? "webpage_plan" : "social_channels_plan";
+    void chat.send(planActionMessage(preferredAction, type), preferredAction === "create" ? { omitView: true } : undefined);
+  }, [autoSubmit, chat.conversation, chat.draft.preferredSurface, chat.runningKey, entryPlanId, entrySurface, plan, planRef, preferredAction]);
   useEffect(() => {
     if (!plan) return;
     const filtered = chat.draft.selectedIds.filter(id => ids.includes(id));
@@ -144,6 +156,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   useEffect(() => {
     pendingPlanClearRef.current = null;
     setPlanFullscreen(false);
+    setCitationsOpen(false);
     if (planRef) setPlanVisible(true);
   }, [chat.presentationKey, planRef?.type, planRef?.id]);
   const updateViewRoute = (nextView: "chat" | "chats" | "plans") => {
@@ -172,7 +185,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const busyElsewhere = !!chat.runningKey && !streaming;
   const activatePlan = () => {
     if (!planRef || !plan || plan.valid !== true || streaming || busyElsewhere) return;
-    void chat.send({ kind: intentFor("activate", resourceSurface(planRef.type)) });
+    void chat.send(planActionMessage("activate", planRef.type));
   };
   const closePlan = (clear: boolean) => {
     if (!planRef) return;
@@ -203,6 +216,19 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const loadingMessages = !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
   const showEmpty = !loadingMessages && !chat.messages.length && !chat.history.messages.isError;
   const showCenteredEmpty = showEmpty && !planRef && preferredAction !== "refine";
+  const creditsQuery = useQuery({
+    queryKey: agentKeys.credits(businessId),
+    queryFn: ({ signal }) => getAgentCredits(businessId, signal),
+    staleTime: 30_000,
+    retry: 1,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  const creditBalance = Number(creditsQuery.data?.balance_usd);
+  const creditRemainingPercent = Number.isFinite(creditBalance)
+    ? Math.min(100, Math.max(0, Math.round((creditBalance / 50) * 100)))
+    : null;
   const fallbackHref = searchParams.get("from") === "actions" ? `/business/${businessId}/actions` : `/business/${businessId}/analytics`;
   const goBack = () => {
     if (typeof window !== "undefined" && (window.history.length > 1 || document.referrer.startsWith(window.location.origin))) {
@@ -215,10 +241,11 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     conversations: chat.conversations, activeId: chat.activeKey, activeView: view, onSelect: select, onRename: openRename, onNewChat: newChat, onPlans: () => updateViewRoute("plans"), onSearch: () => setSearch(true), onChats: () => updateViewRoute("chats"),
     loading: chat.history.threads.isLoading, error: chat.history.threads.isError ? errorMessage(chat.history.threads.error) : undefined, onRetry: () => { void chat.history.threads.refetch(); },
     hasMore: chat.history.threads.hasNextPage, loadingMore: chat.history.threads.isFetchingNextPage, onMore: () => { void chat.history.threads.fetchNextPage(); }, onBack: goBack,
+    creditRemainingPercent, creditsLoading: creditsQuery.isLoading,
   };
-  const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} surface={chat.surface} locked={!!chat.conversation} centered={showCenteredEmpty}
+  const composer = <AgentComposer value={chat.draft.input} onChange={input => chat.updateDraft({ input })} preferredSurface={preferredSurface} locked={!!chat.conversation} centered={showCenteredEmpty}
     resource={planRef} selectedCount={chat.draft.selectedIds.length} totalCount={ids.length} planValid={plan?.valid} planLoaded={!!plan}
-    onOpenPlans={() => setPlanPicker(true)} onShowPlan={showPlan} onSend={(intent, override) => { void chat.send(intent, override); }} onStop={() => { void chat.stop(); }}
+    onOpenPlans={() => setPlanPicker(true)} onShowPlan={showPlan} onSend={(message, options) => { void chat.send(message, options); }} onStop={() => { void chat.stop(); }}
     streaming={streaming} stopping={chat.stopping} disabled={busyElsewhere || !chat.knownThread || loadingMessages || chat.history.messages.isError} focusKey={chat.presentationKey} preferredAction={preferredAction} />;
   const resize = (value: number) => setWidth(Math.max(560, Math.min(value, 1050, (splitRef.current?.clientWidth ?? 1510) - 460)));
   return <div className={cn(styles.workspace, "flex h-full min-h-0 w-full overflow-hidden bg-background")}>
@@ -238,7 +265,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               : chat.history.messages.isError ? <div className="flex-1 p-6" role="alert"><p>{errorMessage(chat.history.messages.error)}</p><Button variant="outline" className="mt-3" onClick={() => chat.history.messages.refetch()}>Reload conversation</Button></div>
               : showCenteredEmpty ? <div className="min-h-0 flex-1" />
               : showEmpty ? <div className="min-h-0 flex-1" />
-              : <AgentChatThread key={`thread:${chat.presentationKey}`} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
+              : <AgentChatThread key={`thread:${chat.presentationKey}`} messages={chat.messages} streaming={streaming} activeResource={planVisible ? planRef : null} onOpenPlan={openPlan} onOpenCitations={trigger => { citationsReturnFocus.current = trigger; setCitationsOpen(true); }} hasMore={chat.history.messages.hasNextPage} loadingMore={chat.history.messages.isFetchingNextPage} onLoadMore={() => { void chat.history.messages.fetchNextPage(); }} />}
             <div className="mx-auto w-full max-w-3xl space-y-2 px-4 pb-2">
               {chat.error && <div role="alert" className="flex items-start gap-2 rounded-md bg-destructive/5 p-3 text-sm text-destructive"><p className="flex-1">{chat.error}</p><button aria-label="Dismiss error" onClick={() => chat.setError(null)}><X className="h-4 w-4" /></button></div>}
               {busyElsewhere && <p role="status" className="text-xs text-muted-foreground">A response is running in another chat. <button className="cursor-pointer underline" onClick={() => select(chat.runningKey!)}>Open that chat</button> to view or stop it.</p>}
@@ -247,7 +274,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               {chat.history.citations.isError && <p className="text-xs text-muted-foreground">Sources could not be loaded. <button onClick={() => chat.history.citations.refetch()} className="underline">Retry sources</button></p>}
             </div>
             <AgentComposerDock centered={showCenteredEmpty} chatKey={chat.presentationKey}>{composer}</AgentComposerDock>
-            <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} />
+            <AgentCitationsDrawer key={`citations:${chat.activeKey}`} business={businessId} thread={chat.activeKey} title={chat.conversation?.title ?? "New chat"} messages={chat.messages} streaming={streaming} open={citationsOpen} onOpenChange={open => { if (open) citationsReturnFocus.current = null; setCitationsOpen(open); }} returnFocus={citationsReturnFocus.current} />
           </>}
         </div>
         {view === "chat" && planRef && <aside data-state={planVisible ? "open" : "closed"} data-fullscreen={planFullscreen ? "true" : undefined} aria-hidden={!planVisible} inert={!planVisible} onAnimationEnd={finishPlanClose} className={styles.planPanel} style={{ "--plan-width": `${width}px` } as React.CSSProperties}>
@@ -263,6 +290,6 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
         </aside>}
       </div>
     </main>
-    {chat.surface !== "global" && <AgentPlanPicker businessId={businessId} type={SURFACES[chat.surface].resource!} open={planPicker} onOpenChange={setPlanPicker} onPick={openPlan} />}
+    {preferredSurface && <AgentPlanPicker businessId={businessId} type={PLAN_SURFACES[preferredSurface].resource} open={planPicker} onOpenChange={setPlanPicker} onPick={openPlan} />}
   </div>;
 }

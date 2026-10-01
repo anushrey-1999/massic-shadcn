@@ -137,6 +137,7 @@
 .composerTextarea { transition: height 150ms ease-out, padding 150ms ease-out; }
 .composerTextarea::placeholder { font-size: 0.875rem; line-height: 1.25rem; }
 .composerCentered { position: absolute; top: calc(50% - 8vh + 28px); left: 0; right: 0; transform: translateY(-50%); padding: 0 16px; }
+.composerDock { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .welcomeHeading { position: absolute; bottom: calc(100% + 24px); width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; transition: opacity 120ms ease-out; pointer-events: none; }
 .welcomeHidden { opacity: 0; visibility: hidden; transition: opacity 120ms ease-out, visibility 0s 120ms; }
 .citationsDrawer { width: 100%; max-width: 480px; animation-duration: 220ms !important; }
@@ -146,6 +147,117 @@
   .thinkingShimmer { background: none; -webkit-text-fill-color: currentColor; }
 }
 
+.markdown :global(h1),
+.markdown :global(h2),
+.markdown :global(h3),
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) {
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 1rem 0 0.375rem;
+}
+.markdown :global(h1) { font-size: 1.125rem; }
+.markdown :global(h2) { font-size: 1rem; }
+.markdown :global(h3),
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) { font-size: 0.875rem; }
+.markdown {
+  max-width: 72ch;
+  line-height: 1.5;
+}
+.markdown :global(p) { margin: 0 0 0.75rem; }
+.markdown :global(p:last-child) { margin-bottom: 0; }
+.markdown :global(p:first-child),
+.markdown :global(h1:first-child),
+.markdown :global(h2:first-child),
+.markdown :global(h3:first-child) { margin-top: 0; }
+.markdown :global(strong),
+.markdown :global(b) { font-weight: 500; }
+.markdown :global(em),
+.markdown :global(i) { font-style: italic; }
+.markdown :global(ul),
+.markdown :global(ol) {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1.25rem;
+}
+.markdown :global(ul) { list-style: disc outside; }
+.markdown :global(ol) { list-style: decimal outside; }
+.markdown :global(li) { margin: 0.25rem 0; padding-left: 0.125rem; display: list-item; }
+.markdown :global(li)::marker { color: currentColor; }
+.markdown :global(blockquote) {
+  margin: 0.75rem 0;
+  border-left: 2px solid var(--general-border, var(--border));
+  padding: 0.25rem 0 0.25rem 0.75rem;
+  color: var(--general-muted-foreground, var(--muted-foreground));
+}
+.markdown :global(a) {
+  color: var(--general-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown :global(code) {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.8125rem;
+}
+.markdown :global(.light-code-block) {
+  margin: 0.75rem 0;
+  overflow: hidden;
+  border: 1px solid var(--general-border, var(--border));
+  border-radius: 0.5rem;
+  background: var(--muted);
+}
+.markdown :global(.light-code-block__header) {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--general-border, var(--border));
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  color: var(--general-muted-foreground, var(--muted-foreground));
+  font-size: 0.75rem;
+}
+.markdown :global(.light-code-block__header button) {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  padding: 0 0.5rem;
+  color: inherit;
+}
+.markdown :global(.light-code-block__header button:hover) {
+  background: var(--general-border, var(--border));
+  color: var(--general-foreground, var(--foreground));
+}
+.markdown :global(.light-code-block__header button:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--general-primary) 30%, transparent);
+  outline-offset: 1px;
+}
+.markdown :global(.light-code-block__header svg) {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.markdown :global(pre) {
+  margin: 0;
+  overflow-x: auto;
+  padding: 1rem;
+}
+.markdown :global(pre) :global(code) {
+  background: transparent;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.markdown :global(hr) {
+  margin: 0.75rem 0;
+  border: 0;
+  border-top: 1px solid var(--general-border, var(--border));
+}
 .composerRow { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 150ms ease-out, opacity 140ms ease-out; }
 .composerRow[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
 .citationsOverlay { animation-duration: 180ms; }

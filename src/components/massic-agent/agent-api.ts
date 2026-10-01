@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 import { api, getBaseURLByPlatform } from "@/hooks/use-api";
 import { isTokenExpired } from "@/utils/jwt";
 import { useSessionStore } from "@/store/session-store";
-import type { AgentPlan, AgentThread, ChatRequest, CitationDocument, MessagesPage, ResourceType, ThreadsPage } from "./types";
+import type { AgentCreditsResponse, AgentPlan, AgentThread, ChatRequest, CitationDocument, MessagesPage, ResourceType, ThreadsPage, TurnTraceResponse } from "./types";
 
 export class AgentAPIError extends Error {
   constructor(public status: number, message: string) { super(message); this.name = "AgentAPIError"; }
@@ -29,6 +29,8 @@ export const agentKeys = {
   threads: (business: string) => ["massic-agent", business, "threads"] as const,
   messages: (business: string, thread: string) => ["massic-agent", business, "messages", thread] as const,
   citations: (business: string, thread: string, ids: string[]) => ["massic-agent", business, "citations", thread, ids] as const,
+  trace: (business: string, turn: string) => ["massic-agent", business, "trace", turn] as const,
+  credits: (business: string) => ["massic-agent", business, "credits"] as const,
   plans: (business: string, type?: ResourceType) => type
     ? ["massic-agent", business, "plans", type] as const
     : ["massic-agent", business, "plans"] as const,
@@ -36,7 +38,9 @@ export const agentKeys = {
 };
 const tenant = (business: string) => ({ business_id: business });
 export const getThreads = (business: string, offset = 0, signal?: AbortSignal) => api.get<ThreadsPage>("/agent/threads", "python", { params: { ...tenant(business), limit: 20, offset }, signal });
+export const getAgentCredits = (business: string, signal?: AbortSignal) => api.get<AgentCreditsResponse>("/agent/admin/credits", "python", { params: tenant(business), signal });
 export const getMessages = (business: string, thread: string, before?: string, signal?: AbortSignal) => api.get<MessagesPage>(`/agent/threads/${encodeURIComponent(thread)}/messages`, "python", { params: { ...tenant(business), limit: 50, ...(before ? { before } : {}) }, signal });
+export const getTurnTrace = (business: string, turn: string, signal?: AbortSignal) => api.get<TurnTraceResponse>(`/agent/turns/${encodeURIComponent(turn)}/trace`, "python", { params: tenant(business), signal });
 export const renameThread = (business: string, thread: string, title: string) => api.patch<AgentThread>(`/agent/threads/${encodeURIComponent(thread)}`, "python", { title: title.trim() }, { params: tenant(business) });
 const normalizePlan = (plan: AgentPlan): AgentPlan => {
   const rawType = String(plan.plan_type ?? "").toLowerCase();
@@ -59,8 +63,16 @@ export async function getCitations(business: string, thread: string, ids: string
   return batches;
 }
 export async function cancelTurn(business: string, thread: string, turn: string) {
-  const response = await api.post<{ accepted: boolean }>("/agent/cancel", "python", { thread_id: thread, turn_id: turn }, { params: tenant(business) });
-  if (!response.accepted) throw new Error("The server could not stop this response. It is still running.");
+  try {
+    const response = await api.post<{ accepted: boolean; error?: string }>("/agent/cancel", "python", { thread_id: thread, turn_id: turn }, { params: tenant(business) });
+    if (!response.accepted) throw new Error("The server could not stop this response. It is still running.");
+  } catch (error) {
+    const response = (error as { response?: { status?: number; data?: { error?: string; detail?: unknown } } })?.response;
+    if (response?.status === 503 && (response.data?.error === "redis_unavailable" || response.data?.detail === "redis_unavailable")) {
+      throw new Error("The stop signal could not be stored. The response is still running.");
+    }
+    throw error;
+  }
 }
 export async function startChatStream(business: string, request: ChatRequest, signal: AbortSignal) {
   const token = Cookies.get("token");

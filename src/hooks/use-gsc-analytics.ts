@@ -35,6 +35,8 @@ export interface GSCChartDataPoint {
   clicks: number
   sessions?: number
   goals?: number
+  gscAvailable?: boolean
+  ga4Available?: boolean
 }
 
 export interface GSCFunnelData {
@@ -85,6 +87,7 @@ export interface V2Response<T = any> {
   success: boolean
   data: {
     ranges: V2Ranges
+    dataThrough?: string | null
     current: T[]
     previous: T[]
   }
@@ -192,15 +195,8 @@ function formatNumber(value: number | string): string {
 
 function formatDate(dateString: string): string {
   if (!dateString) return ""
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })
-  } catch {
-    return dateString
-  }
+  const parsed = parseDateSafe(dateString)
+  return parsed ? format(parsed, "MMM d") : dateString
 }
 
 function normalizeDateKey(value: string): string | null {
@@ -624,6 +620,8 @@ function buildDailyChartSeries({
   clicksMap,
   sessionsMap,
   goalsMap,
+  gscDataThrough,
+  ga4DataThrough,
   start,
   end,
 }: {
@@ -631,6 +629,8 @@ function buildDailyChartSeries({
   clicksMap: Map<string, number>
   sessionsMap: Map<string, number>
   goalsMap: Map<string, number>
+  gscDataThrough?: string | null
+  ga4DataThrough?: string | null
   start?: string
   end?: string
 }): GSCChartDataPoint[] {
@@ -648,6 +648,10 @@ function buildDailyChartSeries({
         clicks: clicksMap.get(dateKey) ?? 0,
         sessions: sessionsMap.get(dateKey) ?? 0,
         goals: goalsMap.get(dateKey) ?? 0,
+        gscAvailable:
+          gscDataThrough === undefined || Boolean(gscDataThrough && dateKey <= gscDataThrough),
+        ga4Available:
+          ga4DataThrough === undefined || Boolean(ga4DataThrough && dateKey <= ga4DataThrough),
       }
     })
   }
@@ -666,6 +670,8 @@ function buildDailyChartSeries({
     clicks: clicksMap.get(dateKey) ?? 0,
     sessions: sessionsMap.get(dateKey) ?? 0,
     goals: goalsMap.get(dateKey) ?? 0,
+    gscAvailable: true,
+    ga4Available: true,
   }))
 }
 
@@ -751,7 +757,7 @@ export function useGSCAnalytics(
   )
 
   const gscBulkQuery = useQuery<GscBulkResponse>({
-    queryKey: ["gsc-bulk", businessUniqueId, website, period, filtersQueryKey],
+    queryKey: ["gsc-bulk", "source-data-through-v1", businessUniqueId, website, period, filtersQueryKey],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -807,7 +813,7 @@ export function useGSCAnalytics(
   })
 
   const ga4DateQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-date", ga4TrafficScope, businessUniqueId, website, period, filtersQueryKey],
+    queryKey: ["ga4-date", "source-data-through-v1", ga4TrafficScope, businessUniqueId, website, period, filtersQueryKey],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -906,10 +912,12 @@ export function useGSCAnalytics(
       clicksMap: gscClicksMap,
       sessionsMap: ga4SessionsMap,
       goalsMap: ga4GoalsMap,
+      gscDataThrough: gscDateData.data.dataThrough,
+      ga4DataThrough: ga4DateData.data.dataThrough,
       start: chartRanges.currentStart,
       end: chartRanges.currentEnd,
     })
-  }, [chartRanges.currentEnd, chartRanges.currentStart, ga4DateData.data.current, gscDateData.data.current])
+  }, [chartRanges.currentEnd, chartRanges.currentStart, ga4DateData.data.current, ga4DateData.data.dataThrough, gscDateData.data.current, gscDateData.data.dataThrough])
 
   const rawPreviousChartData = useMemo<GSCChartDataPoint[]>(() => {
     const gscImpressionsMap = extractDateMap(gscDateData.data.previous, "impressions")
@@ -922,10 +930,12 @@ export function useGSCAnalytics(
       clicksMap: gscClicksMap,
       sessionsMap: ga4SessionsMap,
       goalsMap: ga4GoalsMap,
+      gscDataThrough: gscDateData.data.dataThrough,
+      ga4DataThrough: ga4DateData.data.dataThrough,
       start: chartRanges.previousStart,
       end: chartRanges.previousEnd,
     })
-  }, [chartRanges.previousEnd, chartRanges.previousStart, ga4DateData.data.previous, gscDateData.data.previous])
+  }, [chartRanges.previousEnd, chartRanges.previousStart, ga4DateData.data.dataThrough, ga4DateData.data.previous, gscDateData.data.dataThrough, gscDateData.data.previous])
 
   const chartData = rawCurrentChartData
 

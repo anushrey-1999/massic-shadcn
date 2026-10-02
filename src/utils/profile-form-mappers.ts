@@ -51,6 +51,7 @@ export const profileFormDefaults: BusinessInfoFormData = {
   offeringsList: [],
   usps: "",
   ctas: [],
+  calendarEvents: [],
   brandTerms: [],
   stakeholders: [],
   locations: [],
@@ -249,9 +250,12 @@ function normalizeImageLibrary(
 
   if (!Array.isArray(raw)) return normalizeStringArray(raw);
   return raw
-    .map((item) => {
+    .map((item): string | { alt?: string; url: string } | null => {
       const unwrappedItem = unwrapValue(item);
-      if (typeof unwrappedItem === "string") return unwrappedItem.trim();
+      if (typeof unwrappedItem === "string") {
+        const url = unwrappedItem.trim();
+        return url || null;
+      }
       if (unwrappedItem && typeof unwrappedItem === "object") {
         const image = unwrappedItem as Record<string, unknown>;
         const url = String(unwrapValue(image.url ?? image.src ?? image.href) ?? "").trim();
@@ -259,7 +263,8 @@ function normalizeImageLibrary(
         if (!url) return null;
         return alt ? { alt, url } : { url };
       }
-      return String(unwrappedItem ?? "").trim();
+      const url = String(unwrappedItem ?? "").trim();
+      return url || null;
     })
     .filter((item): item is string | { alt?: string; url: string } =>
       Boolean(item && (typeof item === "string" ? item.trim().length > 0 : (item as any).url))
@@ -418,6 +423,11 @@ export function mapProfileDataToFormValues(
     offeringsList,
     usps,
     ctas: ctasList,
+    calendarEvents: parseArrayField<any>(profileAny.CalendarEvents).map((event) => ({
+      eventName: String(event?.eventName ?? ""),
+      startDate: event?.startDate ? String(event.startDate) : null,
+      endDate: event?.endDate ? String(event.endDate) : null,
+    })),
     brandTerms: normalizeStringArray(
       profileAny.BrandTerms ?? profileAny.brand_terms ?? jobAny?.brand_terms
     ),
@@ -543,6 +553,13 @@ export function buildBusinessProfilePayload(
     USPs: formUsps.length > 0 ? formUsps : null,
     SellingPoints: formUsps.length > 0 ? formUsps : null,
     CTAs: ctasPayload,
+    CalendarEvents: (values.calendarEvents ?? [])
+      .filter((event) => event.eventName?.trim() || event.startDate?.trim())
+      .map((event) => ({
+        eventName: event.eventName?.trim() || "",
+        startDate: event.startDate?.trim() || null,
+        endDate: event.endDate?.trim() || null,
+      })),
     CustomerPersonas: (values.stakeholders || []).map((stakeholder) => ({
       personName: stakeholder.name || "",
       personDescription: stakeholder.title || "",

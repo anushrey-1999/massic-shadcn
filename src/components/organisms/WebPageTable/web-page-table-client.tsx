@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 import type { WebPageMetrics, WebPageRow } from "@/types/web-page-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 import {
@@ -370,6 +372,21 @@ export function WebPageTableClient({
     return counts;
   }, [offerings]);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<WebPageRow>((csvPage, csvPerPage) =>
+      fetchWebPages({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+      })
+    );
+    downloadRowsAsCsv(rows, "web-pages.csv");
+  }, [businessId, fetchWebPages, filters, joinOperator, search, sort]);
+
   if (jobLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -407,6 +424,7 @@ export function WebPageTableClient({
         quickTypeFilter={quickTypeFilter}
         onQuickTypeFilterChange={handleQuickTypeFilterChange}
         hideActions={hideActions}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

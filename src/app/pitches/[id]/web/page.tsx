@@ -57,7 +57,7 @@ function PitchWebSuccessView({ businessId }: { businessId: string }) {
   if (profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
-        <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center flex-1">
           <p className="text-muted-foreground">Loading...</p>
         </div>
@@ -67,7 +67,7 @@ function PitchWebSuccessView({ businessId }: { businessId: string }) {
 
   return (
     <div className="flex flex-col h-screen">
-      <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+      <PageHeader breadcrumbs={breadcrumbs} />
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
         <BusinessWorkflowStatusBanner
           businessId={businessId}

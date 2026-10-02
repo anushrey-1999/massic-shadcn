@@ -36,6 +36,7 @@ export interface DigitalAdsRow {
   cluster?: string;
   intent_cluster_opportunity_score?: number;
   comp_sum?: number;
+  [key: string]: any;
 }
 
 export interface DigitalAdsApiResponse {

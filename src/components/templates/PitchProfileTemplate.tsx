@@ -79,9 +79,10 @@ export function PitchProfileTemplate() {
     ) {
       return;
     }
+    const nodeValues = mapProfileDataToFormValues(profileData, null, locationOptions);
     const values = jobQuery.data?.job_id
-      ? mapJobToFormValues(jobQuery.data)
-      : mapProfileDataToFormValues(profileData, null, locationOptions);
+      ? { ...mapJobToFormValues(jobQuery.data), calendarEvents: nodeValues.calendarEvents }
+      : nodeValues;
     Object.entries(values).forEach(([key, value]) => {
       form.setFieldValue(key as never, value as never);
     });
@@ -98,6 +99,10 @@ export function PitchProfileTemplate() {
   ]);
 
   const save = useCallback(async () => {
+    if (!jobQuery.isFetched || jobQuery.isError) {
+      toast.error("Wait for the pitch profile to load before saving.");
+      return;
+    }
     const values = form.state.values as BusinessInfoFormData;
     const hasOffering = values.offeringsList?.some((offering) =>
       Boolean(offering.name?.trim())
@@ -134,6 +139,7 @@ export function PitchProfileTemplate() {
             website: values.website,
             primaryLocation: values.primaryLocation,
             serviceAreaType: values.serviceAreaType,
+            calendarEvents: values.calendarEvents,
           }
         : values;
       const nodePayload = buildBusinessProfilePayload(canonicalValues, {

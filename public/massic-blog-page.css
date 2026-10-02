@@ -2289,6 +2289,24 @@ details[open] .section-faq__icon {
  Maps to main design tokens. No overrides to above.
 ========================================================= */
 
+/* CMS hosts often constrain rich-text bodies to a narrow reading column.
+   Keep the Massic blog layout centered while allowing its two-column design
+   to use the shared 1200px content width. */
+.massic-blog-wrapper {
+  box-sizing: border-box;
+  width: min(var(--massic-container), calc(100vw - 64px));
+  max-width: none;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 768px) {
+  .massic-blog-wrapper {
+    width: calc(100vw - 32px);
+  }
+}
+
 /* Blog root variables Ã¢â‚¬â€ override only what diverges */
 .massic_blog_wrapper,
 .massic_blog_wrapper * {

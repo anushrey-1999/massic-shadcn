@@ -126,17 +126,19 @@ const ProfileTemplate = ({
   const hydratedServerRevisionRef = useRef<string | null>(null);
   const isJobCreated = Boolean(externalJobDetails?.job_id) || hasCreatedJobAfterSave;
 
-  const serverValues = useMemo(
-    () =>
-      externalJobDetails?.job_id
-        ? mapJobToFormValues(externalJobDetails)
-        : mapBusinessProfileToFormValues(
-            externalProfileData || null,
-            null,
-            locationOptions
-          ),
-    [externalJobDetails, externalProfileData, locationOptions]
-  );
+  const serverValues = useMemo(() => {
+    const nodeValues = mapBusinessProfileToFormValues(
+      externalProfileData || null,
+      null,
+      locationOptions
+    );
+    return externalJobDetails?.job_id
+      ? {
+          ...mapJobToFormValues(externalJobDetails),
+          calendarEvents: nodeValues.calendarEvents,
+        }
+      : nodeValues;
+  }, [externalJobDetails, externalProfileData, locationOptions]);
   const serverRevision = useMemo(
     () => stableStringify(serverValues),
     [serverValues]
@@ -836,10 +838,7 @@ const ProfileTemplate = ({
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           {/* Sticky Page Header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader
-              breadcrumbs={breadcrumbs}
-              showAskMassic={Boolean(externalJobDetails?.job_id)}
-            />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           {/* Content area: takes remaining height, scroll lives inside form column */}

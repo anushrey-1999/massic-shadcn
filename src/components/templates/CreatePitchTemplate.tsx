@@ -178,6 +178,7 @@ export function CreatePitchTemplate() {
         website: current.website,
         primaryLocation: current.primaryLocation,
         serviceAreaType: current.serviceAreaType,
+        calendarEvents: current.calendarEvents,
       };
       const canonicalNodePayload = buildBusinessProfilePayload(
         canonicalValues,

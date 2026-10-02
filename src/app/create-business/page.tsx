@@ -24,6 +24,7 @@ import {
   CreateBusinessConflictError,
   type ExistingBusinessSummary,
 } from "@/lib/business-conflict";
+import type { JobResponse } from "@/types/profile-v2";
 import { ACCOUNT_ROLES } from "@/lib/permissions";
 import {
   businessInfoSchema,
@@ -73,6 +74,9 @@ export default function CreateBusinessPage() {
   const [submissionIssues, setSubmissionIssues] = useState<
     ProfileValidationIssue[]
   >([]);
+
+  const createdForWebsiteRef = useRef<string | null>(null);
+  const createdJobRef = useRef<JobResponse | null>(null);
 
   const form = useForm({
     defaultValues: profileFormDefaults,
@@ -146,6 +150,11 @@ export default function CreateBusinessPage() {
     creationInFlight.current = true;
     setIsCreating(true);
     let business = createdBusiness;
+    if (createdForWebsiteRef.current !== values.website.trim()) {
+      business = null;
+      setCreatedBusiness(null);
+      createdJobRef.current = null;
+    }
     try {
       if (!business?.UniqueId) {
         const result = await createBusiness.mutateAsync({
@@ -168,6 +177,7 @@ export default function CreateBusinessPage() {
           throw new Error("The business API did not return a business id.");
         }
         setCreatedBusiness(business);
+        createdForWebsiteRef.current = values.website.trim();
       }
 
       const nodePayload = buildBusinessProfilePayload(values, {
@@ -182,17 +192,19 @@ export default function CreateBusinessPage() {
         { expectedWebsite: values.website, expectedIsPitch: false }
       );
 
-      const job = await createJob.mutateAsync({
+      const job = createdJobRef.current ?? await createJob.mutateAsync({
         businessId: business.UniqueId,
         profileId: pipeline.quickProfile.profile_id,
         values,
         locationOptions,
       });
+      createdJobRef.current = job;
       const canonicalValues = {
         ...mapJobToFormValues(job),
         website: values.website,
         primaryLocation: values.primaryLocation,
         serviceAreaType: values.serviceAreaType,
+        calendarEvents: values.calendarEvents,
       };
       const canonicalNodePayload = buildBusinessProfilePayload(
         canonicalValues,

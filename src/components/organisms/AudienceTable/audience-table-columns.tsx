@@ -22,7 +22,7 @@ interface GetAudienceTableColumnsProps {
 
 export function getAudienceTableColumns({
   personaCounts = {},
-  arsRange = { min: 0, max: 1 },
+  arsRange: _arsRange = { min: 0, max: 1 },
   useCaseCounts = {},
   offeringCounts = {},
 }: GetAudienceTableColumnsProps): ColumnDef<AudienceRow>[] {
@@ -98,9 +98,11 @@ export function getAudienceTableColumns({
       meta: {
         label: "Relevance",
         variant: "range",
-        range: [
-          Math.round(arsRange.min * 100),
-          Math.round(arsRange.max * 100),
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
         ],
         icon: TrendingUp,
       },

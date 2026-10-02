@@ -64,20 +64,12 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
           </Typography>
         );
       },
-      meta: offeringOptions.length > 0
-        ? {
-            label: "Offerings",
-            variant: "multiSelect" as const,
-            options: offeringOptions.map((o) => ({ label: o, value: o })),
-            operators: [{ label: "Has any of", value: "inArray" as const }],
-            closeOnSelect: true,
-          }
-        : {
-            label: "Offerings",
-            placeholder: "Search offerings...",
-            variant: "text" as const,
-            operators: textFilterOperators,
-          },
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect" as const,
+        options: offeringOptions.map((o) => ({ label: o, value: o })),
+        operators: [{ label: "Has any of", value: "inArray" as const }],
+      },
       enableColumnFilter: true,
       enableSorting: false,
       size: 150,
@@ -103,7 +95,7 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
         variant: "text",
         operators: textFilterOperators,
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       enableSorting: false,
       size: 200,
       minSize: 150,

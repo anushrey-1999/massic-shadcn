@@ -1,76 +1,48 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useLocations } from "@/hooks/use-locations";
-import {
-  useCreateBusiness,
-  useBusinessProfiles,
-  updateCreatedBusinessProfileSafely,
-} from "@/hooks/use-business-profiles";
-import { useBusinessStore, type BusinessProfile } from "@/store/business-store";
+
+import { DuplicateBusinessConflictDialog } from "@/components/create-business/DuplicateBusinessConflictDialog";
 import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTemplate";
 import {
-  useCreateJob,
-  type BusinessProfilePayload,
-} from "@/hooks/use-jobs";
-import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+  useConvertPitchToBusiness,
+  useReactivateBusiness,
+} from "@/hooks/use-business-actions";
+import {
+  updateCreatedBusinessProfileSafely,
+  useBusinessProfiles,
+  useCreateBusiness,
+} from "@/hooks/use-business-profiles";
+import { useLocations } from "@/hooks/use-locations";
+import { useCreateJob } from "@/hooks/use-jobs";
 import { useRoleGuard } from "@/hooks/use-permissions";
+import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
+import {
+  CreateBusinessConflictError,
+  type ExistingBusinessSummary,
+} from "@/lib/business-conflict";
 import { ACCOUNT_ROLES } from "@/lib/permissions";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
-import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
-import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
-import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { useBusinessStore, type BusinessProfile } from "@/store/business-store";
 import {
+  applyFormValues,
   buildBusinessProfilePayload,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
-import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
 import {
-  formatPrimaryLocationApiValue,
-  parsePrimaryLocationForPayload,
-} from "@/utils/primary-location";
+  mapJobToFormValues,
+  mapProfileToFormValues,
+} from "@/utils/profile-v2-mappers";
 import {
-  CreateBusinessConflictError,
-  type ExistingBusinessSummary,
-} from "@/lib/business-conflict";
-import {
-  useConvertPitchToBusiness,
-  useReactivateBusiness,
-} from "@/hooks/use-business-actions";
-import { DuplicateBusinessConflictDialog } from "@/components/create-business/DuplicateBusinessConflictDialog";
-
-type FormData = BusinessInfoFormData;
-const formFieldNames = [
-  "website",
-  "businessName",
-  "primaryLocation",
-  "serviceType",
-  "offerings",
-] as const;
-
-const updateCreatedBusinessProfile = async (
-  businessId: string,
-  createdBusiness: BusinessProfile | null,
-  payload: BusinessProfilePayload,
-  expectedWebsite: string
-) => {
-  // Verified write: refuses to run if `businessId` isn't the business we just
-  // created (wrong domain, already analytics-linked, or a pitch).
-  await updateCreatedBusinessProfileSafely(
-    businessId,
-    {
-      ...(createdBusiness ?? {}),
-      ...payload,
-    },
-    { expectedWebsite, expectedIsPitch: false }
-  );
-};
+  validateProfileForm,
+  type ProfileValidationIssue,
+} from "@/utils/profile-form-fields";
 
 export default function CreateBusinessPage() {
   const allowed = useRoleGuard({
@@ -79,260 +51,224 @@ export default function CreateBusinessPage() {
   });
   const router = useRouter();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
-
+  const setLocationOptions = useBusinessStore(
+    (state) => state.setLocationOptions
+  );
+  const setLocationsLoading = useBusinessStore(
+    (state) => state.setLocationsLoading
+  );
   const createBusiness = useCreateBusiness();
   const createJob = useCreateJob();
+  const pipeline = useProfilePipeline(locationOptions);
+  const { refetchBusinessProfiles } = useBusinessProfiles();
   const convertPitch = useConvertPitchToBusiness();
   const reactivateBusiness = useReactivateBusiness();
-  const offeringsExtractor = useOfferingsExtractor("create-business");
-  const { refetchBusinessProfiles } = useBusinessProfiles();
-  const setLocationOptions = useBusinessStore((state) => state.setLocationOptions);
-  const setLocationsLoading = useBusinessStore((state) => state.setLocationsLoading);
-  const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
+  const [hasQuickProfile, setHasQuickProfile] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const creationInFlight = useRef(false);
+  const [createdBusiness, setCreatedBusiness] =
+    useState<BusinessProfile | null>(null);
   const [conflictingBusiness, setConflictingBusiness] =
     useState<ExistingBusinessSummary | null>(null);
+  const [submissionIssues, setSubmissionIssues] = useState<
+    ProfileValidationIssue[]
+  >([]);
 
   const form = useForm({
     defaultValues: profileFormDefaults,
-    validators: {
-      onChange: businessInfoSchema as any,
-    },
-  });
-
-  // Anything entered or autofilled on top of the empty defaults is unsaved work.
-  const { isDirty, resetBaseline } = useFormDirtyState({
-    form,
-    baseline: profileFormDefaults,
-  });
-  const { requestNavigation, allowNavigation } = useUnsavedChangesGuard({
-    isDirty,
+    validators: { onChange: businessInfoSchema as never },
   });
 
   useEffect(() => {
     setLocationOptions(locationOptions);
     setLocationsLoading(locationsLoading);
-  }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
+  }, [
+    locationOptions,
+    locationsLoading,
+    setLocationOptions,
+    setLocationsLoading,
+  ]);
 
-  const handleSubmitCreate = useCallback(async (options?: {
-    values?: FormData;
-    autofillData?: NormalizedProfileResult | null;
-  }) => {
-    if (offeringsExtractor.isExtracting) {
-      toast.error("Please wait for offerings extraction to finish.");
-      return;
-    }
-
-    const values = options?.values ?? (form.state.values as FormData);
-    const activeAutofillData = options?.autofillData ?? null;
-    const validation = businessInfoSchema.safeParse(values);
-
-    formFieldNames.forEach((fieldName) => {
-      const fieldIssue = validation.success
-        ? undefined
-        : validation.error.issues.find((issue) => issue.path[0] === fieldName);
-
-      form.setFieldMeta(fieldName, (prev: any) => ({
-        ...prev,
-        isTouched: true,
-        isValid: !fieldIssue,
-        errors: fieldIssue ? [{ message: fieldIssue.message }] : [],
-        errorMap: fieldIssue
-          ? {
-            onChange: [{ message: fieldIssue.message }],
-          }
-          : {},
-        hasValidationErrors: Boolean(fieldIssue),
-      }));
-    });
-
-    if (!validation.success) {
-      toast.error("Please fix the highlighted fields before creating your business.");
+  const handleQuickProfile = useCallback(async () => {
+    const values = form.state.values as BusinessInfoFormData;
+    if (
+      !values.website.trim() ||
+      !values.primaryLocation.trim() ||
+      !values.serviceAreaType
+    ) {
+      toast.error("Add a website, primary location, and service-area type.");
       return;
     }
 
     try {
-      const result = await createBusiness.mutateAsync({
-        website: values.website,
-        businessName: values.businessName,
-        primaryLocation: values.primaryLocation,
-        serveCustomers:
-          values.serviceType === "physical"
-            ? "local"
-            : values.serviceType === "both"
-              ? "both"
-              : "online",
-        offerType: values.offerings,
-        suppressErrorToast: true,
+      const profile = await pipeline.runQuick(values);
+      if (profile.status === "error") {
+        toast.error("Quick profile failed", {
+          description: pipeline.failure?.message,
+        });
+        return;
+      }
+      const nextValues = mapProfileToFormValues(profile, values);
+      applyFormValues(form, nextValues);
+      setSubmissionIssues([]);
+      setHasQuickProfile(true);
+      if (profile.status === "needs_verification") {
+        toast.warning("Some profile details need verification.", {
+          description: "Review the highlighted profile fields before creating.",
+        });
+      }
+    } catch (error) {
+      toast.error("Couldn't build the profile", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
       });
+    }
+  }, [form, pipeline]);
 
-      await refetchBusinessProfiles();
+  const handleSubmitCreate = useCallback(async () => {
+    if (creationInFlight.current) return;
+    const values = form.state.values as BusinessInfoFormData;
+    form.validate("submit");
+    const issues = validateProfileForm(values);
+    setSubmissionIssues(issues);
+    if (issues.length > 0) {
+      const labels = [...new Set(issues.map((issue) => issue.label))];
+      toast.error("Complete the highlighted fields before creating.", {
+        description: labels.join(", "),
+      });
+      return;
+    }
+    if (!pipeline.quickProfile || pipeline.quickProfile.status === "error") {
+      toast.error("Run quick profile before creating the business.");
+      return;
+    }
 
-      const businessId = result?.createdBusiness?.UniqueId;
-      if (businessId) {
-        const formOfferings = Array.isArray(values.offeringsList)
-          ? values.offeringsList
-            .filter((row: any) => Boolean(row?.name?.trim()))
-            .map((row: any) => ({
-              name: String(row.name || ""),
-              description: String(row.description || ""),
-              link: String(row.link || ""),
-              offering_type: String((row as any).offeringType || ""),
-              price_range: String((row as any).priceRange || row.pricePositioning || ""),
-              duration: String((row as any).duration || ""),
-              inclusions: Array.isArray((row as any).inclusions)
-                ? (row as any).inclusions
-                : typeof (row as any).inclusions === "string"
-                  ? (row as any).inclusions
-                  : [],
-            }))
-          : [];
-        const offerings = formOfferings;
-        const businessProfilePayload = buildBusinessProfilePayload(values, {
-          autofillResult: activeAutofillData,
+    creationInFlight.current = true;
+    setIsCreating(true);
+    let business = createdBusiness;
+    try {
+      if (!business?.UniqueId) {
+        const result = await createBusiness.mutateAsync({
+          website: values.website,
+          businessName: values.businessName,
+          primaryLocation: values.primaryLocation,
+          serveCustomers:
+            values.serviceType === "physical"
+              ? "local"
+              : values.serviceType === "both"
+                ? "both"
+                : values.serviceType === "online"
+                  ? "online"
+                  : "",
+          offerType: values.offerings || "",
+          suppressErrorToast: true,
+        });
+        business = result.createdBusiness;
+        if (!business?.UniqueId) {
+          throw new Error("The business API did not return a business id.");
+        }
+        setCreatedBusiness(business);
+      }
+
+      const nodePayload = buildBusinessProfilePayload(values, {
+        locationOptions,
+        normalizeWebsite: true,
+        ctasMode: "wrapped-json",
+      });
+      nodePayload.ProfileId = pipeline.quickProfile.profile_id;
+      await updateCreatedBusinessProfileSafely(
+        business.UniqueId,
+        { ...business, ...nodePayload },
+        { expectedWebsite: values.website, expectedIsPitch: false }
+      );
+
+      const job = await createJob.mutateAsync({
+        businessId: business.UniqueId,
+        profileId: pipeline.quickProfile.profile_id,
+        values,
+        locationOptions,
+      });
+      const canonicalValues = {
+        ...mapJobToFormValues(job),
+        website: values.website,
+        primaryLocation: values.primaryLocation,
+        serviceAreaType: values.serviceAreaType,
+      };
+      const canonicalNodePayload = buildBusinessProfilePayload(
+        canonicalValues,
+        {
+          existingProfile: business,
           locationOptions,
           normalizeWebsite: true,
           ctasMode: "wrapped-json",
-        });
-
-        await updateCreatedBusinessProfile(
-          businessId,
-          result.createdBusiness,
-          businessProfilePayload,
-          values.website
-        );
-
-        await createJob.mutateAsync({
-          businessId,
-          businessProfilePayload,
-          offerings,
-          suppressErrorToast: true,
-        });
-
-        await refetchBusinessProfiles();
-
-        resetBaseline();
-        allowNavigation(() => router.push(`/business/${businessId}/profile`));
-      } else {
-        resetBaseline();
-        allowNavigation(() => router.push("/"));
-      }
+          preserveExistingProfile: true,
+        }
+      );
+      canonicalNodePayload.ProfileId = job.profile_id;
+      await updateCreatedBusinessProfileSafely(
+        business.UniqueId,
+        canonicalNodePayload,
+        { expectedWebsite: values.website, expectedIsPitch: false }
+      );
+      await refetchBusinessProfiles();
+      router.push(`/business/${business.UniqueId}/profile`);
     } catch (error) {
       if (error instanceof CreateBusinessConflictError) {
         setConflictingBusiness(error.conflict.existingBusiness);
         return;
       }
-      console.error("Failed to finish business setup:", error);
-      toast.error("Failed to finish business setup", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "Please try again before continuing.",
-      });
+      toast.error(
+        business
+          ? "Business created, but setup is incomplete."
+          : "Failed to create business",
+        {
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        }
+      );
+      if (business?.UniqueId) {
+        router.push(`/business/${business.UniqueId}/profile`);
+      }
+    } finally {
+      creationInFlight.current = false;
+      setIsCreating(false);
     }
   }, [
-    allowNavigation,
-    form,
     createBusiness,
     createJob,
-    refetchBusinessProfiles,
-    resetBaseline,
-    router,
-    offeringsExtractor.isExtracting,
+    createdBusiness,
+    form,
     locationOptions,
+    pipeline,
+    refetchBusinessProfiles,
+    router,
   ]);
-
-  const { autofillProfile: handleAutofillProfile, autofillProfileResult, isAutofillLoading } =
-    useProfileAutofillForm({
-      form,
-      locationOptions,
-      normalizeWebsite: true,
-      onBeforeAutofill: (website) => {
-        offeringsExtractor.clearExtraction();
-        const values = form.state.values as FormData;
-        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
-        const context = trimmedPrimaryLocation
-          ? (() => {
-              const payload = parsePrimaryLocationForPayload(
-                trimmedPrimaryLocation,
-                locationOptions
-              );
-              return {
-                country: normalizeProfileCountry(payload.Country),
-                location: formatPrimaryLocationApiValue(payload),
-              };
-            })()
-          : undefined;
-
-        void offeringsExtractor.startExtraction(website, context).catch(() => {});
-      },
-      onAutofillSuccess: async (profile, nextValues) => {
-        formFieldNames.forEach((fieldName) => {
-          form.setFieldMeta(fieldName, (prev: any) => ({
-            ...prev,
-            isTouched: false,
-            isValid: true,
-            errors: [],
-            errorMap: {},
-            hasValidationErrors: false,
-          }));
-        });
-        setHasAutofilledProfile(true);
-      },
-    });
-
-  const handleCancel = () => {
-    requestNavigation("/");
-  };
 
   const handleOpenExisting = useCallback(() => {
     if (!conflictingBusiness?.UniqueId) return;
-    const target = conflictingBusiness.IsPitch
-      ? `/pitches/${conflictingBusiness.UniqueId}/profile`
-      : `/business/${conflictingBusiness.UniqueId}/profile`;
-    setConflictingBusiness(null);
-    allowNavigation(() => router.push(target));
-  }, [allowNavigation, conflictingBusiness, router]);
+    router.push(
+      conflictingBusiness.IsPitch
+        ? `/pitches/${conflictingBusiness.UniqueId}/profile`
+        : `/business/${conflictingBusiness.UniqueId}/profile`
+    );
+  }, [conflictingBusiness, router]);
 
   const handleConvertPitch = useCallback(async () => {
-    if (!conflictingBusiness?.UniqueId || !conflictingBusiness.IsPitch) return;
-
-    try {
-      await convertPitch.mutateAsync({
-        businessId: conflictingBusiness.UniqueId,
-        suppressConflictToast: true,
-      });
-      const businessId = conflictingBusiness.UniqueId;
-      setConflictingBusiness(null);
-      allowNavigation(() => router.push(`/business/${businessId}/profile`));
-    } catch (error) {
-      if (error instanceof CreateBusinessConflictError) {
-        setConflictingBusiness(error.conflict.existingBusiness);
-        return;
-      }
-      // The mutation owns actionable error feedback.
-    }
-  }, [allowNavigation, conflictingBusiness, convertPitch, router]);
+    if (!conflictingBusiness?.UniqueId) return;
+    await convertPitch.mutateAsync({
+      businessId: conflictingBusiness.UniqueId,
+      suppressConflictToast: true,
+    });
+    router.push(`/business/${conflictingBusiness.UniqueId}/profile`);
+  }, [conflictingBusiness, convertPitch, router]);
 
   const handleReactivate = useCallback(async () => {
-    if (
-      !conflictingBusiness?.UniqueId ||
-      conflictingBusiness.IsPitch ||
-      conflictingBusiness.IsActive
-    ) {
-      return;
-    }
-
-    try {
-      await reactivateBusiness.mutateAsync({
-        businessId: conflictingBusiness.UniqueId,
-      });
-      const businessId = conflictingBusiness.UniqueId;
-      setConflictingBusiness(null);
-      allowNavigation(() => router.push(`/business/${businessId}/profile`));
-    } catch {
-      // The mutation owns actionable error feedback.
-    }
-  }, [allowNavigation, conflictingBusiness, reactivateBusiness, router]);
+    if (!conflictingBusiness?.UniqueId) return;
+    await reactivateBusiness.mutateAsync({
+      businessId: conflictingBusiness.UniqueId,
+    });
+    router.push(`/business/${conflictingBusiness.UniqueId}/profile`);
+  }, [conflictingBusiness, reactivateBusiness, router]);
 
   if (!allowed) return null;
 
@@ -342,38 +278,24 @@ export default function CreateBusinessPage() {
         form={form}
         locationOptions={locationOptions}
         locationsLoading={locationsLoading}
-        isSubmitting={form.state.isSubmitting}
-        isPending={createBusiness.isPending || createJob.isPending}
-        isAutofillLoading={isAutofillLoading}
-        offeringsExtractor={offeringsExtractor}
-        hasAutofilledProfile={hasAutofilledProfile}
-        onAutofillProfile={() => {
-          void handleAutofillProfile();
-        }}
-        onSubmitCreate={() => handleSubmitCreate({ autofillData: autofillProfileResult })}
-        onCancel={handleCancel}
+        isSubmitting={isCreating}
+        isPending={createBusiness.isPending || createJob.isPending || pipeline.isProcessing}
+        isAutofillLoading={pipeline.stage === "quick"}
+        hasAutofilledProfile={hasQuickProfile}
+        submissionIssues={submissionIssues}
+        onAutofillProfile={() => void handleQuickProfile()}
+        onSubmitCreate={() => void handleSubmitCreate()}
+        onCancel={() => router.push("/")}
       />
       <DuplicateBusinessConflictDialog
         open={Boolean(conflictingBusiness)}
         business={conflictingBusiness}
         isConverting={convertPitch.isPending}
         isReactivating={reactivateBusiness.isPending}
-        onOpenChange={(open) => {
-          if (
-            !open &&
-            !convertPitch.isPending &&
-            !reactivateBusiness.isPending
-          ) {
-            setConflictingBusiness(null);
-          }
-        }}
+        onOpenChange={(open) => !open && setConflictingBusiness(null)}
         onOpenExisting={handleOpenExisting}
-        onConvertPitch={() => {
-          void handleConvertPitch();
-        }}
-        onReactivate={() => {
-          void handleReactivate();
-        }}
+        onConvertPitch={() => void handleConvertPitch()}
+        onReactivate={() => void handleReactivate()}
       />
     </>
   );

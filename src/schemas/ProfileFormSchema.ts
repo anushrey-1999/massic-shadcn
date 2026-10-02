@@ -18,6 +18,18 @@ const imageLibraryItemSchema = z.union([
   }),
 ]);
 
+const provenanceStatusSchema = z.enum([
+  "confirmed",
+  "strongly_supported",
+  "likely",
+  "needs_verification",
+]);
+
+const sourcedMetadataSchema = z.object({
+  status: provenanceStatusSchema.optional(),
+  sourceRefs: z.array(z.string()).optional(),
+});
+
 export const businessInfoSchema = z.object({
   website: z
     .string()
@@ -27,19 +39,53 @@ export const businessInfoSchema = z.object({
       { message: "Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)" }
     ),
   businessName: z.string().min(1, "Business Name is required"),
-  businessCategory: z.string().optional(),
-  foundingDate: z.string().optional(),
+  primaryCategory: z.string().optional(),
+  secondaryCategory: z.string().optional(),
+  categoriesTagged: z.array(z.string().trim().min(1)).optional(),
+  foundingDate: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        !value ||
+        (/^\d+$/.test(value.trim()) &&
+          Number.isInteger(Number(value)) &&
+          Number(value) >= 0),
+      { message: "Year founded must be a whole number" }
+    ),
   logoUrl: z.string().optional(),
   businessDescription: z.string(),
   primaryLocation: z.string().min(1, "Primary Location is required"),
   serviceAreaType: z.string().optional(),
   serviceAreas: z.array(z.string().trim().min(1)).optional(),
-  serviceType: z.enum(["physical", "online", "both"]),
+  serviceAreaDetails: z
+    .array(
+      z.object({
+        name: z.string(),
+        kind: z.enum(["city", "state", "region", "colloquial", "island"]),
+        rank: z.number().optional(),
+      })
+    )
+    .optional(),
+  serviceType: z
+    .union([z.enum(["physical", "online", "both"]), z.literal("")])
+    .optional(),
   lifetimeValue: z
     .union([z.enum(["high", "low"]), z.literal("")])
     .optional(),
-  b2bB2c: z.string().optional(),
-  offerings: z.enum(["products", "services", "both"]),
+  averageOrderValue: z
+    .union([
+      z.number().nonnegative("Average order value cannot be negative"),
+      z.literal(""),
+    ])
+    .optional(),
+  recurringFlag: z
+    .union([z.enum(["yes", "no", "sometimes"]), z.literal(""), z.string()])
+    .optional(),
+  customerTypes: z.array(z.enum(["b2b", "b2c"])).optional(),
+  offerings: z
+    .union([z.enum(["products", "services", "both"]), z.literal("")])
+    .optional(),
   offeringsList: z
     .array(
       z
@@ -69,6 +115,9 @@ export const businessInfoSchema = z.object({
           priceRange: z.string().optional(),
           duration: z.string().optional(),
           inclusions: z.union([z.array(z.string()), z.string()]).optional(),
+          existingUrls: z.array(z.string()).optional(),
+          sourceStatus: provenanceStatusSchema.optional(),
+          sourceRefs: z.array(z.string()).optional(),
         })
         .superRefine((row, ctx) => {
           const name = String(row.name ?? "").trim();
@@ -96,6 +145,17 @@ export const businessInfoSchema = z.object({
     )
     .optional(),
   usps: z.string().optional(),
+  differentiators: z
+    .array(
+      z.object({
+        differentiator: z.string().trim().min(1),
+        whyItMatters: z.string().optional(),
+        proof: z.array(z.unknown()).optional(),
+        sourceStatus: provenanceStatusSchema.optional(),
+        sourceRefs: z.array(z.string()).optional(),
+      })
+    )
+    .optional(),
   ctas: z
     .array(
       z.object({
@@ -133,6 +193,7 @@ export const businessInfoSchema = z.object({
   detailedLocations: z
     .array(
       z.object({
+        name: z.string().optional(),
         streetAddress: z.string().optional(),
         city: z.string().optional(),
         state: z.string().optional(),
@@ -157,6 +218,9 @@ export const businessInfoSchema = z.object({
     .optional(),
   licensesCompliance: z.array(z.string().trim().min(1)).optional(),
   awardsCertifications: z.array(z.string().trim().min(1)).optional(),
+  licenseMetadata: z.record(z.string(), sourcedMetadataSchema).optional(),
+  awardMetadata: z.record(z.string(), sourcedMetadataSchema).optional(),
+  brandTermMetadata: z.record(z.string(), sourcedMetadataSchema).optional(),
   colorsFontsCss: z.string().optional(),
   imagePhotoLibrary: z.array(imageLibraryItemSchema).optional(),
   socialProfiles: z
@@ -175,6 +239,8 @@ export const businessInfoSchema = z.object({
     .optional(),
   supportEmail: z.string().optional(),
   commsEmail: z.string().optional(),
+  primaryPhone: z.string().optional(),
+  additionalPhones: z.array(z.string().trim().min(1)).optional(),
   competitors: z
     .array(
       z.object({

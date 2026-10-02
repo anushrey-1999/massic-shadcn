@@ -3,7 +3,6 @@ import type { BusinessProfile, OfferingRow } from "@/store/business-store";
 import type { BusinessProfilePayload, JobDetails, Offering } from "@/hooks/use-jobs";
 import {
   cleanWebsiteUrl,
-  normalizeDomainForFavicon,
   normalizeWebsiteUrl,
   parseArrayField,
 } from "@/utils/utils";
@@ -12,7 +11,6 @@ import {
   primaryLocationFromProfile,
   resolvePrimaryLocationFormValue,
 } from "@/utils/primary-location";
-import { profileOfferingsToRows, type NormalizedProfileResult } from "@/utils/profile-result";
 import {
   LOCATION_KINDS,
   formatLocationLabel,
@@ -26,7 +24,6 @@ type LocationOption = {
 };
 
 type BuildProfilePayloadOptions = {
-  autofillResult?: NormalizedProfileResult | null;
   existingProfile?: BusinessProfile | null;
   locationOptions?: LocationOption[];
   normalizeWebsite?: boolean;
@@ -38,16 +35,18 @@ type BuildProfilePayloadOptions = {
 export const profileFormDefaults: BusinessInfoFormData = {
   website: "",
   businessName: "",
-  businessCategory: "",
+  primaryCategory: "",
+  secondaryCategory: "",
+  categoriesTagged: [],
   foundingDate: "",
   logoUrl: "",
   businessDescription: "",
   primaryLocation: "",
-  serviceAreaType: "city_local",
+  serviceAreaType: undefined,
   serviceAreas: [],
   serviceType: "" as BusinessInfoFormData["serviceType"],
   lifetimeValue: "",
-  b2bB2c: "",
+  customerTypes: [],
   offerings: "" as BusinessInfoFormData["offerings"],
   offeringsList: [],
   usps: "",
@@ -65,6 +64,8 @@ export const profileFormDefaults: BusinessInfoFormData = {
   directoryProfiles: [],
   supportEmail: "",
   commsEmail: "",
+  primaryPhone: "",
+  additionalPhones: [],
   competitors: [],
   brandToneSocial: [],
   brandToneWeb: [],
@@ -283,127 +284,6 @@ function normalizeProfileUrlRows(raw: unknown): Array<{ url: string }> {
     .filter((item): item is { url: string } => Boolean(item));
 }
 
-export function mapAutofillResultToFormValues(
-  currentValues: BusinessInfoFormData,
-  profile: NormalizedProfileResult,
-  fallbackWebsite: string,
-  options?: { normalizeWebsite?: boolean }
-): BusinessInfoFormData {
-  // Never trust autofill to replace the user's website with a different domain.
-  // Some sites/inputs can cause backend extraction to return a different `business_url`
-  // (canonical redirects, mixed signals, crawler mistakes). Keep the original domain.
-  const inputWebsiteRaw = cleanWebsiteUrl(String(fallbackWebsite || currentValues.website || ""));
-  const profileWebsiteRaw = cleanWebsiteUrl(String(profile.businessUrl || ""));
-
-  const inputDomain = normalizeDomainForFavicon(inputWebsiteRaw);
-  const profileDomain = normalizeDomainForFavicon(profileWebsiteRaw);
-
-  const shouldUseProfileWebsite =
-    Boolean(profileWebsiteRaw) &&
-    Boolean(inputDomain) &&
-    Boolean(profileDomain) &&
-    inputDomain.toLowerCase() === profileDomain.toLowerCase();
-
-  const websiteCandidate = shouldUseProfileWebsite ? profileWebsiteRaw : inputWebsiteRaw;
-  const normalizedWebsite =
-    options?.normalizeWebsite === true ? normalizeWebsiteUrl(websiteCandidate) : websiteCandidate;
-
-  const hasExistingOfferings =
-    Array.isArray(currentValues.offeringsList) &&
-    currentValues.offeringsList.some((row) =>
-      Boolean(
-        String((row as any)?.name ?? "").trim() ||
-          String((row as any)?.description ?? "").trim() ||
-          String((row as any)?.link ?? "").trim()
-      )
-    );
-
-  return {
-    ...currentValues,
-    website: normalizedWebsite || currentValues.website,
-    businessName: String(profile.brand ?? "").trim() || currentValues.businessName,
-    businessCategory: profile.businessCategory || currentValues.businessCategory,
-    foundingDate: profile.yearFounded || currentValues.foundingDate,
-    logoUrl: profile.logoUrl || currentValues.logoUrl,
-    serviceAreaType: profile.serviceAreaType || currentValues.serviceAreaType,
-    serviceAreas:
-      profile.serviceAreas.length > 0
-        ? profile.serviceAreas
-        : profile.structuredServiceAreas.length > 0
-          ? profile.structuredServiceAreas.map((area) => area.name)
-          : currentValues.serviceAreas,
-    serviceType: profile.serviceType || currentValues.serviceType,
-    offerings: profile.sell || currentValues.offerings,
-    lifetimeValue: profile.ltv || currentValues.lifetimeValue,
-    b2bB2c: profile.b2bB2c || currentValues.b2bB2c,
-    colorsFontsCss: profile.colorsFontsCss || currentValues.colorsFontsCss,
-    imagePhotoLibrary:
-      profile.imagePhotoLibrary.length > 0
-        ? profile.imagePhotoLibrary
-        : currentValues.imagePhotoLibrary,
-    socialProfiles:
-      profile.socialProfiles.length > 0
-        ? profile.socialProfiles
-        : currentValues.socialProfiles,
-    directoryProfiles:
-      profile.directoryProfiles.length > 0
-        ? profile.directoryProfiles
-        : currentValues.directoryProfiles,
-    supportEmail: profile.supportEmail || currentValues.supportEmail,
-    licensesCompliance:
-      profile.licenses.length > 0 ? profile.licenses : currentValues.licensesCompliance,
-    awardsCertifications:
-      profile.awards.length > 0 ? profile.awards : currentValues.awardsCertifications,
-    stakeholders:
-      profile.keyPeople.length > 0
-        ? profile.keyPeople.map((person) => ({
-            name: person.name,
-            title: person.role,
-            bio: person.bio,
-          }))
-        : currentValues.stakeholders,
-    offeringsList:
-      !hasExistingOfferings && profile.offerings.length > 0
-        ? profileOfferingsToRows(profile.offerings)
-        : currentValues.offeringsList,
-    locations:
-      profile.structuredLocations.length > 0
-        ? mapJobLocationsToLocationRows(profile.structuredLocations)
-        : currentValues.locations,
-    detailedLocations:
-      profile.structuredLocations.length > 0
-        ? mapJobLocationsToDetailedRows(profile.structuredLocations)
-        : currentValues.detailedLocations,
-    usps: profile.usps.length > 0 ? profile.usps.join(", ") : currentValues.usps,
-    ctas:
-      profile.ctas.length > 0
-        ? profile.ctas
-            .map((cta) => ({
-              buttonText: String(cta.text || "").trim(),
-              url: ensureHttpsUrl(cta.url),
-            }))
-            .filter((cta) => Boolean(cta.buttonText && cta.url))
-        : currentValues.ctas,
-    brandTerms:
-      profile.brandTerms.length > 0 ? profile.brandTerms : currentValues.brandTerms,
-    brandToneWeb:
-      profile.webBrandVoice.length > 0
-        ? normalizeToneOptions(profile.webBrandVoice)
-        : currentValues.brandToneWeb,
-    brandToneSocial:
-      profile.socialBrandVoice.length > 0
-        ? normalizeToneOptions(profile.socialBrandVoice)
-        : currentValues.brandToneSocial,
-    competitors:
-      profile.competitors.length > 0
-        ? profile.competitors
-            .map((url) => cleanWebsiteUrl(String(url)))
-            .filter(Boolean)
-            .map((url) => ({ url }))
-        : currentValues.competitors,
-  };
-}
-
 export function applyFormValues(form: any, values: BusinessInfoFormData) {
   Object.entries(values).forEach(([fieldName, fieldValue]) => {
     form.setFieldValue(fieldName as any, fieldValue as any);
@@ -476,11 +356,13 @@ export function mapProfileDataToFormValues(
   return {
     website: cleanWebsiteUrl(profileData.Website),
     businessName: profileData.Name || profileData.DisplayName || "",
-    businessCategory:
+    primaryCategory:
       profileAny.BusinessCategory ||
       profileAny.business_category ||
       jobAny?.business_category ||
       "",
+    secondaryCategory: jobAny?.secondary_category || "",
+    categoriesTagged: normalizeStringArray(jobAny?.categories_tagged),
     foundingDate:
       profileAny.FoundingDate ||
       profileAny.foundingDate ||
@@ -510,8 +392,23 @@ export function mapProfileDataToFormValues(
       const value = ltv != null ? String(ltv).trim().toLowerCase() : "";
       return value === "high" || value === "low" ? value : "";
     })(),
-    b2bB2c:
-      profileAny.B2bB2c || profileAny.b2b_b2c || jobAny?.b2b_b2c || "",
+    customerTypes: (() => {
+      const raw =
+        jobAny?.customer_types ??
+        profileAny.CustomerTypes ??
+        profileAny.B2bB2c ??
+        profileAny.b2b_b2c;
+      if (Array.isArray(raw)) {
+        return raw.filter((value): value is "b2b" | "b2c" =>
+          value === "b2b" || value === "b2c"
+        );
+      }
+      return raw === "both"
+        ? ["b2b", "b2c"]
+        : raw === "b2b" || raw === "b2c"
+          ? [raw]
+          : [];
+    })(),
     offerings: (() => {
       const locationType = String(profileData.LocationType || "").toLowerCase();
       if (locationType === "services") return "services";
@@ -562,7 +459,6 @@ export function buildBusinessProfilePayload(
   options: BuildProfilePayloadOptions = {}
 ): BusinessProfilePayload {
   const {
-    autofillResult,
     existingProfile,
     locationOptions,
     normalizeWebsite = false,
@@ -617,41 +513,35 @@ export function buildBusinessProfilePayload(
           ? businessObjectiveBothValue
           : "online",
     LocationType: values.offerings,
-    ProfileId: autofillResult?.profileId ?? (existingProfile as any)?.ProfileId,
+    ProfileId: (existingProfile as any)?.ProfileId,
     BusinessCategory:
-      values.businessCategory?.trim() ||
-      autofillResult?.businessCategory ||
+      values.primaryCategory?.trim() ||
       (existingProfile as any)?.BusinessCategory,
     ServiceAreaType:
       values.serviceAreaType?.trim() ||
-      autofillResult?.serviceAreaType ||
       (existingProfile as any)?.ServiceAreaType,
     ServiceAreas:
       values.serviceAreas?.length
         ? values.serviceAreas
-        : autofillResult?.serviceAreas?.length
-          ? autofillResult.serviceAreas
-          : (existingProfile as any)?.ServiceAreas,
+        : (existingProfile as any)?.ServiceAreas,
     StructuredServiceAreas:
-      autofillResult?.structuredServiceAreas?.length
-        ? autofillResult.structuredServiceAreas
-        : (existingProfile as any)?.StructuredServiceAreas ??
-          (existingProfile as any)?.service_areas,
-    ProfileLocation: autofillResult?.location ?? (existingProfile as any)?.ProfileLocation,
-    ProfileCountry: autofillResult?.country ?? (existingProfile as any)?.ProfileCountry,
+      (existingProfile as any)?.StructuredServiceAreas ??
+      (existingProfile as any)?.service_areas,
+    ProfileLocation: location || (existingProfile as any)?.ProfileLocation,
+    ProfileCountry: country || (existingProfile as any)?.ProfileCountry,
     B2bB2c:
-      values.b2bB2c?.trim() ||
-      autofillResult?.b2bB2c ||
-      (existingProfile as any)?.B2bB2c,
-    Segment: autofillResult?.segment || (existingProfile as any)?.Segment,
+      values.customerTypes?.length === 2
+        ? "both"
+        : values.customerTypes?.[0] ||
+          (existingProfile as any)?.B2bB2c,
+    Segment: (existingProfile as any)?.Segment,
     LTV:
       values.lifetimeValue === "high" || values.lifetimeValue === "low"
         ? values.lifetimeValue
         : null,
     BrandTerms: brandTerms,
-    USPs: formUsps.length > 0 ? formUsps : autofillResult?.usps?.length ? autofillResult.usps : null,
-    SellingPoints:
-      formUsps.length > 0 ? formUsps : autofillResult?.usps?.length ? autofillResult.usps : null,
+    USPs: formUsps.length > 0 ? formUsps : null,
+    SellingPoints: formUsps.length > 0 ? formUsps : null,
     CTAs: ctasPayload,
     CustomerPersonas: (values.stakeholders || []).map((stakeholder) => ({
       personName: stakeholder.name || "",
@@ -673,10 +563,8 @@ export function buildBusinessProfilePayload(
       })),
     DetailedLocations: values.detailedLocations || null,
     StructuredLocations:
-      autofillResult?.structuredLocations?.length
-        ? autofillResult.structuredLocations
-        : (existingProfile as any)?.StructuredLocations ??
-          (existingProfile as any)?.locations,
+      (existingProfile as any)?.StructuredLocations ??
+      (existingProfile as any)?.locations,
     KeyPeople: (values.stakeholders || []).map((stakeholder) => ({
       name: stakeholder.name || "",
       role: stakeholder.title || "",

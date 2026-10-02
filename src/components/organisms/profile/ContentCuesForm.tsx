@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
-import { Badge } from "@/components/ui/badge";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 
 import { CTARow, StakeholderRow } from "@/store/business-store";
@@ -21,6 +20,7 @@ import { TagsInput } from "@/components/ui/tags-input";
 
 type BusinessInfoFormData = {
   usps?: string;
+  differentiators?: DifferentiatorRow[];
   ctas?: Array<{ buttonText: string; url: string }>;
   ctasSavedIndices?: number[];
   stakeholders?: Array<{ name: string; title: string; bio?: string }>;
@@ -28,6 +28,14 @@ type BusinessInfoFormData = {
   brandToneSocial?: string[];
   brandToneWeb?: string[];
   brandTerms?: string[];
+};
+
+type DifferentiatorRow = {
+  differentiator: string;
+  whyItMatters?: string;
+  proof?: unknown[];
+  sourceStatus?: string;
+  sourceRefs?: string[];
 };
 
 interface ContentCuesFormProps {
@@ -41,16 +49,13 @@ export const ContentCuesForm = ({
 }: ContentCuesFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
-  const uspsValue = useStore(form.store, (state: any) => (state.values?.usps || "") as string);
+  const differentiatorsData = useStore(
+    form.store,
+    (state: any) =>
+      (state.values?.differentiators || []) as DifferentiatorRow[]
+  );
   const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
-
-  const uspChips = useMemo(() => {
-    return String(uspsValue ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }, [uspsValue]);
 
   // Track CTA validation errors
   const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
@@ -72,8 +77,23 @@ export const ContentCuesForm = ({
   const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
     { key: "name", label: "Name", validation: { required: false } },
     { key: "title", label: "Role", validation: { required: false } },
-    { key: "bio", label: "Bio", validation: { required: false } },
   ], []);
+
+  const differentiatorColumns: Column<DifferentiatorRow>[] = useMemo(
+    () => [
+      {
+        key: "differentiator",
+        label: "Differentiator",
+        validation: { required: true },
+      },
+      {
+        key: "whyItMatters",
+        label: "Why it matters",
+        validation: { required: false },
+      },
+    ],
+    []
+  );
 
   // Own handlers - encapsulated logic
   const {
@@ -95,7 +115,23 @@ export const ContentCuesForm = ({
     data: stakeholdersData,
     formFieldName: "stakeholders",
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ name: "", title: "", bio: "" }),
+    emptyRowFactory: () => ({ name: "", title: "" }),
+  });
+
+  const {
+    handleAddRow: handleAddDifferentiator,
+    handleRowChange: handleDifferentiatorChange,
+    handleDeleteRow: handleDeleteDifferentiator,
+  } = useAddRowTableState<DifferentiatorRow>({
+    data: differentiatorsData,
+    formFieldName: "differentiators",
+    setFormFieldValue: (name: string, value: any) =>
+      form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    emptyRowFactory: () => ({
+      differentiator: "",
+      whyItMatters: "",
+      proof: [],
+    }),
   });
 
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
@@ -139,27 +175,21 @@ export const ContentCuesForm = ({
         <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
-              <FieldLabel className="gap-0">USPs</FieldLabel>
+              <FieldLabel className="gap-0">Differentiators</FieldLabel>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {uspChips.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {uspChips.map((usp, index) => (
-                  <Badge
-                    key={`${usp}-${index}`}
-                    variant="outline"
-                    className="rounded-full px-3 py-1 text-xs font-medium"
-                  >
-                    {usp}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <Typography variant="small" className="text-general-muted-foreground">
-                No USPs found.
-              </Typography>
-            )}
+            <div className="w-full md:w-3/4">
+              <CustomAddRowTable
+                columns={differentiatorColumns}
+                data={differentiatorsData}
+                onAddRow={handleAddDifferentiator}
+                onRowChange={handleDifferentiatorChange}
+                onDeleteRow={handleDeleteDifferentiator}
+                addButtonText="Add Differentiator"
+                variant="card"
+              />
+            </div>
           </CardContent>
         </Card>
 

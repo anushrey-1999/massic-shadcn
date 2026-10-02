@@ -67,6 +67,19 @@ export function parsePrimaryLocationForPayload(
   return { Location: location, Country: country };
 }
 
+export function normalizeProfileCountry(value: unknown): string {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return "us";
+  if (
+    normalized === "united states" ||
+    normalized === "usa" ||
+    normalized === "u.s."
+  ) {
+    return "us";
+  }
+  return normalized;
+}
+
 /** Full location string as shown in the UI dropdown (e.g. "New York, United States"). */
 export function formatPrimaryLocationDisplayLabel(
   primaryLocation?:

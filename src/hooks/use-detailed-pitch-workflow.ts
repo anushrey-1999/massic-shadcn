@@ -3,6 +3,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
+import type { JobResponse } from "@/types/profile-v2";
+import { assertProfileStrategyReady } from "@/utils/profile-strategy-gate";
 
 export type WorkflowStatus = "pending" | "processing" | "success" | "error" | string;
 
@@ -63,6 +65,14 @@ function is403Error(error: any): boolean {
   return error?.response?.status === 403;
 }
 
+async function ensureProfileStrategyReady(businessId: string): Promise<void> {
+  const job = await api.get<JobResponse>(
+    `/jobs/${encodeURIComponent(businessId)}`,
+    "python"
+  );
+  assertProfileStrategyReady(job);
+}
+
 // Trigger workflow for detailed report and poll its status
 export function useTriggerWorkflow() {
   return useMutation<WorkflowStatusResponse, Error, { businessId: string }>({
@@ -70,6 +80,7 @@ export function useTriggerWorkflow() {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
+      await ensureProfileStrategyReady(businessId);
 
       const response = await api.post<WorkflowStatusResponse>(
         "/jobs/run",
@@ -103,6 +114,7 @@ export function usePollWorkflowStatus(businessId: string | null, enabled: boolea
     queryKey: ["poll-workflow-status", businessId],
     queryFn: async () => {
       if (!businessId) return null;
+      await ensureProfileStrategyReady(businessId);
 
       const response = await api.post<WorkflowStatusResponse>(
         "/jobs/run",
@@ -166,6 +178,7 @@ export function useGenerateDetailedReport() {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
+      await ensureProfileStrategyReady(businessId);
 
       const response = await api.post<DetailedReportResponse>("/actions/pitches", "python", undefined, {
         params: { business_id: businessId },

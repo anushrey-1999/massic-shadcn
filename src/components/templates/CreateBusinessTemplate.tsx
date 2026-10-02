@@ -10,11 +10,12 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
+import type { ProfileValidationIssue } from "@/utils/profile-form-fields";
 
 type FormData = {
   website: string;
   businessName: string;
-  businessCategory?: string;
+  primaryCategory?: string;
   primaryLocation: string;
   serviceAreaType?: string;
   serviceAreas?: string[];
@@ -35,8 +36,8 @@ interface CreateBusinessTemplateProps {
   isSubmitting: boolean;
   isPending: boolean;
   isAutofillLoading: boolean;
-  offeringsExtractor?: any;
   hasAutofilledProfile: boolean;
+  submissionIssues?: ProfileValidationIssue[];
   onAutofillProfile: () => void;
   onSubmitCreate: () => void;
   onCancel: () => void;
@@ -49,8 +50,8 @@ export function CreateBusinessTemplate({
   isSubmitting,
   isPending,
   isAutofillLoading,
-  offeringsExtractor,
   hasAutofilledProfile,
+  submissionIssues = [],
   onAutofillProfile,
   onSubmitCreate,
   onCancel,
@@ -58,7 +59,6 @@ export function CreateBusinessTemplate({
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
 
   const formValues = useStore(form.store, (state: any) => state.values) as FormData;
-  const isOfferingsExtracting = Boolean(offeringsExtractor?.isExtracting);
   const isLoading = Boolean(isSubmitting || isPending || isAutofillLoading);
   const isAutofillDisabled =
     isAutofillLoading ||
@@ -90,11 +90,11 @@ export function CreateBusinessTemplate({
       {isAutofillLoading ? (
         <>
           <Loader2 className="size-4 animate-spin" />
-          Autofilling...
+          Building profile...
         </>
       ) : (
         <>
-          Autofill Profile
+          Build Profile
           <ArrowRight className="size-4 shrink-0" />
         </>
       )}
@@ -107,7 +107,7 @@ export function CreateBusinessTemplate({
         isLoading={isLoading}
         message={
           isAutofillLoading
-            ? "Autofilling profile..."
+            ? "Building profile..."
             : isPending
               ? "Creating business..."
               : undefined
@@ -153,14 +153,13 @@ export function CreateBusinessTemplate({
                 {hasAutofilledProfile && (
                   <ProfileAutofillReviewTemplate
                     form={form}
-                    businessId={null}
                     leftTitle="Create Business"
-                    extractionController={offeringsExtractor}
                     onSaveChanges={() => {}}
                     onSaveAndUpdateStrategy={() => {}}
                     onAutofillProfile={onAutofillProfile}
                     autofillDisabled={isAutofillDisabled}
                     autofillLoading={isAutofillLoading}
+                    submissionIssues={submissionIssues}
                     showUnlinkBusiness={false}
                     showDefaultActions={false}
                     customHeaderActions={
@@ -181,8 +180,7 @@ export function CreateBusinessTemplate({
                           disabled={
                             isSubmitting ||
                             isPending ||
-                            isAutofillLoading ||
-                            isOfferingsExtracting
+                            isAutofillLoading
                           }
                         >
                           {isSubmitting || isPending ? (
@@ -190,8 +188,6 @@ export function CreateBusinessTemplate({
                               <Loader2 className="size-4 animate-spin" />
                               Creating...
                             </>
-                          ) : isOfferingsExtracting ? (
-                            "Extracting offerings..."
                           ) : (
                             "Create"
                           )}
@@ -209,4 +205,3 @@ export function CreateBusinessTemplate({
     </div>
   );
 }
-

@@ -55,7 +55,10 @@ export function AgentAccessGuard({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) router.push(`/business/${encodeURIComponent(businessId)}/analytics`);
+        if (!open) {
+          if (window.history.length > 1) router.back();
+          else router.replace(`/business/${encodeURIComponent(businessId)}/analytics`);
+        }
       }}
     >
       <DialogContent>

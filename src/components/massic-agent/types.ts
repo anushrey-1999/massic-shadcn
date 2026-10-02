@@ -1,48 +1,166 @@
+import type { AgentAttachment } from "./agent-uploads";
+
+export type AgentId = "planner" | "profile";
+export type AgentThreadTag = "chat" | "profile.update";
 export type PlanSurface = "webpages" | "social_channels";
 export type ResourceType = "webpage_plan" | "social_channels_plan";
 export type ResourceRef = { type: ResourceType; id: number | string };
 export type ChatMetadata = {
   view?: { resource: ResourceRef; selected_item_ids: string[] };
 };
-export type ChatRequest = { agent_id: "planner"; thread_id?: string; message: string; metadata?: ChatMetadata };
-export type WidgetPart = {
-  kind: "widget"; widget: "resource_table"; schema_version: 1;
-  resource: ResourceRef; source?: { tool_call_id?: string; tool_name?: string };
+export type ChatRequest = {
+  agent_id: AgentId;
+  thread_id?: string;
+  message: string;
+  metadata?: ChatMetadata;
+  attachments?: string[];
 };
-export type CitationSource = { source_id: string; label?: string; source_type?: string; tool_name?: string; url?: string };
-export type CitationReference = { ref_id: number; label?: string; detail?: string; source_ids?: string[] };
-export type CitationSegment = { agent_scope: string; sources: CitationSource[]; references: CitationReference[] };
-export type CitationDocument = { thread_id: string; turn_id: string; version: number; segments: CitationSegment[] };
+export type WidgetPart = {
+  kind: "widget";
+  widget: "resource_table";
+  schema_version: 1;
+  resource: ResourceRef;
+  source?: { tool_call_id?: string; tool_name?: string };
+};
+export type CitationSource = {
+  source_id: string;
+  label?: string;
+  source_type?: string;
+  tool_name?: string;
+  url?: string;
+};
+export type CitationReference = {
+  ref_id: number;
+  label?: string;
+  detail?: string;
+  source_ids?: string[];
+};
+export type CitationSegment = {
+  agent_scope: string;
+  sources: CitationSource[];
+  references: CitationReference[];
+};
+export type CitationDocument = {
+  thread_id: string;
+  turn_id: string;
+  version: number;
+  segments: CitationSegment[];
+};
 export type TurnStatus = "complete" | "cancelled" | "error";
-export type TraceMetadata = { available: boolean; bytes?: number; event_count?: number };
+export type TraceMetadata = {
+  available: boolean;
+  bytes?: number;
+  event_count?: number;
+};
 export type ActivityStep = {
-  id: string; kind: "thought" | "tool" | "dispatch" | "summary"; label: string; detail?: string;
-  scope: string; path: string; depth: number; status: "running" | "done" | "error" | "cancelled";
+  id: string;
+  kind: "thought" | "tool" | "dispatch" | "summary";
+  label: string;
+  detail?: string;
+  scope: string;
+  path: string;
+  depth: number;
+  status: "running" | "done" | "error" | "cancelled";
 };
 export type AgentMessage = {
-  id: string; presentationId?: string; turnId?: string; role: "user" | "assistant"; content: string; createdAt: number;
-  status?: TurnStatus; partial?: boolean; error?: string; activity?: ActivityStep[];
-  citations?: CitationDocument; widgetParts?: WidgetPart[]; view?: ChatMetadata["view"]; trace?: TraceMetadata;
+  id: string;
+  presentationId?: string;
+  turnId?: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+  status?: TurnStatus;
+  partial?: boolean;
+  error?: string;
+  activity?: ActivityStep[];
+  citations?: CitationDocument;
+  widgetParts?: WidgetPart[];
+  view?: ChatMetadata["view"];
+  trace?: TraceMetadata;
+  attachments?: AgentAttachment[];
 };
 export type ChatEntry =
   | { kind: "message"; message: AgentMessage }
-  | { kind: "summary"; id: string; eventId: number; summaryText: string | null };
-export type AgentThread = { thread_id: string; title: string | null; summary?: string | null; status?: string; metadata?: Record<string, unknown>; created_at: string; updated_at: string };
-export type AgentConversation = { id: string; title: string; updatedAt: number };
-export type ThreadMessage = { turn_id: string; thread_id?: string; role: "user" | "assistant"; content: string; status: TurnStatus; token_usage?: Record<string, unknown>; metadata?: Record<string, unknown>; created_at: string };
-export type SummaryMarker = { type: "summary"; event_id: number; created_at: string; summary_text: string | null; watermark_turn_id: number };
+  | {
+      kind: "summary";
+      id: string;
+      eventId: number;
+      summaryText: string | null;
+    };
+export type AgentThread = {
+  thread_id: string;
+  tag: string;
+  title: string | null;
+  summary?: string | null;
+  status?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+export type AgentConversation = {
+  id: string;
+  title: string;
+  updatedAt: number;
+};
+export type ThreadMessage = {
+  turn_id: string;
+  thread_id?: string;
+  role: "user" | "assistant";
+  content: string;
+  status: TurnStatus;
+  token_usage?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+export type SummaryMarker = {
+  type: "summary";
+  event_id: number;
+  created_at: string;
+  summary_text: string | null;
+  watermark_turn_id: number;
+};
 export type ThreadItem = ThreadMessage | SummaryMarker;
-export type MessagesPage = { thread_id?: string; items: ThreadItem[]; limit?: number; next_cursor: string | null; has_more: boolean };
-export type ThreadsPage = { threads: AgentThread[]; total: number; limit: number; offset: number };
+export type MessagesPage = {
+  thread_id?: string;
+  items: ThreadItem[];
+  limit?: number;
+  next_cursor: string | null;
+  has_more: boolean;
+};
+export type ThreadsPage = {
+  threads: AgentThread[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 export type PlanItem = {
   [key: string]: unknown;
-  page_id?: string; campaign_cluster_id?: string; cluster_name?: string | null; title?: string | null;
-  rationale?: string | null; description?: string | null; page_type?: string | null; status?: string | null; valid?: boolean;
-  business_relevance_score?: number | null; business_relevance_level?: string | null; search_volume?: number | null; coverage?: number | null;
-  page_opportunity_score?: number | null; supporting_keywords?: string[] | null; offerings?: string[] | null;
-  supporting_keyword_count?: number | null; search_intent?: string | null; slug?: string | null;
-  channel_name?: string | null; campaign_name?: string | null; cluster_relevance?: number | null; content_type?: string | null;
-  related_keywords?: string[] | null; cluster_offerings?: string[] | null; url?: string | null;
+  page_id?: string;
+  campaign_cluster_id?: string;
+  cluster_name?: string | null;
+  title?: string | null;
+  rationale?: string | null;
+  description?: string | null;
+  page_type?: string | null;
+  status?: string | null;
+  valid?: boolean;
+  business_relevance_score?: number | null;
+  business_relevance_level?: string | null;
+  search_volume?: number | null;
+  coverage?: number | null;
+  page_opportunity_score?: number | null;
+  supporting_keywords?: string[] | null;
+  offerings?: string[] | null;
+  supporting_keyword_count?: number | null;
+  search_intent?: string | null;
+  slug?: string | null;
+  channel_name?: string | null;
+  campaign_name?: string | null;
+  cluster_relevance?: number | null;
+  content_type?: string | null;
+  related_keywords?: string[] | null;
+  cluster_offerings?: string[] | null;
+  url?: string | null;
 };
 export type AgentPlan = {
   id: number | string;
@@ -59,23 +177,53 @@ export type AgentPlan = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-type Envelope = { agent?: string; path?: string; depth?: number; thread_id?: string; turn_id?: string };
-export type AgentEvent = Envelope & (
-  | { type: "thread_meta"; thread_id: string; turn_id: string; is_new: boolean; title?: string }
-  | { type: "thread_title"; thread_id: string; title: string; provisional?: boolean }
-  | { type: "turn_start" | "heartbeat" | "summarising_history" }
-  | { type: "token"; text: string }
-  | { type: "thinking_token"; text: string }
-  | { type: "message_complete"; content: string; partial?: boolean }
-  | { type: "dispatch_start"; child: string; task?: string }
-  | { type: "dispatch_end"; child: string; summary?: string }
-  | { type: "tool_call_start"; call_id: string; tool_name: string }
-  | { type: "tool_call_end"; call_id: string; tool_name: string; success?: boolean }
-  | { type: "citations"; document: CitationDocument }
-  | { type: "cancelled"; reason?: string }
-  | { type: "error"; code: string; message: string }
-  | { type: "turn_end"; status: TurnStatus; widget_parts?: WidgetPart[]; credit_warning?: boolean; credit_balance?: number; trace?: TraceMetadata }
-);
+type Envelope = {
+  agent?: string;
+  path?: string;
+  depth?: number;
+  thread_id?: string;
+  turn_id?: string;
+};
+export type AgentEvent = Envelope &
+  (
+    | {
+        type: "thread_meta";
+        thread_id: string;
+        turn_id: string;
+        is_new: boolean;
+        title?: string;
+      }
+    | {
+        type: "thread_title";
+        thread_id: string;
+        title: string;
+        provisional?: boolean;
+      }
+    | { type: "turn_start" | "heartbeat" | "summarising_history" }
+    | { type: "token"; text: string }
+    | { type: "thinking_token"; text: string }
+    | { type: "message_complete"; content: string; partial?: boolean }
+    | { type: "dispatch_start"; child: string; task?: string }
+    | { type: "dispatch_end"; child: string; summary?: string }
+    | { type: "tool_call_start"; call_id: string; tool_name: string }
+    | {
+        type: "tool_call_end";
+        call_id: string;
+        tool_name: string;
+        success?: boolean;
+      }
+    | { type: "citations"; document: CitationDocument }
+    | { type: "cancelled"; reason?: string }
+    | { type: "error"; code: string; message: string }
+    | {
+        type: "turn_end";
+        status: TurnStatus;
+        widget_parts?: WidgetPart[];
+        credit_warning?: boolean;
+        credit_balance?: number;
+        trace?: TraceMetadata;
+      }
+  );
 export type TurnTraceResponse = { events: AgentEvent[] };
 export type AgentCreditsResponse = {
   business_id: string;

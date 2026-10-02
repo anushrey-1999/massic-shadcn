@@ -303,6 +303,7 @@ function GenericInput<
             label={label}
             description={description}
             fieldOrientation={fieldOrientation}
+            fieldClassName={fieldClassName}
             showCharacterCount={showCharacterCount}
             maxLength={maxLength}
             rows={rows}

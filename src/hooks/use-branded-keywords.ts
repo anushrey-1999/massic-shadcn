@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
-import { useJobByBusinessId, useUpdateJob, type Offering } from "./use-jobs";
-import { useBusinessProfileById } from "./use-business-profiles";
+import { useJobByBusinessId, usePatchJob } from "./use-jobs";
 
 interface UpdateBrandedKeywordsPayload {
   BrandTerms: string[];
@@ -11,8 +10,7 @@ interface UpdateBrandedKeywordsPayload {
 export function useBrandedKeywords(businessUniqueId: string | null) {
   const queryClient = useQueryClient();
   const { data: jobDetails } = useJobByBusinessId(businessUniqueId);
-  const { profileData } = useBusinessProfileById(businessUniqueId);
-  const updateJobMutation = useUpdateJob();
+  const updateJobMutation = usePatchJob();
 
   const { data: keywords = [], isLoading } = useQuery<string[]>({
     queryKey: ["brandedKeywords", businessUniqueId],
@@ -56,41 +54,12 @@ export function useBrandedKeywords(businessUniqueId: string | null) {
         payload
       );
 
-      if (jobDetails?.job_id && profileData) {
-        const normalizeOfferings = (raw: any): Offering[] => {
-          if (!Array.isArray(raw)) return [];
-          return raw
-            .map((offering: any) => ({
-              name: String(offering?.offering ?? offering?.name ?? "").trim(),
-              description: String(offering?.description ?? "").trim(),
-              link: String(offering?.url ?? offering?.link ?? "").trim(),
-            }))
-            .filter((offering) => Boolean(offering.name));
-        };
-
-        const offerings = normalizeOfferings(jobDetails?.offerings);
-
-        const ctasArray = (profileData as any).CTAs || [];
-        const businessPayloadWithUpdatedBrandTerms: any = {
-          ...profileData,
-          BrandTerms: newKeywords,
-          CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
-            ? {
-                value: JSON.stringify(
-                  ctasArray.map((cta: any) => ({
-                    buttonText: cta.buttonText || "",
-                    url: cta.url || "",
-                  }))
-                ),
-              }
-            : null,
-        };
-
+      if (jobDetails?.job_id) {
         await updateJobMutation.mutateAsync({
           businessId: businessUniqueId,
-          businessProfilePayload: businessPayloadWithUpdatedBrandTerms,
-          offerings,
-          includeOfferings: false,
+          request: {
+            brand_terms: newKeywords.map((term) => ({ term })),
+          },
         });
       }
     },

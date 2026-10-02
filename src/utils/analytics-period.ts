@@ -22,6 +22,8 @@ import {
 export const MAX_ANALYTICS_MONTHS_BACK = 16
 export const PRESET_END_OFFSET_DAYS = 2
 export const CUSTOM_PERIOD_PREFIX = "custom:"
+export const ANALYTICS_TIME_ZONE = "America/Los_Angeles"
+export const ANALYTICS_DAY_ROLLOVER_HOUR = 3
 
 export const TIME_PERIODS = [
   { id: "7-days", label: "7 days", value: "7 days", group: "recent" },
@@ -73,8 +75,29 @@ function parsePeriodDate(value?: string | null): Date | null {
   return isValid(parsed) ? startOfDay(parsed) : null
 }
 
+function getAnalyticsReferenceDay(referenceDate: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ANALYTICS_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(referenceDate)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  const pacificDay = new Date(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day)
+  )
+
+  return Number(values.hour) < ANALYTICS_DAY_ROLLOVER_HOUR
+    ? subDays(pacificDay, 1)
+    : pacificDay
+}
+
 export function getAnalyticsPeriodBounds(referenceDate = new Date()) {
-  const maxSelectableDate = startOfDay(referenceDate)
+  const maxSelectableDate = startOfDay(getAnalyticsReferenceDay(referenceDate))
   const minSelectableDate = startOfDay(subMonths(maxSelectableDate, MAX_ANALYTICS_MONTHS_BACK))
 
   return {

@@ -17,7 +17,7 @@ const BUSINESS_PROFILES_KEY = "businessProfiles";
 // `strict` exists for the create flow. A silently-empty list there is dangerous:
 // it makes every pre-existing business look "new", which is how a create can end
 // up pointing at somebody else's business. Strict callers get an exception instead.
-async function fetchBusinessProfiles(
+export async function fetchBusinessProfiles(
   userUniqueId: string | undefined,
   isPitch?: boolean,
   options?: { strict?: boolean }
@@ -383,8 +383,8 @@ interface CreateBusinessPayload {
   website: string;
   businessName: string;
   primaryLocation: string; // Format: "Location,Country" or just "Location"
-  serveCustomers: "local" | "online" | "both";
-  offerType: "products" | "services" | "both";
+  serveCustomers: "" | "local" | "online" | "both";
+  offerType: "" | "products" | "services" | "both";
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
   suppressErrorToast?: boolean;

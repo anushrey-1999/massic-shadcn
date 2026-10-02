@@ -408,7 +408,7 @@ export function LocationSelect({
             role="combobox"
             aria-expanded={open}
             className={cn(
-              'w-full justify-between text-foreground font-normal',
+              'w-full justify-between text-foreground font-normal disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100',
               !triggerClassName && 'h-10 rounded-lg',
               triggerClassName
             )}

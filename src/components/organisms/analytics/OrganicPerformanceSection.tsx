@@ -528,19 +528,21 @@ export function OrganicPerformanceSection({
   const normalizedGroupedChartData = useMemo(() => {
     if (groupedChartData.length === 0) return []
 
-    const impressionsValues = groupedChartData.map((d) => d.impressions || 0)
-    const clicksValues = groupedChartData.map((d) => d.clicks || 0)
-    const sessionsValues = groupedChartData.map((d) => d.sessions || 0)
-    const goalsValues = groupedChartData.map((d) => d.goals || 0)
+    const gscPoints = groupedChartData.filter((d) => d.gscAvailable !== false)
+    const ga4Points = groupedChartData.filter((d) => d.ga4Available !== false)
+    const impressionsValues = gscPoints.map((d) => d.impressions || 0)
+    const clicksValues = gscPoints.map((d) => d.clicks || 0)
+    const sessionsValues = ga4Points.map((d) => d.sessions || 0)
+    const goalsValues = ga4Points.map((d) => d.goals || 0)
 
-    const minImpressions = Math.min(...impressionsValues)
-    const maxImpressions = Math.max(...impressionsValues)
-    const minClicks = Math.min(...clicksValues)
-    const maxClicks = Math.max(...clicksValues)
-    const minSessions = Math.min(...sessionsValues)
-    const maxSessions = Math.max(...sessionsValues)
-    const minGoals = Math.min(...goalsValues)
-    const maxGoals = Math.max(...goalsValues)
+    const minImpressions = impressionsValues.length ? Math.min(...impressionsValues) : 0
+    const maxImpressions = impressionsValues.length ? Math.max(...impressionsValues) : 0
+    const minClicks = clicksValues.length ? Math.min(...clicksValues) : 0
+    const maxClicks = clicksValues.length ? Math.max(...clicksValues) : 0
+    const minSessions = sessionsValues.length ? Math.min(...sessionsValues) : 0
+    const maxSessions = sessionsValues.length ? Math.max(...sessionsValues) : 0
+    const minGoals = goalsValues.length ? Math.min(...goalsValues) : 0
+    const maxGoals = goalsValues.length ? Math.max(...goalsValues) : 0
 
     const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
       const numericValue = Number(value) || 0
@@ -558,16 +560,29 @@ export function OrganicPerformanceSection({
       const goalsNormRaw = normalizeToZeroHundred(point.goals || 0, minGoals, maxGoals)
       return {
         ...point,
-        impressionsNorm: normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
-        clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
-        sessionsNorm: normalizeToZeroHundred(point.sessions || 0, minSessions, maxSessions),
-        goalsNorm: (goalsNormRaw / 100) * goalsMaxNorm,
+        impressionsDisplay: point.gscAvailable === false ? null : point.impressions,
+        clicksDisplay: point.gscAvailable === false ? null : point.clicks,
+        sessionsDisplay: point.ga4Available === false ? null : (point.sessions || 0),
+        goalsDisplay: point.ga4Available === false ? null : (point.goals || 0),
+        impressionsNorm: point.gscAvailable === false
+          ? null
+          : normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
+        clicksNorm: point.gscAvailable === false
+          ? null
+          : normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
+        sessionsNorm: point.ga4Available === false
+          ? null
+          : normalizeToZeroHundred(point.sessions || 0, minSessions, maxSessions),
+        goalsNorm: point.ga4Available === false ? null : (goalsNormRaw / 100) * goalsMaxNorm,
       }
     })
   }, [groupedChartData])
 
   const useNormalizedKeys = normalizedGroupedChartData.length > 0 && !singleMetricMode;
-  const chartDataToRender = useNormalizedKeys ? normalizedGroupedChartData : groupedChartData;
+  const chartDataToRender =
+    normalizedGroupedChartData.length > 0
+      ? normalizedGroupedChartData
+      : groupedChartData;
   const anomalyDatesFrom = useMemo(
     () => shiftDateKey(chartRanges.currentStart, -1),
     [chartRanges.currentStart]
@@ -623,7 +638,11 @@ export function OrganicPerformanceSection({
   const singleMetricYDomain = useMemo(() => {
     if (!singleMetricMode || groupedChartData.length === 0) return undefined;
     const key = CHART_METRIC_KEYS.find((metricKey) => visibleLines[metricKey]) ?? "impressions";
-    const values = groupedChartData.map((d) => Number(d[key as keyof typeof d]) || 0);
+    const isGscMetric = key === "impressions" || key === "clicks";
+    const values = groupedChartData
+      .filter((point) => (isGscMetric ? point.gscAvailable : point.ga4Available) !== false)
+      .map((d) => Number(d[key as keyof typeof d]) || 0);
+    if (values.length === 0) return undefined;
     const min = Math.min(...values);
     const max = Math.max(...values);
     const pad = (max - min) * 0.05 || 1;
@@ -970,8 +989,8 @@ export function OrganicPerformanceSection({
         ? findAnomalyRunForBucket(anomalyDaysByMetric.traffic, bucketStart, bucketEnd)
         : null;
 
-      if (goalMatch && visibleLines.goals) {
-        const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goals"]);
+      if (goalMatch && visibleLines.goals && point.ga4Available !== false) {
+        const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goalsDisplay"]);
         if (Number.isFinite(y)) {
           markers.push({
             key: `goal-${goalMatch.startDate}-${goalMatch.lastAsOfDate}-${point.bucketKey || point.dateKey || point.date}`,
@@ -987,9 +1006,13 @@ export function OrganicPerformanceSection({
         }
       }
 
-      if (trafficMatch && (visibleLines.clicks || visibleLines.impressions)) {
+      if (
+        trafficMatch &&
+        point.gscAvailable !== false &&
+        (visibleLines.clicks || visibleLines.impressions)
+      ) {
         const metricKey = visibleLines.clicks ? "clicks" : "impressions";
-        const y = Number(pointValues[useNormalizedKeys ? `${metricKey}Norm` : metricKey]);
+        const y = Number(pointValues[useNormalizedKeys ? `${metricKey}Norm` : `${metricKey}Display`]);
         const yAxisId =
           metricKey === "impressions" && !useNormalizedKeys && !singleMetricMode
             ? "right"
@@ -1537,7 +1560,7 @@ export function OrganicPerformanceSection({
                                   )}
                                 </div>
                                 <div className="space-y-1.5 text-sm">
-                                  {visibleLines.impressions && (
+                                  {visibleLines.impressions && data?.gscAvailable !== false && (
                                     <div className="flex items-center justify-between gap-4">
                                       <p className="flex items-center gap-2 text-[#6b7280]">
                                         <span className="h-2 w-2 rounded-full bg-[#6b7280]" />
@@ -1548,7 +1571,7 @@ export function OrganicPerformanceSection({
                                       </span>
                                     </div>
                                   )}
-                                  {visibleLines.clicks && (
+                                  {visibleLines.clicks && data?.gscAvailable !== false && (
                                     <div className="flex items-center justify-between gap-4">
                                       <p className="flex items-center gap-2 text-[#2563eb]">
                                         <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
@@ -1560,6 +1583,7 @@ export function OrganicPerformanceSection({
                                     </div>
                                   )}
                                   {visibleLines.sessions &&
+                                    data?.ga4Available !== false &&
                                     data?.sessions !== undefined && (
                                       <div className="flex items-center justify-between gap-4">
                                         <p className="flex items-center gap-2 text-[#ea580c]">
@@ -1572,6 +1596,7 @@ export function OrganicPerformanceSection({
                                       </div>
                                     )}
                                   {visibleLines.goals &&
+                                    data?.ga4Available !== false &&
                                     data?.goals !== undefined && (
                                       <div className="flex items-center justify-between gap-4">
                                         <p className="flex items-center gap-2 text-[#059669]">
@@ -1591,7 +1616,7 @@ export function OrganicPerformanceSection({
                         {visibleLines.impressions && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"}
+                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressionsDisplay"}
                             yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
@@ -1602,7 +1627,7 @@ export function OrganicPerformanceSection({
                         {visibleLines.clicks && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"}
+                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicksDisplay"}
                             yAxisId="left"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
@@ -1613,7 +1638,7 @@ export function OrganicPerformanceSection({
                         {visibleLines.goals && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "goalsNorm" : "goals"}
+                            dataKey={useNormalizedKeys ? "goalsNorm" : "goalsDisplay"}
                             yAxisId="left"
                             stroke="#059669"
                             fill="url(#fillGoals)"
@@ -1624,7 +1649,7 @@ export function OrganicPerformanceSection({
                         {visibleLines.sessions && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "sessionsNorm" : "sessions"}
+                            dataKey={useNormalizedKeys ? "sessionsNorm" : "sessionsDisplay"}
                             yAxisId="left"
                             stroke="#ea580c"
                             fill="url(#fillSessions)"

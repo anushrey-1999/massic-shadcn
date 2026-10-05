@@ -8,6 +8,7 @@ import { ChannelIcon } from "@/components/ui/channel-icon";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { cn } from "@/lib/utils";
 import { allPlanIds, planItemId } from "./agent-model";
+import { StalePlanEmptyState } from "./stale-plan-empty-state";
 import type { AgentPlan, PlanItem, ResourceType } from "./types";
 
 type PlanTableProps = {
@@ -16,12 +17,13 @@ type PlanTableProps = {
   selectedIds?: string[];
   onSelection?: (ids: string[]) => void;
   renderAction?: (item: PlanItem, index: number) => React.ReactNode;
+  onCreateNewPlan: () => void;
   initialVisibleCount?: number;
   showPlanHeader?: boolean;
   className?: string;
 };
 
-export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, renderAction, initialVisibleCount, showPlanHeader = true, className }: PlanTableProps) {
+export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, renderAction, onCreateNewPlan, initialVisibleCount, showPlanHeader = true, className }: PlanTableProps) {
   const rows = plan.plan_json ?? [];
   const social = type === "social_channels_plan";
   const selectable = Boolean(onSelection);
@@ -32,6 +34,10 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
   React.useEffect(() => {
     setVisibleCount(initialVisibleCount ?? Number.POSITIVE_INFINITY);
   }, [plan.id, initialVisibleCount]);
+
+  if (plan.valid === false) {
+    return <StalePlanEmptyState onCreateNewPlan={onCreateNewPlan} className={className} />;
+  }
 
   const visible = rows.map((item, index) => ({ item, index })).slice(0, visibleCount);
   const remaining = Math.max(0, rows.length - visible.length);
@@ -46,10 +52,9 @@ export function AgentPlanTable({ plan, type, selectedIds = [], onSelection, rend
     {showPlanHeader && <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
       <span className="text-xs font-medium">Detailed plan</span>
       <Badge variant="outline" className="capitalize">{plan.status}</Badge>
-      <Badge variant="outline" className={cn(plan.valid === false && "border-destructive/30 text-destructive")}>{plan.valid === false ? "Needs attention" : "Valid"}</Badge>
+      <Badge variant="outline">Valid</Badge>
       <span className="ml-auto text-xs text-muted-foreground">{rows.length} {social ? "tactics" : "web pages"}</span>
     </div>}
-    {plan.valid === false && <p className="border-b border-border bg-destructive/5 px-3 py-2 text-xs text-destructive">Some items are no longer in your strategy. Replace them before activating this plan.</p>}
     <div className="min-h-0 flex-1 overflow-auto">
       <table className={cn("w-full table-fixed text-sm", social ? "min-w-[1120px]" : "min-w-[1060px]")}>
         <colgroup>

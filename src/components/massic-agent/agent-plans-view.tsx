@@ -91,6 +91,7 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
   const [surface, setSurface] = React.useState<PlanTab>(initialSurface);
   const [preview, setPreview] = React.useState<AgentPlan | null>(null);
   const type = planType[surface];
+  const guardCreate = useFeatureActionGuard("actions.createPlan");
   const guardRefine = useFeatureActionGuard("actions.refinePlan");
   const guardActivate = useFeatureActionGuard("actions.activatePlan");
   const detail = useQuery({
@@ -101,8 +102,12 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
   });
   const selectedPlan = detail.data ?? preview;
   const go = (action: "refine" | "activate") => {
-    if (!selectedPlan || (action === "refine" ? !guardRefine() : !guardActivate())) return;
+    if (!selectedPlan || selectedPlan.valid === false || (action === "refine" ? !guardRefine() : !guardActivate())) return;
     window.location.assign(agentPlanHref({ businessId, surface, action, planId: selectedPlan.id, autoSubmit: action === "activate" }));
+  };
+  const createNewPlan = () => {
+    if (!guardCreate()) return;
+    window.location.assign(agentPlanHref({ businessId, surface, action: "create" }));
   };
   const changeSurface = (nextSurface: PlanTab) => {
     setSurface(nextSurface);
@@ -119,11 +124,11 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
   }, [initialSurface]);
 
   if (preview) return <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <AgentPlanHeader plan={selectedPlan ?? undefined} planId={preview.id} surface={surface} onBack={() => setPreview(null)} onRefine={() => go("refine")} onActivate={() => go("activate")} />
+    <AgentPlanHeader plan={selectedPlan ?? undefined} planId={preview.id} surface={surface} onBack={() => setPreview(null)} onRefine={detail.data && detail.data.valid !== false ? () => go("refine") : undefined} onActivate={() => go("activate")} />
     <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
       {detail.isLoading ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 size-4 animate-spin" />Loading plan…</div>
         : detail.isError ? <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>
-        : detail.data && matches(detail.data.plan_type, type) ? <AgentPlanTable plan={detail.data} type={type} showPlanHeader={false} />
+        : detail.data && matches(detail.data.plan_type, type) ? <AgentPlanTable plan={detail.data} type={type} showPlanHeader={false} onCreateNewPlan={createNewPlan} />
         : <p role="alert" className="text-sm text-destructive">This plan does not match the selected strategy.</p>}
     </div>
   </section>;

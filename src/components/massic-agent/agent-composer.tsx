@@ -77,7 +77,7 @@ export function AgentComposer(p: Props) {
       </> : <>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => p.onSend(createMessage!, p.resource ? { omitView: true } : undefined)} className={cn(quickActionClass, p.preferredAction === "create" && preferredClass)}>{p.resource ? "Create new plan" : "Create plan"}</Button>
         {!p.resource && <Button variant="outline" size="sm" disabled={busy} onClick={p.onOpenPlans} className={quickActionClass}>Open plan</Button>}
-        {p.resource && <Button variant="outline" size="sm" disabled={busy || !p.planLoaded} onClick={() => p.onSend(planActionMessage("refine", p.resource!.type))} className={cn(quickActionClass, p.preferredAction === "refine" && preferredClass)}>Refine plan</Button>}
+        {p.resource && <Button variant="outline" size="sm" disabled={busy || !p.planLoaded || p.planValid === false} onClick={() => p.onSend(planActionMessage("refine", p.resource!.type))} className={cn(quickActionClass, p.preferredAction === "refine" && preferredClass)}>Refine plan</Button>}
       </>}
     </div></AgentComposerRow>
   </div>;

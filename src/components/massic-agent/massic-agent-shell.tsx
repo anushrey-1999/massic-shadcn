@@ -174,6 +174,12 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   };
   const select = (id: string) => { chat.selectChat(id); updateViewRoute("chat"); };
   const newChat = () => { chat.newChat(); updateViewRoute("chat"); };
+  const createNewPlanFromStale = () => {
+    chat.newChat(null, planSurface);
+    setPlanVisible(false);
+    setPlanFullscreen(false);
+    updateViewRoute("chat");
+  };
   const showPlan = () => { pendingPlanClearRef.current = null; setPlanVisible(true); };
   const openPlan = (r: ResourceRef) => {
     pendingPlanClearRef.current = null;
@@ -284,7 +290,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
               onKeyDown={e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); resize(width + (e.key === "ArrowLeft" ? 20 : -20)); } }}
               onPointerDown={e => { e.preventDefault(); const start = e.clientX; const startWidth = width; const move = (event: PointerEvent) => resize(startWidth + start - event.clientX); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); cleanupResize.current = null; }; cleanupResize.current?.(); cleanupResize.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }} />}
             <AgentPlanHeader plan={plan} planId={planRef.id} surface={planSurface} onActivate={activatePlan} activateDisabled={streaming || busyElsewhere} preferredAction={preferredAction} onBackToChat={() => closePlan(false)} fullscreen={planFullscreen} onToggleFullscreen={() => setPlanFullscreen(value => !value)} onClose={() => closePlan(true)} className="min-h-12 border-general-border bg-general-border/40 px-3" />
-            <div className="flex min-h-0 flex-1 flex-col bg-general-primary-foreground p-3">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicAmoebaLoader size={20} label={null} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} /> : null}</div>
+            <div className="flex min-h-0 flex-1 flex-col bg-general-primary-foreground p-3">{planQuery.isLoading ? <div role="status" className="flex items-center gap-2 text-sm"><MassicAmoebaLoader size={20} label={null} />Loading plan…</div> : planError ? <div role="alert"><p>{planError}</p><Button variant="outline" onClick={() => planQuery.refetch()}>Retry</Button></div> : plan ? <AgentPlanWidget plan={plan} type={planRef.type} selectedIds={chat.draft.selectedIds} onSelection={selectedIds => chat.updateDraft({ selectedIds })} onCreateNewPlan={createNewPlanFromStale} /> : null}</div>
             <div className="border-t border-border p-3 xl:hidden"><Button variant="outline" className="w-full" onClick={() => closePlan(false)}>Chat about {chat.draft.selectedIds.length ? `${chat.draft.selectedIds.length} selected items` : "this plan"}</Button></div>
           </div>
         </aside>}

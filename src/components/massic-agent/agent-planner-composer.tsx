@@ -172,7 +172,7 @@ export function AgentPlannerComposer(p: Props) {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={busy || !p.planLoaded}
+                        disabled={busy || !p.planLoaded || p.planValid === false}
                         onClick={() =>
                           p.onSend(
                             planActionMessage("refine", p.resource!.type),

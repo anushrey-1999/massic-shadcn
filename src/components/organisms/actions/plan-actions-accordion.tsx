@@ -138,8 +138,13 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
     if (action === "create" ? !guardCreate() : !guardRefine()) return;
     router.push(agentPlanHref({ businessId, surface: config.surface, action, planId, autoSubmit: action === "create" }));
   };
+  const openNewPlan = () => {
+    if (!guardCreate()) return;
+    router.push(agentPlanHref({ businessId, surface: config.surface, action: "create" }));
+  };
   const viewPlans = () => router.push(agentPlansHref({ businessId, surface: config.surface }));
   const lastUpdated = active ? formatPlanDate(active.activated_at ?? active.updated_at) : "—";
+  const stalePlan = active?.valid === false || activePlan?.valid === false;
 
   return <>
       <Card variant="profileCard" className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-0 bg-white p-4! shadow-none">
@@ -159,7 +164,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
               </Tooltip>
               <DropdownMenuContent align="end" className="w-64 rounded-lg border-border p-1.5 shadow-lg">
                 <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">What would you like to do?</DropdownMenuLabel>
-                <DropdownMenuItem className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5 focus:bg-general-primary/10 focus:text-general-primary" onSelect={() => navigate("refine", active.id)}>
+                <DropdownMenuItem disabled={!activePlan || stalePlan} className="h-auto cursor-pointer gap-3 rounded-md px-2 py-2.5 focus:bg-general-primary/10 focus:text-general-primary" onSelect={() => navigate("refine", active.id)}>
                   <RotateCw className="size-4 shrink-0" />
                   <span className="flex min-w-0 flex-col"><span className="text-sm font-medium">Refine plan</span><span className="text-xs text-muted-foreground">Adjust Plan #{active.id}</span></span>
                 </DropdownMenuItem>
@@ -180,7 +185,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
             : !active ? <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">No active {config.title.toLowerCase()} plan</p><p className="mt-1 max-w-sm text-xs text-muted-foreground">Create a new plan with Massic Agent or open plan history to review a proposed plan.</p><div className="mt-4 flex gap-2"><Button variant="outline" size="sm" onClick={viewPlans}>View plans</Button><Button size="sm" onClick={() => navigate("create")}>New plan</Button></div></div>
             : detail.isLoading ? <div className="flex h-32 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading active plan…</div>
             : detail.isError ? <div role="alert" className="flex h-32 flex-col items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-center text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>
-            : activePlan ? <AgentPlanTable plan={activePlan} type={type} showPlanHeader={false} renderAction={(item, index) => type === "webpage_plan" ? <WebAction businessId={businessId} item={item} index={index} /> : <SocialAction businessId={businessId} item={item} index={index} />} />
+            : activePlan ? <AgentPlanTable plan={activePlan} type={type} showPlanHeader={false} onCreateNewPlan={openNewPlan} renderAction={(item, index) => type === "webpage_plan" ? <WebAction businessId={businessId} item={item} index={index} /> : <SocialAction businessId={businessId} item={item} index={index} />} />
             : <p role="alert" className="p-4 text-sm text-destructive">The active plan does not match this strategy.</p>}
         </div>
       </Card>

@@ -352,6 +352,12 @@ function AgentWorkspace({
     chat.newChat();
     updateViewRoute("chat");
   };
+  const createNewPlanFromStale = () => {
+    chat.newChat(null, planSurface);
+    setPlanVisible(false);
+    setPlanFullscreen(false);
+    updateViewRoute("chat");
+  };
   const showPlan = () => {
     pendingPlanClearRef.current = null;
     setPlanVisible(true);
@@ -900,6 +906,7 @@ function AgentWorkspace({
                       onSelection={(selectedIds) =>
                         chat.updateDraft({ selectedIds })
                       }
+                      onCreateNewPlan={createNewPlanFromStale}
                     />
                   ) : null}
                 </div>

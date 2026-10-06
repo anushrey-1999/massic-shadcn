@@ -11,10 +11,16 @@ import {
 } from "./agent-model";
 import { PlanSurfaceIcon } from "./agent-icons";
 import type { AgentEntryAction } from "./agent-links";
-import type { PlanSurface, ResourceRef, ResourceType } from "./types";
+import type {
+  AgentChatMode,
+  PlanSurface,
+  ResourceRef,
+  ResourceType,
+} from "./types";
 import styles from "./agent.module.css";
 
 type Props = {
+  mode?: AgentChatMode;
   value: string;
   onChange: (text: string) => void;
   preferredSurface?: PlanSurface;
@@ -38,6 +44,7 @@ type Props = {
   attachments?: ReactNode;
 };
 export function AgentPlannerComposer(p: Props) {
+  const isPlanner = p.mode !== "analytics";
   const busy = p.disabled || p.streaming || p.sendDisabled;
   const actionSurface = p.resource
     ? resourcePlanSurface(p.resource.type)
@@ -64,119 +71,127 @@ export function AgentPlannerComposer(p: Props) {
       focusKey={p.focusKey}
       centered={p.centered}
       placeholder={
-        p.resource ? "How would you like to refine this plan?" : "Ask Massic"
+        isPlanner && p.resource
+          ? "How would you like to refine this plan?"
+          : "Ask Massic"
       }
       attachments={p.attachments}
       context={
-        <>
-          {" "}
-          <AgentComposerRow visible={!!p.resource}>
-            {p.resource && (
-              <button
-                type="button"
-                onClick={p.onShowPlan}
-                className="mx-4 mt-3 flex w-fit max-w-[calc(100%-2rem)] cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground transition-[color,box-shadow] hover:text-foreground hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30"
-              >
-                <PlanSurfaceIcon
-                  surface={resourcePlanSurface(p.resource.type)}
-                  className="h-3.5 w-3.5 shrink-0"
-                />
-                <span className="truncate">
-                  Plan #{p.resource.id} · {p.selectedCount} selected
-                </span>
-              </button>
-            )}
-          </AgentComposerRow>
-        </>
+        isPlanner ? (
+          <>
+            {" "}
+            <AgentComposerRow visible={!!p.resource}>
+              {p.resource && (
+                <button
+                  type="button"
+                  onClick={p.onShowPlan}
+                  className="mx-4 mt-3 flex w-fit max-w-[calc(100%-2rem)] cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground transition-[color,box-shadow] hover:text-foreground hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30"
+                >
+                  <PlanSurfaceIcon
+                    surface={resourcePlanSurface(p.resource.type)}
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="truncate">
+                    Plan #{p.resource.id} · {p.selectedCount} selected
+                  </span>
+                </button>
+              )}
+            </AgentComposerRow>
+          </>
+        ) : undefined
       }
       actions={
-        <>
-          {" "}
-          <AgentComposerRow visible={showQuickActions}>
-            <div
-              className={cn(
-                styles.softReveal,
-                "mt-2 flex flex-wrap items-center gap-1.5 pb-1",
-              )}
-            >
-              {!planType ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() =>
-                      p.onSend(planActionMessage("create", "webpage_plan"))
-                    }
-                    className={quickActionClass}
-                  >
-                    Create web plan
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() =>
-                      p.onSend(
-                        planActionMessage("create", "social_channels_plan"),
-                      )
-                    }
-                    className={quickActionClass}
-                  >
-                    Create social plan
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() =>
-                      p.onSend(
-                        createMessage!,
-                        p.resource ? { omitView: true } : undefined,
-                      )
-                    }
-                    className={cn(
-                      quickActionClass,
-                      p.preferredAction === "create" && preferredClass,
-                    )}
-                  >
-                    {p.resource ? "Create new plan" : "Create plan"}
-                  </Button>
-                  {!p.resource && (
+        isPlanner ? (
+          <>
+            {" "}
+            <AgentComposerRow visible={showQuickActions}>
+              <div
+                className={cn(
+                  styles.softReveal,
+                  "mt-2 flex flex-wrap items-center gap-1.5 pb-1",
+                )}
+              >
+                {!planType ? (
+                  <>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={busy}
-                      onClick={p.onOpenPlans}
+                      onClick={() =>
+                        p.onSend(planActionMessage("create", "webpage_plan"))
+                      }
                       className={quickActionClass}
                     >
-                      Open plan
+                      Create web plan
                     </Button>
-                  )}
-                  {p.resource && (
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={busy || !p.planLoaded}
+                      disabled={busy}
                       onClick={() =>
-                        p.onSend(planActionMessage("refine", p.resource!.type))
+                        p.onSend(
+                          planActionMessage("create", "social_channels_plan"),
+                        )
+                      }
+                      className={quickActionClass}
+                    >
+                      Create social plan
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() =>
+                        p.onSend(
+                          createMessage!,
+                          p.resource ? { omitView: true } : undefined,
+                        )
                       }
                       className={cn(
                         quickActionClass,
-                        p.preferredAction === "refine" && preferredClass,
+                        p.preferredAction === "create" && preferredClass,
                       )}
                     >
-                      Refine plan
+                      {p.resource ? "Create new plan" : "Create plan"}
                     </Button>
-                  )}
-                </>
-              )}
-            </div>
-          </AgentComposerRow>
-        </>
+                    {!p.resource && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={p.onOpenPlans}
+                        className={quickActionClass}
+                      >
+                        Open plan
+                      </Button>
+                    )}
+                    {p.resource && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || !p.planLoaded}
+                        onClick={() =>
+                          p.onSend(
+                            planActionMessage("refine", p.resource!.type),
+                          )
+                        }
+                        className={cn(
+                          quickActionClass,
+                          p.preferredAction === "refine" && preferredClass,
+                        )}
+                      >
+                        Refine plan
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </AgentComposerRow>
+          </>
+        ) : undefined
       }
     />
   );

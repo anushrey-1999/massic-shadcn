@@ -1,5 +1,12 @@
 "use client";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Ban,
   BookOpen,
@@ -27,7 +34,7 @@ import { citationEntries, readableLabel } from "./agent-citations";
 import { CitationSources } from "./agent-citations-drawer";
 import styles from "./agent.module.css";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
-import { renderLightMarkdown } from "@/components/chatbot/markdown";
+import { AgentMarkdown } from "./agent-markdown";
 import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
 import { cn } from "@/lib/utils";
 import {
@@ -81,7 +88,13 @@ function CitationChip({
   );
 }
 
-function AgentExternalLink({ href, label }: { href: string; label: string }) {
+function AgentExternalLink({
+  href,
+  label,
+}: {
+  href: string;
+  label: ReactNode;
+}) {
   return (
     <a
       href={href}
@@ -244,31 +257,17 @@ export const AgentMessageView = memo(function AgentMessageView({
   );
   const markdown = useMemo(
     () =>
-      message.role === "user"
-        ? null
-        : renderLightMarkdown(
-            content,
-            [
-              {
-                re: /\[ref:(\d+)\]/,
-                wrap: (m) => (
-                  <CitationChip
-                    number={Number(m[1])}
-                    document={message.citations}
-                  />
-                ),
-              },
-              {
-                re: /\[(.+?)\]\((https?:[^\s)]+)\)/,
-                wrap: (m) => <AgentExternalLink href={m[2]} label={m[1]} />,
-              },
-              {
-                re: /https?:\/\/[^\s<>()]+/,
-                wrap: (m) => <AgentExternalLink href={m[0]} label={m[0]} />,
-              },
-            ],
-            { enhanced: true },
-          ),
+      message.role === "user" ? null : (
+        <AgentMarkdown
+          content={content}
+          renderCitation={(number) => (
+            <CitationChip number={number} document={message.citations} />
+          )}
+          renderLink={(href, label) => (
+            <AgentExternalLink href={href} label={label} />
+          )}
+        />
+      ),
     [content, message.citations, message.role],
   );
   useEffect(

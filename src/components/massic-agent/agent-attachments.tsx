@@ -268,12 +268,14 @@ export function AgentAttachmentChips({ files }: { files: AgentAttachment[] }) {
 export function AgentAttachmentControls({
   files,
   disabled,
+  leadingControl,
   onAdd,
   onRemove,
   onRetry,
 }: {
   files: PendingAttachment[];
   disabled?: boolean;
+  leadingControl?: ReactNode;
   onAdd: (files: File[]) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
@@ -353,6 +355,7 @@ export function AgentAttachmentControls({
         </ul>
       )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {leadingControl}
         <input
           ref={input}
           type="file"

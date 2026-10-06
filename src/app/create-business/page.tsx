@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { DuplicateBusinessConflictDialog } from "@/components/create-business/DuplicateBusinessConflictDialog";
 import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTemplate";
 import {
+  ProfileActionConfirmDialog,
+  type ProfileConfirmAction,
+} from "@/components/organisms/profile/ProfileActionConfirmDialog";
+import {
   useConvertPitchToBusiness,
   useReactivateBusiness,
 } from "@/hooks/use-business-actions";
@@ -65,6 +69,8 @@ export default function CreateBusinessPage() {
   const reactivateBusiness = useReactivateBusiness();
   const [hasQuickProfile, setHasQuickProfile] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [pendingConfirmAction, setPendingConfirmAction] =
+    useState<ProfileConfirmAction | null>(null);
   const creationInFlight = useRef(false);
   const [createdBusiness, setCreatedBusiness] =
     useState<BusinessProfile | null>(null);
@@ -283,9 +289,21 @@ export default function CreateBusinessPage() {
         isAutofillLoading={pipeline.stage === "quick"}
         hasAutofilledProfile={hasQuickProfile}
         submissionIssues={submissionIssues}
-        onAutofillProfile={() => void handleQuickProfile()}
-        onSubmitCreate={() => void handleSubmitCreate()}
+        onAutofillProfile={() => {
+          if (hasQuickProfile) setPendingConfirmAction("autofill");
+          else void handleQuickProfile();
+        }}
+        onSubmitCreate={() => setPendingConfirmAction("create")}
         onCancel={() => router.push("/")}
+      />
+      <ProfileActionConfirmDialog
+        action={pendingConfirmAction}
+        onCancel={() => setPendingConfirmAction(null)}
+        onConfirm={(action) => {
+          setPendingConfirmAction(null);
+          if (action === "autofill") void handleQuickProfile();
+          else void handleSubmitCreate();
+        }}
       />
       <DuplicateBusinessConflictDialog
         open={Boolean(conflictingBusiness)}

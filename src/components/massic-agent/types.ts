@@ -1,7 +1,8 @@
 import type { AgentAttachment } from "./agent-uploads";
 
-export type AgentId = "planner" | "profile";
-export type AgentThreadTag = "chat" | "profile.update";
+export type AgentChatMode = "planner" | "analytics";
+export type AgentId = AgentChatMode | "profile";
+export type AgentThreadTag = "chat" | "analytics" | "profile.update";
 export type PlanSurface = "webpages" | "social_channels";
 export type ResourceType = "webpage_plan" | "social_channels_plan";
 export type ResourceRef = { type: ResourceType; id: number | string };

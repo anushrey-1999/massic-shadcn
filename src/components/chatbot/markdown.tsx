@@ -8,7 +8,7 @@ export type LightMarkdownInlinePattern = {
   wrap: (m: RegExpExecArray) => React.ReactNode;
 };
 
-function LightCodeBlock({ content, language }: { content: string; language?: string }) {
+export function LightCodeBlock({ content, language }: { content: string; language?: string }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

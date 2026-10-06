@@ -631,6 +631,11 @@ export function useAgentChat(business: string, options: Options) {
     messages,
     history,
     runningKey,
+    hasPendingUploads: Object.values(drafts).some((draft) =>
+      draft.attachments.some(
+        (file) => file.status === "uploading" || file.status === "finalizing",
+      ),
+    ),
     stopping,
     error,
     creditWarning,

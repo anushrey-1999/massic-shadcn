@@ -34,6 +34,10 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
 import { profileAutofillDisabledReason, useProfileAutofill } from "@/hooks/use-profile-autofill";
 import { ProfileAutofillButton, ProfileAutofillStatus } from "@/components/organisms/profile/ProfileAutofillAction";
+import {
+  ProfileActionConfirmDialog,
+  type ProfileConfirmAction,
+} from "@/components/organisms/profile/ProfileActionConfirmDialog";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
@@ -96,6 +100,7 @@ const ProfileTemplate = ({
   const locationsLoading = useBusinessStore((state) => state.profileForm.locationsLoading);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
+  const [pendingConfirmAction, setPendingConfirmAction] = useState<ProfileConfirmAction | null>(null);
   const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
     useState(false);
   const profilePipeline = useProfilePipeline(locationOptions);
@@ -891,7 +896,7 @@ const ProfileTemplate = ({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void handleSaveChanges();
+                  setPendingConfirmAction("save");
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
@@ -911,16 +916,14 @@ const ProfileTemplate = ({
                   customHeaderActions={<>
                     {isJobCreated && (
                       <ProfileAutofillButton
-                        onClick={() => void handleBusinessAutofill()}
+                        onClick={() => setPendingConfirmAction("autofill")}
                         disabledReason={autofillDisabledReason}
                         running={autofill.phase !== "idle" || externalJobDetails?.profile_status === "processing"}
                       />
                     )}
                     {externalJobDetails?.job_id && onAgentProfileRefresh && <ProfileAgentButton agent={profileAgent} />}
                   </>}
-                  onSaveChanges={() => {
-                    void handleSaveChanges();
-                  }}
+                  onSaveChanges={() => setPendingConfirmAction("save")}
                   onSaveAndUpdateStrategy={() => {
                     void (async () => {
                       if (isSaveChangesAction) {
@@ -932,9 +935,7 @@ const ProfileTemplate = ({
                       setIsStrategyConfirmOpen(true);
                     })();
                   }}
-                  onAutofillProfile={isJobCreated ? undefined : () => {
-                    void handleAutofillProfileClick();
-                  }}
+                  onAutofillProfile={isJobCreated ? undefined : () => setPendingConfirmAction("autofill")}
                   autofillDisabled={isAutofillProfileDisabled}
                   autofillLoading={isAutofillLoading}
                   onUnlinkBusiness={() => {
@@ -969,6 +970,17 @@ const ProfileTemplate = ({
         </div>
 
         <ProfileAgentDialog businessId={businessId} agent={profileAgent} />
+
+        <ProfileActionConfirmDialog
+          action={pendingConfirmAction}
+          onCancel={() => setPendingConfirmAction(null)}
+          onConfirm={(action) => {
+            setPendingConfirmAction(null);
+            if (action !== "autofill") void handleSaveChanges();
+            else if (isJobCreated) void handleBusinessAutofill();
+            else void handleAutofillProfileClick();
+          }}
+        />
 
         {/* Confirm & Proceed to Strategy Modal */}
         <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>

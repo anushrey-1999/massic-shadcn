@@ -6,6 +6,13 @@ import { ArrowLeft, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sheet,
   SheetContent,
   SheetTitle,
@@ -56,10 +63,13 @@ import {
   resourcePlanSurface,
 } from "./agent-model";
 import { usePlannerChat } from "./use-planner-chat";
-import type { AgentConversation, ResourceRef } from "./types";
+import type { AgentChatMode, AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
 
 export function MassicAgentShell({ businessId }: { businessId: string }) {
+  const searchParams = useSearchParams();
+  const mode: AgentChatMode =
+    searchParams.get("mode") === "analytics" ? "analytics" : "planner";
   const { profileData } = useBusinessProfileById(businessId);
   const businessName =
     profileData?.Name || profileData?.DisplayName || "Business";
@@ -81,23 +91,34 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
       <div className="min-h-0 flex-1">
-        <AgentAttachmentsProvider key={businessId} business={businessId}>
-          <AgentWorkspace businessId={businessId} />
+        <AgentAttachmentsProvider
+          key={`${businessId}:${mode}`}
+          business={businessId}
+        >
+          <AgentWorkspace businessId={businessId} mode={mode} />
         </AgentAttachmentsProvider>
       </div>
     </div>
   );
 }
-function AgentWorkspace({ businessId }: { businessId: string }) {
-  const chat = usePlannerChat(businessId);
+function AgentWorkspace({
+  businessId,
+  mode,
+}: {
+  businessId: string;
+  mode: AgentChatMode;
+}) {
+  const isPlanner = mode === "planner";
+  const chat = usePlannerChat(businessId, mode);
   const router = useRouter();
   const searchParams = useSearchParams();
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileHistory, setMobileHistory] = useState(false);
   const [search, setSearch] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
   const [view, setView] = useState<"chat" | "chats" | "plans">(() =>
-    searchParams.get("view") === "plans" ? "plans" : "chat",
+    isPlanner && searchParams.get("view") === "plans" ? "plans" : "chat",
   );
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
@@ -120,16 +141,18 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   const entryThreadId = searchParams.get("thread");
   const autoSubmit = searchParams.get("submit") === "1";
   const entrySurface =
-    entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels"
+    isPlanner &&
+    (entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels")
       ? entrySurfaceRaw
       : null;
   const preferredAction: AgentEntryAction | undefined =
-    entryActionRaw === "create" ||
-    entryActionRaw === "refine" ||
-    entryActionRaw === "activate"
+    isPlanner &&
+    (entryActionRaw === "create" ||
+      entryActionRaw === "refine" ||
+      entryActionRaw === "activate")
       ? entryActionRaw
       : undefined;
-  const planRef = chat.draft.resource;
+  const planRef = isPlanner ? chat.draft.resource : null;
   const preferredSurface = planRef
     ? resourcePlanSurface(planRef.type)
     : chat.draft.preferredSurface;
@@ -279,7 +302,11 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     onSuccess: (result) => {
       chat.updateTitle(result.thread_id, result.title ?? title.trim());
       setRenameTarget(null);
-      void qc.invalidateQueries({ queryKey: agentKeys.threads(businessId) });
+      void qc.invalidateQueries({
+        queryKey: agentKeys.threads(businessId, [
+          isPlanner ? "chat" : "analytics",
+        ]),
+      });
     },
   });
   useEffect(() => {
@@ -336,6 +363,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     setPlanVisible(true);
   };
   const openPlan = (r: ResourceRef) => {
+    if (!isPlanner) return;
     pendingPlanClearRef.current = null;
     if (planRef && resourceKey(planRef) === resourceKey(r)) {
       if (planVisible) closePlan(false);
@@ -353,6 +381,30 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
   };
   const streaming = chat.runningKey === chat.activeKey;
   const busyElsewhere = !!chat.runningKey && !streaming;
+  const modeDisabled =
+    changingMode ||
+    !!chat.runningKey ||
+    !!chat.recovery ||
+    chat.hasPendingUploads;
+  const changeMode = (value: string) => {
+    if (
+      modeDisabled ||
+      value === mode ||
+      (value !== "planner" && value !== "analytics")
+    )
+      return;
+    setChangingMode(true);
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of ["thread", "surface", "action", "plan", "submit", "view"])
+      params.delete(key);
+    if (value === "analytics") params.set("mode", value);
+    else params.delete("mode");
+    const query = params.toString();
+    router.replace(
+      `/business/${encodeURIComponent(businessId)}/agent${query ? `?${query}` : ""}`,
+      { scroll: false },
+    );
+  };
   const activatePlan = () => {
     if (!planRef || !plan || plan.valid !== true || streaming || busyElsewhere)
       return;
@@ -436,6 +488,7 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     router.push(fallbackHref);
   };
   const historyProps = {
+    showPlans: isPlanner,
     conversations: chat.conversations,
     activeId: chat.activeKey,
     activeView: view,
@@ -462,47 +515,81 @@ function AgentWorkspace({ businessId }: { businessId: string }) {
     creditsLoading: creditsQuery.isLoading,
   };
   const composer = (
-    <AgentPlannerComposer
-      value={chat.draft.input}
-      onChange={(input) => chat.updateDraft({ input })}
-      preferredSurface={preferredSurface}
-      locked={!!chat.conversation}
-      centered={showCenteredEmpty}
-      resource={planRef}
-      selectedCount={chat.draft.selectedIds.length}
-      totalCount={ids.length}
-      planValid={plan?.valid}
-      planLoaded={!!plan}
-      onOpenPlans={() => setPlanPicker(true)}
-      onShowPlan={showPlan}
-      onSend={(message, options) => {
-        void chat.send(message, options);
-      }}
-      onStop={() => {
-        void chat.stop();
-      }}
-      attachments={
-        <AgentAttachmentControls
-          files={chat.draft.attachments}
-          disabled={!!chat.runningKey || !!chat.recovery}
-          onAdd={chat.addFiles}
-          onRemove={chat.removeFile}
-          onRetry={chat.retryFile}
-        />
-      }
-      sendDisabled={!attachmentsReady(chat.draft.attachments)}
-      streaming={streaming}
-      stopping={chat.stopping}
-      disabled={
-        !!chat.recovery ||
-        busyElsewhere ||
-        !chat.knownThread ||
-        loadingMessages ||
-        chat.history.messages.isError
-      }
-      focusKey={chat.presentationKey}
-      preferredAction={preferredAction}
-    />
+    <>
+      <AgentPlannerComposer
+        mode={mode}
+        value={chat.draft.input}
+        onChange={(input) => chat.updateDraft({ input })}
+        preferredSurface={preferredSurface}
+        locked={!!chat.conversation}
+        centered={showCenteredEmpty}
+        resource={planRef}
+        selectedCount={chat.draft.selectedIds.length}
+        totalCount={ids.length}
+        planValid={plan?.valid}
+        planLoaded={!!plan}
+        onOpenPlans={() => setPlanPicker(true)}
+        onShowPlan={showPlan}
+        onSend={(message, options) => {
+          void chat.send(message, options);
+        }}
+        onStop={() => {
+          void chat.stop();
+        }}
+        attachments={
+          <AgentAttachmentControls
+            leadingControl={
+              <Select
+                value={mode}
+                onValueChange={changeMode}
+                disabled={modeDisabled}
+              >
+                <SelectTrigger
+                  id="massic-agent-mode"
+                  aria-label="Mode"
+                  title="Mode"
+                  variant="noBorder"
+                  size="sm"
+                  className="h-8 cursor-pointer gap-1 rounded-md bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:ring-2 disabled:cursor-default disabled:bg-transparent disabled:text-muted-foreground [&_svg]:size-3.5"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  side="top"
+                  align="start"
+                  className="w-40 shadow-xs"
+                >
+                  <SelectItem value="planner" className="cursor-pointer">
+                    Planner
+                  </SelectItem>
+                  <SelectItem value="analytics" className="cursor-pointer">
+                    Analytics
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            }
+            files={chat.draft.attachments}
+            disabled={!!chat.runningKey || !!chat.recovery}
+            onAdd={chat.addFiles}
+            onRemove={chat.removeFile}
+            onRetry={chat.retryFile}
+          />
+        }
+        sendDisabled={!attachmentsReady(chat.draft.attachments)}
+        streaming={streaming}
+        stopping={chat.stopping}
+        disabled={
+          !!chat.recovery ||
+          busyElsewhere ||
+          !chat.knownThread ||
+          loadingMessages ||
+          chat.history.messages.isError ||
+          changingMode
+        }
+        focusKey={chat.presentationKey}
+        preferredAction={preferredAction}
+      />
+    </>
   );
   const resize = (value: number) =>
     setWidth(

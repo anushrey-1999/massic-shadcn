@@ -62,6 +62,13 @@ export function isWorkflowActive(jobDetails: JobDetails | null | undefined): boo
   return status === "pending" || status === "processing";
 }
 
+export function isOrchestrationActive(
+  jobDetails: JobDetails | null | undefined
+): boolean {
+  const status = jobDetails?.orchestration_status;
+  return status === "deep_running" || status === "strategies_running";
+}
+
 export function isWorkflowSuccess(
   jobDetails: JobDetails | null | undefined,
   workflowKey: string

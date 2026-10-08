@@ -1,4 +1,5 @@
 import type { JobResponse } from "@/types/profile-v2";
+import { isOrchestrationActive } from "@/lib/workflow-status";
 import { isJobIncomplete } from "@/utils/profile-v2-mappers";
 
 export type ProfileStrategyBlockReason =
@@ -24,6 +25,16 @@ export function getProfileStrategyGate(
       title: "Complete your business profile",
       description:
         "Set up the business profile before starting or viewing Strategy.",
+    };
+  }
+
+  if (isOrchestrationActive(job)) {
+    return {
+      blocked: true,
+      reason: "processing",
+      title: "Strategy in progress",
+      description:
+        "Your growth strategy is already being built. Wait for it to finish before running it again.",
     };
   }
 
@@ -53,7 +64,7 @@ export function getProfileStrategyGate(
       reason: "incomplete_job",
       title: "Complete required profile details",
       description:
-        "Add the business name, offering, country, location, and service-area type before using Strategy.",
+        "Add the business name, website, primary location, service-area type, and offering before using Strategy.",
     };
   }
 

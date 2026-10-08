@@ -35,8 +35,8 @@ export const businessInfoSchema = z.object({
     .string()
     .min(1, "Website is required")
     .refine(
-      (val) => isValidWebsiteUrl(val),
-      { message: "Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)" }
+      (value) => !value.trim() || isValidWebsiteUrl(value),
+      { message: "Enter a valid website, such as example.com." }
     ),
   businessName: z.string().min(1, "Business Name is required"),
   primaryCategory: z.string().optional(),

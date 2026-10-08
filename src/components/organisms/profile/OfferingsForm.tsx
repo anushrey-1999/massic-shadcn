@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 import {
   CustomAddRowTable,
   Column,
 } from "@/components/organisms/CustomAddRowTable";
 import { OfferingRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
-import { PackageSearch } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { PackageSearch, Plus } from "lucide-react";
 
 type BusinessInfoFormData = {
   website: string;
@@ -45,6 +45,7 @@ interface OfferingsFormProps {
   embedded?: boolean;
   disabled?: boolean;
   validationMessage?: string;
+  required?: boolean;
 }
 
 export const OfferingsForm = ({
@@ -52,10 +53,20 @@ export const OfferingsForm = ({
   embedded = false,
   disabled = false,
   validationMessage,
+  required = true,
 }: OfferingsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
+  const emptyOfferingRow = useMemo<OfferingRow>(
+    () => ({
+      name: "",
+      description: "",
+      link: "",
+      pricePositioning: "",
+    }),
+    []
+  );
   // Track offerings validation errors
   const [hasOfferingsErrors, setHasOfferingsErrors] = React.useState(false);
 
@@ -68,12 +79,35 @@ export const OfferingsForm = ({
   }, [hasOfferingsErrors, form]);
 
   // Own column definitions
-  const offeringsColumns: Column<OfferingRow>[] = useMemo(() => [
-    { key: "name", label: "Name", validation: { required: true } },
-    { key: "description", label: "Description", validation: { required: false } },
-    { key: "link", label: "Link", validation: { required: false, url: true } },
-    { key: "pricePositioning", label: "Price Positioning", validation: { required: false } },
-  ], []);
+  const offeringsColumns: Column<OfferingRow>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Name",
+        validation: { required: true },
+      },
+      {
+        key: "pricePositioning",
+        label: "Price positioning",
+        validation: { required: false },
+      },
+      {
+        key: "description",
+        label: "Description",
+        validation: { required: false },
+        multiline: true,
+        rows: 2,
+        cardClassName: "sm:col-span-2",
+      },
+      {
+        key: "link",
+        label: "Link",
+        validation: { required: false, url: true },
+        cardClassName: "sm:col-span-2",
+      },
+    ],
+    []
+  );
 
   // Own handlers - encapsulated logic
   const {
@@ -93,29 +127,21 @@ export const OfferingsForm = ({
   });
 
   const innerContent = (
-    <div id="offeringsList" tabIndex={-1} className="space-y-7 outline-none">
-        <Card
-          variant="noBorderShadowCard"
-          className={cn(
-            validationMessage && "border border-destructive/40 bg-destructive/5"
-          )}
-        >
-          <CardHeader className="">
+    <div id="offeringsList" tabIndex={-1} className="space-y-3 outline-none">
+        <Card variant="noBorderShadowCard">
+          <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
             <div className="flex items-center">
-              <CardTitle>
-                <FieldLabel className="gap-0">
-                  <span className="text-destructive mr-0.5">*</span>
+              <CardTitle className="text-sm font-medium leading-normal">
+                <FieldLabel className="gap-0 text-sm font-medium leading-normal">
+                  {required ? (
+                    <span className="text-destructive mr-0.5">*</span>
+                  ) : null}
                   What products and services does your business sell?
                 </FieldLabel>
               </CardTitle>
             </div>
-            {validationMessage ? (
-              <p role="alert" className="text-xs text-destructive">
-                {validationMessage}
-              </p>
-            ) : null}
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={embedded ? "p-0" : "space-y-4"}>
             <div className="w-full">
               <CustomAddRowTable
                   columns={offeringsColumns}
@@ -131,8 +157,13 @@ export const OfferingsForm = ({
                   }}
                   addButtonText="Add Product/Service"
                   onValidationChange={setHasOfferingsErrors}
-                  showErrorsWithoutTouch={hasOfferingsErrors}
+                  showErrorsWithoutTouch={
+                    Boolean(validationMessage) || hasOfferingsErrors
+                  }
+                  emptyRowData={required ? emptyOfferingRow : undefined}
                   variant="card"
+                  cardLayout="stacked"
+                  hideAddButton={embedded}
                   disabled={disabled}
                 />
             </div>
@@ -142,7 +173,27 @@ export const OfferingsForm = ({
   );
 
   if (embedded) {
-    return <div id="offerings-section">{innerContent}</div>;
+    return (
+      <div id="offerings-section" className="space-y-3">
+        <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
+          <h2 className="text-base font-semibold text-general-foreground">
+            Offerings
+          </h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddRow}
+            disabled={disabled}
+            className="h-8 shrink-0 gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add offering
+          </Button>
+        </div>
+        {innerContent}
+      </div>
+    );
   }
 
   return (

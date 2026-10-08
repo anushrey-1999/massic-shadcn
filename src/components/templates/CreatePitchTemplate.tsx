@@ -1,43 +1,36 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
+import {
+  ProfileActionConfirmDialog,
+  type ProfileConfirmAction,
+} from "@/components/organisms/profile/ProfileActionConfirmDialog";
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 import { Button } from "@/components/ui/button";
 import { LoaderOverlay } from "@/components/ui/loader";
+import { usePitchBusinesses } from "@/hooks/use-business-profiles";
 import {
-  updateCreatedBusinessProfileSafely,
-  useBusinessProfiles,
-  useCreateBusiness,
-  usePitchBusinesses,
-} from "@/hooks/use-business-profiles";
+  IncompleteBusinessCreationError,
+  useManualBusinessCreation,
+} from "@/hooks/use-manual-business-creation";
 import { useLocations } from "@/hooks/use-locations";
-import { useCreateJob } from "@/hooks/use-jobs";
-import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { businessInfoSchema } from "@/schemas/ProfileFormSchema";
-import { useBusinessStore, type BusinessProfile } from "@/store/business-store";
+import { useBusinessStore } from "@/store/business-store";
+import { profileFormDefaults } from "@/utils/profile-form-mappers";
+import { validateInitialProfileFields } from "@/utils/profile-form-fields";
 import {
-  applyFormValues,
-  buildBusinessProfilePayload,
-  profileFormDefaults,
-} from "@/utils/profile-form-mappers";
-import {
-  mapJobToFormValues,
-  mapProfileToFormValues,
-} from "@/utils/profile-v2-mappers";
-import {
-  validateProfileForm,
-  type ProfileValidationIssue,
-} from "@/utils/profile-form-fields";
-import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
+  cleanWebsiteUrl,
+  isValidWebsiteUrl,
+  normalizeDomainForFavicon,
+} from "@/utils/utils";
 
 export function CreatePitchTemplate() {
   const router = useRouter();
@@ -48,16 +41,15 @@ export function CreatePitchTemplate() {
   const setLocationsLoading = useBusinessStore(
     (state) => state.setLocationsLoading
   );
-  const createBusiness = useCreateBusiness();
-  const createJob = useCreateJob();
-  const pipeline = useProfilePipeline(locationOptions);
-  const { refetchBusinessProfiles } = useBusinessProfiles();
+  const manualCreation = useManualBusinessCreation({
+    isPitch: true,
+    locationOptions,
+  });
   const { pitchBusinesses } = usePitchBusinesses();
-  const [hasQuickProfile, setHasQuickProfile] = useState(false);
-  const [createdPitch, setCreatedPitch] = useState<BusinessProfile | null>(null);
-  const [submissionIssues, setSubmissionIssues] = useState<
-    ProfileValidationIssue[]
-  >([]);
+  const [pendingConfirmAction, setPendingConfirmAction] =
+    useState<ProfileConfirmAction | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const creationInFlight = useRef(false);
 
   const form = useForm({
     defaultValues: profileFormDefaults,
@@ -78,7 +70,8 @@ export function CreatePitchTemplate() {
     setLocationsLoading,
   ]);
 
-  const runQuick = useCallback(async () => {
+  const createPitch = useCallback(async () => {
+    if (creationInFlight.current) return;
     const domain = normalizeDomainForFavicon(
       cleanWebsiteUrl(values.website)
     ).toLowerCase();
@@ -99,210 +92,119 @@ export function CreatePitchTemplate() {
     }
 
     try {
-      const profile = await pipeline.runQuick(values);
-      if (profile.status === "error") {
-        toast.error("Quick profile failed. Please try again.");
+      const issues = validateInitialProfileFields(values);
+      if (issues.length > 0) {
+        toast.error("Complete the required pitch details.", {
+          description: issues.map((issue) => issue.label).join(", "),
+        });
         return;
       }
-      applyFormValues(form, mapProfileToFormValues(profile, values));
-      setSubmissionIssues([]);
-      setHasQuickProfile(true);
+      creationInFlight.current = true;
+      setIsCreating(true);
+      const result = await manualCreation.create(values);
+      router.replace(`/pitches/${result.business.UniqueId}/profile`);
     } catch (error) {
-      toast.error("Couldn't build the pitch profile", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    }
-  }, [form, pipeline, pitchBusinesses, router, values]);
-
-  const createPitch = useCallback(async () => {
-    const current = form.state.values as BusinessInfoFormData;
-    form.validate("submit");
-    const issues = validateProfileForm(current);
-    setSubmissionIssues(issues);
-    if (issues.length > 0) {
-      const labels = [...new Set(issues.map((issue) => issue.label))];
-      toast.error("Complete the highlighted fields before creating.", {
-        description: labels.join(", "),
-      });
-      return;
-    }
-    if (!pipeline.quickProfile || pipeline.quickProfile.status === "error") {
-      toast.error("Build the quick profile before creating the pitch.");
-      return;
-    }
-
-    let pitch = createdPitch;
-    try {
-      if (!pitch?.UniqueId) {
-        const result = await createBusiness.mutateAsync({
-          website: current.website,
-          businessName: current.businessName,
-          primaryLocation: current.primaryLocation,
-          serveCustomers:
-            current.serviceType === "physical"
-              ? "local"
-              : current.serviceType === "both"
-                ? "both"
-                : current.serviceType === "online"
-                  ? "online"
-                  : "",
-          offerType: current.offerings || "",
-          isPitch: true,
-          locationOptions,
-        });
-        pitch = result.createdBusiness;
-        if (!pitch?.UniqueId) {
-          throw new Error("The pitch API did not return a business id.");
-        }
-        setCreatedPitch(pitch);
-      }
-
-      const nodePayload = buildBusinessProfilePayload(current, {
-        locationOptions,
-      });
-      nodePayload.ProfileId = pipeline.quickProfile.profile_id;
-      await updateCreatedBusinessProfileSafely(
-        pitch.UniqueId,
-        nodePayload,
-        { expectedWebsite: current.website, expectedIsPitch: true }
-      );
-      const job = await createJob.mutateAsync({
-        businessId: pitch.UniqueId,
-        profileId: pipeline.quickProfile.profile_id,
-        values: current,
-        locationOptions,
-      });
-      const canonicalValues = {
-        ...mapJobToFormValues(job),
-        website: current.website,
-        primaryLocation: current.primaryLocation,
-        serviceAreaType: current.serviceAreaType,
-        calendarEvents: current.calendarEvents,
-      };
-      const canonicalNodePayload = buildBusinessProfilePayload(
-        canonicalValues,
+      const incompletePitch =
+        error instanceof IncompleteBusinessCreationError
+          ? error.business
+          : null;
+      toast.error(
+        incompletePitch
+          ? "Pitch created, but setup is incomplete."
+          : "Failed to create pitch",
         {
-          existingProfile: pitch,
-          locationOptions,
-          preserveExistingProfile: true,
+          description:
+            error instanceof Error ? error.message : "Please try again.",
         }
       );
-      canonicalNodePayload.ProfileId = job.profile_id;
-      await updateCreatedBusinessProfileSafely(
-        pitch.UniqueId,
-        canonicalNodePayload,
-        { expectedWebsite: current.website, expectedIsPitch: true }
-      );
-      await refetchBusinessProfiles();
-      router.push(`/pitches/${pitch.UniqueId}/reports`);
-    } catch (error) {
-      toast.error("Pitch created, but setup is incomplete.", {
-        description:
-          error instanceof Error ? error.message : "Open Profile to retry.",
-      });
-      if (pitch?.UniqueId) {
-        router.push(`/pitches/${pitch.UniqueId}/profile`);
+      if (incompletePitch?.UniqueId) {
+        router.replace(`/pitches/${incompletePitch.UniqueId}/profile`);
+        return;
       }
+      creationInFlight.current = false;
+      setIsCreating(false);
     }
-  }, [
-    createBusiness,
-    createJob,
-    createdPitch,
-    form,
-    locationOptions,
-    pipeline,
-    refetchBusinessProfiles,
-    router,
-  ]);
+  }, [manualCreation, pitchBusinesses, router, values]);
 
-  const isAutofillDisabled =
-    pipeline.isProcessing ||
+  const creationPending = isCreating || manualCreation.isPending;
+  const isCreateDisabled =
+    creationPending ||
     locationsLoading ||
-    !values.website.trim() ||
+    !isValidWebsiteUrl(values.website) ||
     !values.primaryLocation.trim() ||
     !values.serviceAreaType;
-  const isProcessing =
-    pipeline.isProcessing || createBusiness.isPending || createJob.isPending;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <LoaderOverlay
-        isLoading={isProcessing}
-        message={
-          pipeline.stage === "quick"
-            ? "Building quick profile..."
-            : createJob.isPending || createBusiness.isPending
-              ? "Creating pitch..."
-              : undefined
-        }
-      >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <PageHeader
-            breadcrumbs={[
-              { label: "Home", href: "/" },
-              { label: "Pitches", href: "/pitches" },
-              { label: "Create Pitch" },
-            ]}
-            showAskMassic={false}
-          />
-          <div className="flex min-h-0 flex-1 justify-center p-5">
-            {!hasQuickProfile ? (
-              <ProfileGateCard
-                title="Add a business"
-                description="We build the profile from the website. Anything the site can't give us, you fill in after."
-                className="w-full max-w-[490px] self-center"
+    <>
+      <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+        <LoaderOverlay
+          isLoading={creationPending}
+          message={creationPending ? "Preparing your pitch profile..." : undefined}
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <PageHeader
+              breadcrumbs={[
+                { label: "Home", href: "/" },
+                { label: "Pitches", href: "/pitches" },
+                { label: "Create Pitch" },
+              ]}
+              showAskMassic={false}
+            />
+            <div className="flex min-h-0 flex-1 items-center justify-center p-5">
+              <form
+                className="w-full max-w-[490px]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setPendingConfirmAction("create-pitch");
+                }}
               >
-                <BusinessInfoForm
-                  form={form}
-                  embedded
-                  embeddedVariant="autofillGate"
-                  disableWebsiteLock
-                  primaryLocationAction={
+                <ProfileGateCard
+                  title="Add a pitch"
+                  description="Add the website and service location. You can complete the pitch profile after creation."
+                >
+                  <BusinessInfoForm
+                    form={form}
+                    embedded
+                    embeddedVariant="initialSetup"
+                    disableWebsiteLock
+                  />
+                  <div className="mt-4 flex gap-2">
                     <Button
                       type="button"
-                      className="w-full gap-2"
-                      disabled={isAutofillDisabled}
-                      onClick={() => void runQuick()}
+                      variant="outline"
+                      className="flex-1"
+                      disabled={creationPending}
+                      onClick={() => router.push("/pitches")}
                     >
-                      {pipeline.stage === "quick" ? (
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 gap-2"
+                      disabled={isCreateDisabled}
+                    >
+                      {creationPending ? (
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
                         <ArrowRight className="size-4" />
                       )}
-                      Build Profile
+                      {creationPending ? "Creating..." : "Create Pitch"}
                     </Button>
-                  }
-                />
-              </ProfileGateCard>
-            ) : (
-              <ProfileAutofillReviewTemplate
-                form={form}
-                leftTitle="Create Pitch"
-                onSaveChanges={() => undefined}
-                onSaveAndUpdateStrategy={() => undefined}
-                showUnlinkBusiness={false}
-                showDefaultActions={false}
-                profileStatus={pipeline.quickProfile?.status}
-                submissionIssues={submissionIssues}
-                customHeaderActions={
-                  <>
-                    <Button variant="outline" onClick={() => router.push("/pitches")}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => void createPitch()}
-                      disabled={isProcessing}
-                    >
-                      Create
-                    </Button>
-                  </>
-                }
-              />
-            )}
+                  </div>
+                </ProfileGateCard>
+              </form>
+            </div>
           </div>
-        </div>
-      </LoaderOverlay>
-    </div>
+        </LoaderOverlay>
+      </div>
+      <ProfileActionConfirmDialog
+        action={pendingConfirmAction}
+        onCancel={() => setPendingConfirmAction(null)}
+        onConfirm={(action) => {
+          setPendingConfirmAction(null);
+          if (action === "create-pitch") void createPitch();
+        }}
+      />
+    </>
   );
 }

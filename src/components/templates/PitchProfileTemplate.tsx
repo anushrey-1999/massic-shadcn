@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
+import { ProfileEditorTemplate } from "@/components/templates/ProfileEditorTemplate";
 import { Button } from "@/components/ui/button";
 import { LoaderOverlay } from "@/components/ui/loader";
 import {
@@ -15,22 +15,27 @@ import {
   useUpdateBusinessProfile,
 } from "@/hooks/use-business-profiles";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
-import { useCreateJob, useJobByBusinessId } from "@/hooks/use-jobs";
+import {
+  useCreateJob,
+  useJobByBusinessId,
+  useUpdateJob,
+} from "@/hooks/use-jobs";
 import { useLocations } from "@/hooks/use-locations";
+import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import {
+  applyFormValues,
   buildBusinessProfilePayload,
   mapProfileDataToFormValues,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
 import {
-  isJobIncomplete,
+  mergeJobAndNodeFormValues,
   mapJobToFormValues,
 } from "@/utils/profile-v2-mappers";
 
@@ -44,7 +49,7 @@ export function PitchProfileTemplate() {
   const updateNodeProfile = useUpdateBusinessProfile(businessId || null);
   const jobQuery = useJobByBusinessId(businessId || null);
   const createJob = useCreateJob();
-  const pipeline = useProfilePipeline(locationOptions);
+  const updateJob = useUpdateJob();
   const convertPitch = useConvertPitchToBusiness();
   const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
   const [hydrated, setHydrated] = useState(false);
@@ -58,6 +63,10 @@ export function PitchProfileTemplate() {
     defaultValues: profileFormDefaults,
     validators: { onChange: businessInfoSchema as never },
   });
+  const {
+    isDirty: hasChanges,
+    resetBaseline,
+  } = useFormDirtyState({ form });
 
   useEffect(() => {
     setLocationOptions(locationOptions);
@@ -79,13 +88,16 @@ export function PitchProfileTemplate() {
     ) {
       return;
     }
-    const nodeValues = mapProfileDataToFormValues(profileData, null, locationOptions);
+    const nodeValues = mapProfileDataToFormValues(
+      profileData,
+      null,
+      locationOptions
+    );
     const values = jobQuery.data?.job_id
-      ? { ...mapJobToFormValues(jobQuery.data), calendarEvents: nodeValues.calendarEvents }
+      ? mergeJobAndNodeFormValues(jobQuery.data, nodeValues)
       : nodeValues;
-    Object.entries(values).forEach(([key, value]) => {
-      form.setFieldValue(key as never, value as never);
-    });
+    applyFormValues(form, values);
+    resetBaseline();
     setHydrated(true);
   }, [
     form,
@@ -96,6 +108,7 @@ export function PitchProfileTemplate() {
     locationsLoading,
     profileData,
     profileDataLoading,
+    resetBaseline,
   ]);
 
   const save = useCallback(async () => {
@@ -103,34 +116,34 @@ export function PitchProfileTemplate() {
       toast.error("Wait for the pitch profile to load before saving.");
       return;
     }
+    if (!hydrated || !hasChanges) return;
     const values = form.state.values as BusinessInfoFormData;
-    const hasOffering = values.offeringsList?.some((offering) =>
-      Boolean(offering.name?.trim())
-    );
-    if (!values.businessName.trim() || !hasOffering) {
-      toast.error("Add a business name and at least one offering.");
+    if (
+      !values.businessName.trim() ||
+      !values.website.trim() ||
+      !values.primaryLocation.trim() ||
+      !values.serviceAreaType
+    ) {
+      toast.error(
+        "Add the business name, website, primary location, and service-area type."
+      );
       return;
     }
 
     try {
       let canonicalJob = jobQuery.data;
       if (jobQuery.data?.job_id) {
-        const result = await pipeline.updateJobAndPoll(businessId, values);
-        canonicalJob = result.job;
-      } else {
-        const profileId = String((profileData as any)?.ProfileId ?? "").trim();
-        if (!profileId) {
-          toast.error("This pitch needs a quick profile before it can be saved.");
-          return;
-        }
-        await createJob.mutateAsync({
+        canonicalJob = await updateJob.mutateAsync({
           businessId,
-          profileId,
           values,
           locationOptions,
         });
-        const refreshedJob = await jobQuery.refetch();
-        canonicalJob = refreshedJob.data;
+      } else {
+        canonicalJob = await createJob.mutateAsync({
+          businessId,
+          values,
+          locationOptions,
+        });
       }
 
       const canonicalValues = canonicalJob
@@ -152,6 +165,7 @@ export function PitchProfileTemplate() {
         (String((profileData as any)?.ProfileId ?? "") || null);
       await updateNodeProfile.mutateAsync(nodePayload);
       await Promise.all([jobQuery.refetch(), refetchProfile()]);
+      resetBaseline(form.state.values);
       toast.success("Profile updated");
     } catch (error) {
       toast.error("Couldn't save pitch profile", {
@@ -163,30 +177,39 @@ export function PitchProfileTemplate() {
     businessId,
     createJob,
     form,
+    hasChanges,
+    hydrated,
     jobQuery,
     locationOptions,
-    pipeline,
     profileData,
     refetchProfile,
+    resetBaseline,
+    updateJob,
     updateNodeProfile,
   ]);
 
   const processing =
-    pipeline.isProcessing ||
     createJob.isPending ||
+    updateJob.isPending ||
     updateNodeProfile.isPending ||
     jobQuery.data?.profile_status === "processing";
-  const incomplete =
-    Boolean(jobQuery.data?.job_id) && isJobIncomplete(jobQuery.data);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <LoaderOverlay
-        isLoading={profileDataLoading || jobQuery.isLoading || processing}
+        isLoading={
+          profileDataLoading ||
+          jobQuery.isLoading ||
+          locationsLoading ||
+          !hydrated ||
+          processing
+        }
         message={
-          pipeline.stage === "updating"
+          updateJob.isPending
             ? "Updating profile..."
-            : undefined
+            : !hydrated
+              ? "Loading profile..."
+              : undefined
         }
       >
         <PageHeader
@@ -199,8 +222,9 @@ export function PitchProfileTemplate() {
           showAskMassic={false}
         />
         <div className="flex min-h-0 flex-1 p-5">
-          <ProfileAutofillReviewTemplate
+          <ProfileEditorTemplate
             form={form}
+            mode="minimal"
             leftTitle="Pitch Profile"
             onSaveChanges={() => void save()}
             onSaveAndUpdateStrategy={() => undefined}
@@ -211,7 +235,10 @@ export function PitchProfileTemplate() {
             profileStatus={jobQuery.data?.profile_status}
             customHeaderActions={
               <>
-                <Button disabled={processing} onClick={() => void save()}>
+                <Button
+                  disabled={processing || !hydrated || !hasChanges}
+                  onClick={() => void save()}
+                >
                   {processing ? (
                     <Loader2 className="mr-2 size-4 animate-spin" />
                   ) : null}
@@ -219,7 +246,7 @@ export function PitchProfileTemplate() {
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={processing || incomplete}
+                  disabled={processing}
                   onClick={() => {
                     if (guardConvertPitch()) setConvertOpen(true);
                   }}

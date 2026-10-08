@@ -11,21 +11,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export type ProfileConfirmAction = "save" | "create" | "autofill";
+export type ProfileConfirmAction =
+  | "save"
+  | "create-pitch";
 
 const COPY: Record<ProfileConfirmAction, { title: string; description: string }> = {
   save: {
     title: "Save Changes",
     description: "Your profile changes will be saved. Do you want to continue?",
   },
-  create: {
-    title: "Create Business",
-    description: "This will create the business with the profile details below. Do you want to continue?",
-  },
-  autofill: {
-    title: "Autofill Profile",
+  "create-pitch": {
+    title: "Create Pitch",
     description:
-      "Autofill will rebuild the profile from the website and may overwrite the current details. Do you want to continue?",
+      "This will create the pitch with the website and location details below. Do you want to continue?",
   },
 };
 

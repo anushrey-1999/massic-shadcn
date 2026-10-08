@@ -10,30 +10,24 @@ import React, {
 import { useRouter } from "next/navigation";
 import PageHeader from "../molecules/PageHeader";
 import { useBusinessStore } from "@/store/business-store";
-import { BusinessInfoForm } from "../organisms/profile/BusinessInfoForm";
 import { useForm, useStore } from "@tanstack/react-form";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
-import { isWorkflowActive } from "@/lib/workflow-status";
+import { isOrchestrationActive } from "@/lib/workflow-status";
 import { isValidWebsiteUrl } from "@/utils/utils";
 import {
   buildBusinessProfilePayload,
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
 } from "@/utils/profile-form-mappers";
 import { Button } from "@/components/ui/button";
+import { CircleAlert, Loader2 } from "lucide-react";
 import { ProfileAgentButton, ProfileAgentDialog, useProfileAgent } from "@/components/massic-agent/profile-agent";
-// Legacy tabs template (replaced by sidebar shell)
-import { ArrowRight, Loader2 } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
-import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
-import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
+import { ProfileEditorTemplate } from "@/components/templates/ProfileEditorTemplate";
 import { useSubscription } from "@/hooks/use-subscription";
-import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
-import { profileAutofillDisabledReason, useProfileAutofill } from "@/hooks/use-profile-autofill";
-import { ProfileAutofillButton, ProfileAutofillStatus } from "@/components/organisms/profile/ProfileAutofillAction";
 import {
   ProfileActionConfirmDialog,
   type ProfileConfirmAction,
@@ -42,6 +36,7 @@ import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { stableStringify } from "@/utils/stable-stringify";
 import {
   AlertDialog,
@@ -59,16 +54,15 @@ import {
 } from "@/schemas/ProfileFormSchema";
 import { BusinessProfile } from "@/store/business-store";
 import {
-  isJobIncomplete,
-  mapJobToFormValues,
+  mergeJobAndNodeFormValues,
   mapJobToReadOnlyDetails,
-  mapProfileToFormValues,
 } from "@/utils/profile-v2-mappers";
-import type { JobResponse, ProfileResponse } from "@/types/profile-v2";
+import type { JobResponse } from "@/types/profile-v2";
 import { assertProfileStrategyReady } from "@/utils/profile-strategy-gate";
 import {
   type ProfileValidationIssue,
   validateProfileForm,
+  validateStrategyProfileFields,
 } from "@/utils/profile-form-fields";
 
 interface ProfileTemplateProps {
@@ -100,11 +94,12 @@ const ProfileTemplate = ({
   const locationsLoading = useBusinessStore((state) => state.profileForm.locationsLoading);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
+  const [isMissingFieldsOpen, setIsMissingFieldsOpen] = useState(false);
   const [pendingConfirmAction, setPendingConfirmAction] = useState<ProfileConfirmAction | null>(null);
   const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
     useState(false);
-  const profilePipeline = useProfilePipeline(locationOptions);
   const toggleBusinessStatusMutation = useToggleBusinessStatus();
+  const { canAccessStrategy } = useEntitlements(businessId);
 
   // Derive whitelist status from profiles (agency-level check)
   const isAgencyWhitelisted = useMemo(() => {
@@ -115,9 +110,6 @@ const ProfileTemplate = ({
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
-  const [quickProfileResult, setQuickProfileResult] =
-    useState<ProfileResponse | null>(null);
   const [hasCreatedJobAfterSave, setHasCreatedJobAfterSave] = useState(false);
   const {
     loading: subscriptionLoading,
@@ -128,22 +120,26 @@ const ProfileTemplate = ({
   const [submissionIssues, setSubmissionIssues] = useState<
     ProfileValidationIssue[]
   >([]);
+  const [submissionValidationMode, setSubmissionValidationMode] = useState<
+    "save" | "strategy" | null
+  >(null);
+  const [validationFocusRequest, setValidationFocusRequest] = useState(0);
   const hydratedServerRevisionRef = useRef<string | null>(null);
   const isJobCreated = Boolean(externalJobDetails?.job_id) || hasCreatedJobAfterSave;
 
-  const serverValues = useMemo(() => {
-    const nodeValues = mapBusinessProfileToFormValues(
-      externalProfileData || null,
-      null,
-      locationOptions
-    );
-    return externalJobDetails?.job_id
-      ? {
-          ...mapJobToFormValues(externalJobDetails),
-          calendarEvents: nodeValues.calendarEvents,
-        }
-      : nodeValues;
-  }, [externalJobDetails, externalProfileData, locationOptions]);
+  const serverValues = useMemo(
+    () => {
+      const nodeValues = mapBusinessProfileToFormValues(
+        externalProfileData || null,
+        null,
+        locationOptions
+      );
+      return externalJobDetails?.job_id
+        ? mergeJobAndNodeFormValues(externalJobDetails, nodeValues)
+        : nodeValues;
+    },
+    [externalJobDetails, externalProfileData, locationOptions]
+  );
   const serverRevision = useMemo(
     () => stableStringify(serverValues),
     [serverValues]
@@ -151,7 +147,7 @@ const ProfileTemplate = ({
 
   // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
   // silently while any field still holds a validation error, so a stale error on
-  // an unrelated autofilled field would make Save look dead. `handleSaveChanges`
+  // an unrelated profile field would make Save look dead. `handleSaveChanges`
   // reads `form.state.values` and runs its own explicit checks instead.
   const form = useForm({
     defaultValues: serverValues,
@@ -169,16 +165,15 @@ const ProfileTemplate = ({
   } = useFormDirtyState({ form });
 
   const { allowNavigation } = useUnsavedChangesGuard({ isDirty: hasChanges });
-  const autofill = useProfileAutofill(businessId);
   const profileAgent = useProfileAgent({
     businessId, job: externalJobDetails, dirty: hasChanges,
-    saving: externalLoading || isSaving || profilePipeline.isProcessing || autofill.busy,
+    saving: externalLoading || isSaving,
     onRefresh: onAgentProfileRefresh,
   });
 
   const saveProfileValues = useCallback(
     async (value: BusinessInfoFormData): Promise<boolean> => {
-      if (profileAgent.busy || autofill.busy) return false;
+      if (profileAgent.busy) return false;
       if (!onUpdateProfile) {
         console.warn("onUpdateProfile not provided");
         return false;
@@ -238,7 +233,6 @@ const ProfileTemplate = ({
           USPs: uspsPayload.length > 0 ? uspsPayload : null,
           SellingPoints: uspsPayload.length > 0 ? uspsPayload : null,
           ProfileId:
-            quickProfileResult?.profile_id ||
             externalJobDetails?.profile_id ||
             (externalProfileData as any)?.ProfileId,
         };
@@ -262,8 +256,6 @@ const ProfileTemplate = ({
     [
       businessId,
       profileAgent.busy,
-      autofill.busy,
-      quickProfileResult,
       externalJobDetails?.profile_id,
       externalProfileData,
       onUpdateProfile,
@@ -272,33 +264,11 @@ const ProfileTemplate = ({
     ]
   );
 
-  const guardAutofillProfile = useFeatureActionGuard("actions.autofillProfile");
   const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan");
   const guardSaveProfile = useFeatureActionGuard("profile.save");
   const guardUnlinkBusiness = useFeatureActionGuard("business.unlink");
   const guardSubscribePlan = useFeatureActionGuard("billing.subscribe");
   const guardChangeBillingPlan = useFeatureActionGuard("billing.changePlan");
-
-  const isAutofillLoading = profilePipeline.stage === "quick";
-  const handleAutofillProfile = useCallback(async () => {
-    if (isJobCreated) return;
-    if (!guardAutofillProfile()) return;
-    const currentValues = form.state.values as BusinessInfoFormData;
-    const profile = await profilePipeline.runQuick(currentValues);
-    if (profile.status === "error") {
-      toast.error("Quick profile failed. Please try again.");
-      return;
-    }
-    const nextValues = mapProfileToFormValues(profile, currentValues);
-    // Keep the original server baseline so autofilled changes remain unsaved,
-    // while applying the response in one store update.
-    form.reset(nextValues, { keepDefaultValues: true });
-    setQuickProfileResult(profile);
-    setHasAutofilledProfile(true);
-    if (profile.status === "needs_verification") {
-      toast.warning("Some profile details need verification.");
-    }
-  }, [form, guardAutofillProfile, profilePipeline, isJobCreated]);
 
   useEffect(() => {
     if (isSaving || locationsLoading) return;
@@ -348,14 +318,6 @@ const ProfileTemplate = ({
     setHasCreatedJobAfterSave(false);
   }, [businessId, externalJobDetails?.job_id]);
 
-  const hasAutofillRequiredValues = useStore(form.store, (state) => {
-    const values = state.values;
-    return Boolean(
-      String(values.website ?? "").trim() &&
-        String(values.primaryLocation ?? "").trim() &&
-        String(values.serviceAreaType ?? "").trim()
-    );
-  });
   const saveRequirementReason = useStore(form.store, (state) => {
     const values = state.values;
     const website = String(values.website ?? "").trim();
@@ -372,12 +334,7 @@ const ProfileTemplate = ({
     if (!String(values.serviceAreaType ?? "").trim()) {
       return "Select a service area type before saving.";
     }
-    const hasOffering = (values.offeringsList ?? []).some((offering) =>
-      Boolean(String(offering?.name ?? "").trim())
-    );
-    return hasOffering
-      ? null
-      : "Add at least one offering with a name before saving.";
+    return null;
   });
 
   const getPlanTypeFromData = useCallback(
@@ -546,59 +503,23 @@ const ProfileTemplate = ({
     [businessName, businessId]
   );
 
-  const isFirstProfileFill = !isJobCreated;
-
-  // Check if workflow is currently processing
-  const isWorkflowProcessing = useMemo(() => {
-    return isWorkflowActive(externalJobDetails);
+  const orchestrationStatus = externalJobDetails?.orchestration_status;
+  const isOrchestrationProcessing = useMemo(() => {
+    return isOrchestrationActive(externalJobDetails);
   }, [externalJobDetails]);
   const isProfileProcessing =
-    externalJobDetails?.profile_status === "processing" ||
-    profilePipeline.isProcessing || autofill.busy;
+    externalJobDetails?.profile_status === "processing";
   const hasProfileError = externalJobDetails?.profile_status === "error";
-  const hasIncompleteJob =
-    Boolean(externalJobDetails?.job_id) && isJobIncomplete(externalJobDetails);
-  const getAutofillDisabledReason = (dirty = hasChanges) => {
-    if (autofill.busy) {
-      return autofill.needsRefresh
-        ? "The Autofill result is refreshing automatically. Please wait."
-        : "Autofill is in progress. Please wait.";
-    }
-    return profileAutofillDisabledReason(externalJobDetails, {
-      dirty,
-      loading: externalLoading || locationsLoading,
-      saving: isSaving || profilePipeline.isProcessing || isCheckingPlan || isTriggeringWorkflow,
-      agentBusy: profileAgent.busy,
-    });
-  };
-  const autofillDisabledReason = getAutofillDisabledReason();
-  const handleBusinessAutofill = async () => {
-    const reason = getAutofillDisabledReason(
-      hasChanges || stableStringify(form.state.values) !== serverRevision,
-    );
-    if (reason || !externalJobDetails) return;
-    if (!guardAutofillProfile()) return;
-    const job = await autofill.run(externalJobDetails);
-    if (job?.profile_status === "needs_verification") {
-      toast.warning("Profile autofilled. Review the details that need verification.");
-    } else if (job && job.profile_status !== "error") {
-      toast.success("Profile autofilled");
-    }
-  };
-
-  const handleAutofillProfileClick = useCallback(async () => {
-    if (!String((form.state.values as any)?.serviceAreaType || "").trim()) {
-      form.setFieldValue("serviceAreaType" as any, "city_local" as any);
-    }
-
-    await handleAutofillProfile();
-  }, [form, handleAutofillProfile]);
-
-  const isAutofillProfileDisabled =
-    isAutofillLoading ||
-    !hasAutofillRequiredValues;
 
   const isSaveChangesAction = !isJobCreated || hasChanges;
+  const editorMode = canAccessStrategy ? "full" : "minimal";
+  const visibleSections = useMemo(
+    () =>
+      editorMode === "minimal"
+        ? (["identity", "offerings", "competitors"] as const)
+        : undefined,
+    [editorMode]
+  );
 
   // Check if CTAs have validation errors
   const hasCtaValidationErrors = useStore(form.store, (state: any) => {
@@ -611,22 +532,53 @@ const ProfileTemplate = ({
     const offeringsMeta = state.fieldMeta?.offeringsList;
     return offeringsMeta?.hasValidationErrors === true;
   });
+  const currentFormValues = useStore(
+    form.store,
+    (state: any) => state.values as BusinessInfoFormData
+  );
 
-  const isAutofillGateActive = isFirstProfileFill && !hasAutofilledProfile;
+  useEffect(() => {
+    if (!submissionValidationMode) return;
 
-  const isAutofillWorkflowInProgress =
-    isAutofillLoading || profilePipeline.isProcessing;
+    const issues =
+      submissionValidationMode === "strategy"
+        ? validateStrategyProfileFields(currentFormValues)
+        : validateProfileForm(currentFormValues, {
+            offerings: hasOfferingsValidationErrors,
+            ctas: hasCtaValidationErrors,
+            sectionMode: editorMode,
+            visibleSections: visibleSections
+              ? [...visibleSections]
+              : undefined,
+          });
+
+    setSubmissionIssues(issues);
+    if (issues.length === 0) {
+      setSubmissionValidationMode(null);
+    }
+  }, [
+    currentFormValues,
+    editorMode,
+    hasCtaValidationErrors,
+    hasOfferingsValidationErrors,
+    submissionValidationMode,
+    visibleSections,
+  ]);
 
   // Only the fields the profile/job calls actually require. Unrelated schema
   // noise must never block a save, and every block must name its own cause.
   const getSaveBlockReason = useCallback(
     (values: BusinessInfoFormData): string | null => {
       if (externalLoading) return "Wait for the profile to finish loading before saving.";
-      if (isWorkflowProcessing) return "A workflow is running. Wait for it to finish before saving.";
+      if (isOrchestrationProcessing) return "Strategy generation is running. Wait for it to finish before saving.";
       if (isProfileProcessing) return "Profile processing is in progress. Wait for it to finish before saving.";
       const [firstIssue] = validateProfileForm(values, {
         offerings: hasOfferingsValidationErrors,
         ctas: hasCtaValidationErrors,
+        sectionMode: editorMode,
+        visibleSections: visibleSections
+          ? [...visibleSections]
+          : undefined,
       });
       return firstIssue?.message ?? null;
     },
@@ -634,8 +586,10 @@ const ProfileTemplate = ({
       externalLoading,
       hasCtaValidationErrors,
       hasOfferingsValidationErrors,
-      isWorkflowProcessing,
+      isOrchestrationProcessing,
       isProfileProcessing,
+      editorMode,
+      visibleSections,
     ]
   );
 
@@ -648,8 +602,16 @@ const ProfileTemplate = ({
     const issues = validateProfileForm(currentValues, {
       offerings: hasOfferingsValidationErrors,
       ctas: hasCtaValidationErrors,
+      sectionMode: editorMode,
+      visibleSections: visibleSections
+        ? [...visibleSections]
+        : undefined,
     });
+    setSubmissionValidationMode("save");
     setSubmissionIssues(issues);
+    if (issues.length > 0) {
+      setValidationFocusRequest((request) => request + 1);
+    }
     const blockReason = getSaveBlockReason(currentValues);
     if (blockReason) {
       toast.error(blockReason);
@@ -657,7 +619,10 @@ const ProfileTemplate = ({
     }
 
     const saved = await saveProfileValues(currentValues);
-    if (saved) setSubmissionIssues([]);
+    if (saved) {
+      setSubmissionIssues([]);
+      setSubmissionValidationMode(null);
+    }
     return saved;
   }, [
     form,
@@ -667,6 +632,43 @@ const ProfileTemplate = ({
     hasOfferingsValidationErrors,
     isSaving,
     saveProfileValues,
+    editorMode,
+    visibleSections,
+  ]);
+
+  const handleSaveAndUpdateStrategy = useCallback(async () => {
+    if (!guardAcceptPlan()) return;
+    if (!canAccessStrategy) {
+      setPlanModalOpen(true);
+      return;
+    }
+
+    const currentValues = form.state.values as BusinessInfoFormData;
+    const issues = validateStrategyProfileFields(currentValues);
+    setSubmissionValidationMode(issues.length > 0 ? "strategy" : null);
+    setSubmissionIssues(issues);
+    if (issues.length > 0) {
+      setValidationFocusRequest((request) => request + 1);
+      setIsMissingFieldsOpen(true);
+      return;
+    }
+
+    if (isSaveChangesAction) {
+      const saved = await handleSaveChanges();
+      if (!saved) return;
+    }
+    if (!externalJobDetails?.job_id) {
+      toast.error("Save the business profile before updating Strategy.");
+      return;
+    }
+    setIsStrategyConfirmOpen(true);
+  }, [
+    canAccessStrategy,
+    externalJobDetails?.job_id,
+    form,
+    guardAcceptPlan,
+    handleSaveChanges,
+    isSaveChangesAction,
   ]);
 
   // "Save & Update Strategy" saves first, and that save now reports its own block
@@ -675,13 +677,11 @@ const ProfileTemplate = ({
   const isProceedDisabled =
     externalLoading ||
     isSaving ||
-    isAutofillWorkflowInProgress ||
     isCheckingPlan ||
     isTriggeringWorkflow ||
-    isWorkflowProcessing ||
+    isOrchestrationProcessing ||
     isProfileProcessing ||
-    hasProfileError ||
-    hasIncompleteJob;
+    hasProfileError;
 
   // Hint only. The button stays clickable and `handleSaveChanges` toasts the same
   // reason, so the user is never left with a dead control and no explanation.
@@ -689,7 +689,7 @@ const ProfileTemplate = ({
     if (isSaving) return "Saving in progress.";
     if (isJobCreated && !hasChanges) return "No unsaved changes.";
     if (externalLoading) return "Wait for the profile to finish loading before saving.";
-    if (isWorkflowProcessing) return "A workflow is running. Wait for it to finish.";
+    if (isOrchestrationProcessing) return "Strategy generation is running. Wait for it to finish.";
     if (isProfileProcessing) return "Profile processing is in progress.";
     if (hasOfferingsValidationErrors) {
       return "Fix the highlighted errors in Offerings before saving.";
@@ -706,20 +706,19 @@ const ProfileTemplate = ({
     isJobCreated,
     hasChanges,
     isSaving,
-    isWorkflowProcessing,
+    isOrchestrationProcessing,
     saveRequirementReason,
   ]);
 
   // Determine loading state and message
   const isLoading =
-    externalLoading || isSaving || isTriggeringWorkflow || isAutofillLoading;
+    externalLoading || isSaving || isTriggeringWorkflow;
   const loadingMessage = useMemo(() => {
-    if (isAutofillLoading) return "Building profile...";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (isSaving) return "Saving changes...";
     if (externalLoading) return "Loading profile data...";
     return undefined;
-  }, [isAutofillLoading, isTriggeringWorkflow, isSaving, externalLoading]);
+  }, [isTriggeringWorkflow, isSaving, externalLoading]);
 
   const currentPlanLabel = useMemo(() => {
     const planType = getPlanTypeFromData(subscriptionData);
@@ -848,51 +847,8 @@ const ProfileTemplate = ({
 
           {/* Content area: takes remaining height, scroll lives inside form column */}
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div
-              className={cn(
-                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
-                isAutofillGateActive && "justify-center items-center"
-              )}
-            >
+            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
           <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
-            {isAutofillGateActive ? (
-              <div className="flex flex-1 items-center justify-center">
-                <ProfileGateCard
-                  title="Add a business"
-                  description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
-                  className="max-w-[490px]"
-                >
-                  <div className="mx-auto w-full max-w-[442px]">
-                    <BusinessInfoForm
-                      form={form}
-                      embedded
-                      embeddedVariant="autofillGate"
-                      disableWebsiteLock
-                      primaryLocationAction={
-                        <Button
-                          type="button"
-                          onClick={handleAutofillProfileClick}
-                          disabled={isAutofillProfileDisabled}
-                          className="w-full gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        >
-                          {isAutofillLoading ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" />
-                              Building profile...
-                            </>
-                          ) : (
-                            <>
-                              Build Profile
-                              <ArrowRight className="size-4 shrink-0" />
-                            </>
-                          )}
-                        </Button>
-                      }
-                    />
-                  </div>
-                </ProfileGateCard>
-              </div>
-            ) : (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -900,44 +856,62 @@ const ProfileTemplate = ({
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileAutofillReviewTemplate
+                <ProfileEditorTemplate
                   form={form}
+                  mode={editorMode}
                   readOnlyDetails={mapJobToReadOnlyDetails(
                     externalJobDetails
                   )}
                   submissionIssues={submissionIssues}
-                  notice={isJobCreated ? (
-                    <ProfileAutofillStatus
-                      autofill={autofill}
-                      processing={externalJobDetails?.profile_status === "processing"}
-                      profileError={hasProfileError}
-                    />
-                  ) : undefined}
+                  validationFocusRequest={validationFocusRequest}
+                  notice={
+                    isOrchestrationProcessing ? (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="flex shrink-0 items-center gap-3 border-b border-general-border bg-general-primary-foreground px-4 py-3 sm:px-6"
+                      >
+                        <Loader2
+                          className="size-5 shrink-0 animate-spin text-general-primary"
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-general-foreground">
+                            {orchestrationStatus === "deep_running"
+                              ? "Analyzing your business profile"
+                              : "Building your growth strategy"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-general-muted-foreground">
+                            This comprehensive analysis may take up to an hour.
+                            You can leave this page and return later.
+                          </p>
+                        </div>
+                      </div>
+                    ) : orchestrationStatus === "error" ? (
+                      <div
+                        role="alert"
+                        className="flex shrink-0 items-center gap-3 border-b border-destructive/30 bg-destructive/5 px-4 py-3 sm:px-6"
+                      >
+                        <CircleAlert
+                          className="size-5 shrink-0 text-destructive"
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-destructive">
+                            Strategy generation stopped
+                          </p>
+                          <p className="mt-0.5 text-xs text-destructive">
+                            Review the profile details and run Strategy again.
+                          </p>
+                        </div>
+                      </div>
+                    ) : undefined
+                  }
                   customHeaderActions={<>
-                    {isJobCreated && (
-                      <ProfileAutofillButton
-                        onClick={() => setPendingConfirmAction("autofill")}
-                        disabledReason={autofillDisabledReason}
-                        running={autofill.phase !== "idle" || externalJobDetails?.profile_status === "processing"}
-                      />
-                    )}
                     {externalJobDetails?.job_id && onAgentProfileRefresh && <ProfileAgentButton agent={profileAgent} />}
                   </>}
                   onSaveChanges={() => setPendingConfirmAction("save")}
-                  onSaveAndUpdateStrategy={() => {
-                    void (async () => {
-                      if (isSaveChangesAction) {
-                        const saved = await handleSaveChanges();
-                        if (!saved) return;
-                      }
-                      if (!externalJobDetails?.job_id) return;
-                      if (!guardAcceptPlan()) return;
-                      setIsStrategyConfirmOpen(true);
-                    })();
-                  }}
-                  onAutofillProfile={isJobCreated ? undefined : () => setPendingConfirmAction("autofill")}
-                  autofillDisabled={isAutofillProfileDisabled}
-                  autofillLoading={isAutofillLoading}
+                  onSaveAndUpdateStrategy={() => void handleSaveAndUpdateStrategy()}
                   onUnlinkBusiness={() => {
                     if (!guardUnlinkBusiness()) return;
                     setIsUnlinkBusinessConfirmOpen(true);
@@ -951,9 +925,9 @@ const ProfileTemplate = ({
                   savePending={isSaving}
                   saveDisabledReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : saveDisabledReason}
                   isWorkflowProcessing={
-                    isWorkflowProcessing || isProfileProcessing || profileAgent.busy
+                    isOrchestrationProcessing || isProfileProcessing || profileAgent.busy
                   }
-                  busyReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : autofill.busy ? "Autofill is in progress. Wait for the profile refresh to finish." : externalJobDetails?.profile_status === "processing" ? "Your profile is still processing." : undefined}
+                  busyReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : isOrchestrationProcessing ? "Your growth strategy is being built." : externalJobDetails?.profile_status === "processing" ? "Your profile is still processing." : undefined}
                   initialFieldsLocked={Boolean(externalJobDetails?.job_id)}
                   profileStatus={externalJobDetails?.profile_status}
                   proceedDisabled={
@@ -963,7 +937,6 @@ const ProfileTemplate = ({
                   className="flex-1"
                 />
               </form>
-            )}
           </div>
             </div>
         </div>
@@ -976,11 +949,36 @@ const ProfileTemplate = ({
           onCancel={() => setPendingConfirmAction(null)}
           onConfirm={(action) => {
             setPendingConfirmAction(null);
-            if (action !== "autofill") void handleSaveChanges();
-            else if (isJobCreated) void handleBusinessAutofill();
-            else void handleAutofillProfileClick();
+            if (action === "save") void handleSaveChanges();
           }}
         />
+
+        <AlertDialog
+          open={isMissingFieldsOpen}
+          onOpenChange={setIsMissingFieldsOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Complete required profile fields</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add the following details before updating Strategy.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-general-foreground">
+              {submissionIssues.map((issue) => (
+                <li key={`${issue.field}-${issue.message}`}>
+                  <span className="font-medium">{issue.label}:</span>{" "}
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setIsMissingFieldsOpen(false)}>
+                Review fields
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Confirm & Proceed to Strategy Modal */}
         <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>
@@ -995,8 +993,7 @@ const ProfileTemplate = ({
               <AlertDialogCancel
                 disabled={
                   isTriggeringWorkflow ||
-                  isCheckingPlan ||
-                  isAutofillWorkflowInProgress
+                  isCheckingPlan
                 }
               >
                 Do Later
@@ -1014,8 +1011,7 @@ const ProfileTemplate = ({
                   }}
                   disabled={
                     isTriggeringWorkflow ||
-                    isCheckingPlan ||
-                    isAutofillWorkflowInProgress
+                    isCheckingPlan
                   }
                 >
                   Confirm

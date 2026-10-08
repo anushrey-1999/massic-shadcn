@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import { useStore } from "@tanstack/react-form";
-import { MapPin } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 
 import {
   CustomAddRowTable,
@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { FieldLabel } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 
@@ -90,14 +91,14 @@ export const LocationsForm = ({
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
   const content = (
     <Card variant={cardVariant}>
-      <CardHeader>
-        <CardTitle>
-          <FieldLabel className="gap-0">
+      <CardHeader className={embedded ? "px-0 pt-0 pb-2" : undefined}>
+        <CardTitle className="text-sm font-medium leading-normal">
+          <FieldLabel className="gap-0 text-sm font-medium leading-normal">
             Addresses from which your business operates
           </FieldLabel>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={embedded ? "p-0" : undefined}>
         <div className="w-full">
           <CustomAddRowTable
             columns={columns}
@@ -107,6 +108,9 @@ export const LocationsForm = ({
             onDeleteRow={handleDeleteRow}
             addButtonText="Add Location"
             variant="card"
+            cardLayout="stacked"
+            cardGridClassName="sm:grid-cols-2 lg:grid-cols-3"
+            hideAddButton={embedded}
           />
         </div>
       </CardContent>
@@ -114,7 +118,26 @@ export const LocationsForm = ({
   );
 
   if (embedded) {
-    return <div id="locations-addresses">{content}</div>;
+    return (
+      <div id="locations-addresses" className="space-y-3">
+        <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
+          <h2 className="text-base font-semibold text-general-foreground">
+            Locations
+          </h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddRow}
+            className="h-8 shrink-0 gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add location
+          </Button>
+        </div>
+        {content}
+      </div>
+    );
   }
 
   return (

@@ -4,11 +4,16 @@ export type ServiceAreaType =
   | "state_regional"
   | "city_local";
 
-export type ProfileMode = "quick" | "deep" | "update" | "manual" | "restore";
 export type ProfileStatus =
   | "processing"
   | "complete"
   | "needs_verification"
+  | "error";
+
+export type OrchestrationStatus =
+  | "deep_running"
+  | "strategies_running"
+  | "completed"
   | "error";
 
 export type ProvenanceStatus =
@@ -90,59 +95,6 @@ export interface JobBrandAssets {
   [key: string]: unknown;
 }
 
-export interface ProfileDocument {
-  business_overview?: Record<string, unknown>;
-  offerings?: JobOffering[];
-  customer_experience?: Record<string, unknown>;
-  differentiators_and_proof?: Record<string, unknown>;
-  brand_and_messaging?: Record<string, unknown>;
-  customers?: Record<string, unknown>;
-  working_context?: Record<string, unknown>;
-  gaps_and_questions?: unknown[];
-  sources?: Array<Record<string, unknown>>;
-  run_metadata?: Record<string, unknown>;
-  other?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export interface TriggerQuickProfileRequest {
-  mode: "quick";
-  business_url: string;
-  country: string;
-  location: string;
-  service_area_type: ServiceAreaType;
-}
-
-export interface TriggerDeepProfileRequest {
-  mode: "deep";
-  business_id: string;
-}
-
-export type TriggerProfileRequest =
-  | TriggerQuickProfileRequest
-  | TriggerDeepProfileRequest;
-
-export interface TriggerProfileResponse {
-  profile_id: string;
-}
-
-export interface ProfileResponse {
-  profile_id: string;
-  job_id: string | null;
-  mode: ProfileMode;
-  status: ProfileStatus;
-  context_version: number;
-  business_url: string;
-  country: string;
-  location: string;
-  service_area_type: ServiceAreaType;
-  data: ProfileDocument;
-  change_summary: Record<string, unknown> | null;
-  restored_from_profile_id: string | null;
-  created_at: string;
-  updated_at: string | null;
-}
-
 export interface JobWriteFields {
   business_name?: string | null;
   location?: string | null;
@@ -182,7 +134,7 @@ export interface JobWriteFields {
 
 export interface CreateJobRequest extends JobWriteFields {
   business_id: string;
-  profile_id: string;
+  profile_id?: string;
 }
 
 export type UpdateJobRequest = JobWriteFields;
@@ -200,6 +152,7 @@ export interface JobResponse extends JobWriteFields {
   updated_at?: string | null;
   profile_id?: string | null;
   profile_status?: ProfileStatus | null;
+  orchestration_status?: OrchestrationStatus | null;
   key_people?: JobKeyPerson[] | null;
   serve?: "local" | "online" | "both" | null;
   sell?: "products" | "services" | "both" | null;
@@ -233,6 +186,7 @@ export interface SpecialtiesResponse {
 
 export interface RequiredJobFieldState {
   businessName: boolean;
+  website: boolean;
   offerings: boolean;
   country: boolean;
   location: boolean;

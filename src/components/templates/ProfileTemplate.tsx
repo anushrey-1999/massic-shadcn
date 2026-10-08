@@ -929,7 +929,6 @@ const ProfileTemplate = ({
                   }
                   busyReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : isOrchestrationProcessing ? "Your growth strategy is being built." : externalJobDetails?.profile_status === "processing" ? "Your profile is still processing." : undefined}
                   initialFieldsLocked={Boolean(externalJobDetails?.job_id)}
-                  profileStatus={externalJobDetails?.profile_status}
                   proceedDisabled={
                     isProceedDisabled ||
                     (!isSaveChangesAction && !externalJobDetails?.job_id)

@@ -227,7 +227,6 @@ export function PitchProfileTemplate() {
             showDefaultActions={false}
             isWorkflowProcessing={processing}
             initialFieldsLocked={Boolean(jobQuery.data?.job_id)}
-            profileStatus={jobQuery.data?.profile_status}
             customHeaderActions={
               <>
                 <Button

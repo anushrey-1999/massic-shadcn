@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog"
 import {
@@ -51,6 +52,15 @@ interface DataTableModalProps {
   isLoading?: boolean
   dynamicFirstColumn?: boolean
   renderFirstColumn?: (row: DataTableRow, value: string) => React.ReactNode
+  responsive?: boolean
+  errorState?: React.ReactNode
+  pagination?: {
+    rowCount: number
+    page: number
+    pageSize: number
+    onPageChange: (page: number) => void
+    onPageSizeChange: (pageSize: number) => void
+  }
 }
 
 const ROW_LIMITS = [25, 50, 100] as const
@@ -71,21 +81,37 @@ export function DataTableModal({
   isLoading = false,
   dynamicFirstColumn = false,
   renderFirstColumn,
+  responsive = false,
+  errorState,
+  pagination,
 }: DataTableModalProps) {
-  const [rowsPerPage, setRowsPerPage] = useState<number>(25)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [localRowsPerPage, setLocalRowsPerPage] = useState<number>(25)
+  const [localPage, setLocalPage] = useState(1)
+  const rowsPerPage = pagination?.pageSize ?? localRowsPerPage
+  const currentPage = pagination ? pagination.page + 1 : localPage
+  const setCurrentPage = (value: number | ((page: number) => number)) => {
+    const next = typeof value === "function" ? value(currentPage) : value
+    if (pagination) pagination.onPageChange(next - 1)
+    else setLocalPage(next)
+  }
+  const setRowsPerPage = (value: number) => {
+    if (pagination) pagination.onPageSizeChange(value)
+    else setLocalRowsPerPage(value)
+  }
 
-  const totalPages = useMemo(() => Math.ceil(data.length / rowsPerPage), [data.length, rowsPerPage])
+  const rowCount = pagination?.rowCount ?? data.length
+  const totalPages = Math.ceil(rowCount / rowsPerPage)
 
   const displayData = useMemo(() => {
+    if (pagination) return data
     const startIndex = (currentPage - 1) * rowsPerPage
     const endIndex = startIndex + rowsPerPage
     return data.slice(startIndex, endIndex)
-  }, [data, currentPage, rowsPerPage])
+  }, [data, currentPage, rowsPerPage, pagination])
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [rowsPerPage, data.length, activeTab])
+    if (!pagination) setLocalPage(1)
+  }, [rowsPerPage, data.length, activeTab, pagination])
 
   const handleTabChange = (value: string) => {
     onTabChange?.(value)
@@ -117,14 +143,15 @@ export function DataTableModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-[85vw] min-w-[800px] max-h-[85vh] flex flex-col p-0 gap-0"
+        className={responsive ? "w-[calc(100vw-32px)] sm:w-[85vw] min-w-0 max-w-5xl max-h-[85vh] flex flex-col p-0 gap-0" : "w-[85vw] min-w-[800px] max-h-[85vh] flex flex-col p-0 gap-0"}
         showCloseButton={false}
       >
         <DialogHeader className="px-4 py-4 border-b shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 min-w-0 shrink">
+              {responsive && <DialogDescription className="sr-only">{title}. Browse the table using the pagination controls.</DialogDescription>}
               {/* {icon && <span className="text-muted-foreground shrink-0">{icon}</span>} */}
-              <DialogTitle className="text-lg font-semibold truncate max-w-[300px]">{title}</DialogTitle>
+              <DialogTitle className={responsive ? "text-lg font-medium truncate max-w-[300px]" : "text-lg font-semibold truncate max-w-[300px]"}>{title}</DialogTitle>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               {tabs && tabs.length > 0 && (
@@ -147,6 +174,7 @@ export function DataTableModal({
                 variant="outline"
                 size="sm"
                 onClick={handleExportCSV}
+                disabled={isLoading || Boolean(errorState)}
                 className="h-8 gap-1.5"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -163,7 +191,7 @@ export function DataTableModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
-          <DataTable
+          {errorState || <DataTable
             columns={columns}
             data={displayData}
             isLoading={isLoading}
@@ -177,15 +205,16 @@ export function DataTableModal({
             cellSize="md"
             dynamicFirstColumn={dynamicFirstColumn}
             renderFirstColumn={renderFirstColumn}
-          />
+          />}
         </div>
 
-        <div className="px-4 py-3 border-t shrink-0 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="px-4 py-3 border-t shrink-0 flex flex-wrap gap-3 items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className="text-black">Rows per page</span>
             <Select
               value={String(rowsPerPage)}
               onValueChange={(value) => setRowsPerPage(Number(value))}
+              disabled={Boolean(pagination) && isLoading}
             >
               <SelectTrigger className="!h-8 text-xs">
                 <SelectValue placeholder="Rows" />
@@ -207,7 +236,7 @@ export function DataTableModal({
                 <button
                   className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
                   onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
+                  disabled={currentPage === 1 || (Boolean(pagination) && isLoading)}
                   aria-label="First page"
                   type="button"
                 >
@@ -217,7 +246,7 @@ export function DataTableModal({
                 <button
                   className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  disabled={currentPage === 1 || (Boolean(pagination) && isLoading)}
                   aria-label="Previous page"
                   type="button"
                 >
@@ -227,7 +256,7 @@ export function DataTableModal({
                 <button
                   className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
+                  disabled={currentPage === totalPages || (Boolean(pagination) && isLoading)}
                   aria-label="Next page"
                   type="button"
                 >
@@ -237,7 +266,7 @@ export function DataTableModal({
                 <button
                   className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
                   onClick={() => setCurrentPage(totalPages)}
-                  disabled={currentPage === totalPages}
+                  disabled={currentPage === totalPages || (Boolean(pagination) && isLoading)}
                   aria-label="Last page"
                   type="button"
                 >

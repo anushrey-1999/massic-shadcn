@@ -203,7 +203,7 @@ function isCompletedOrchestrationStep(step: ActivityStep) {
   if (step.kind === "dispatch") return true;
   return (
     step.kind === "tool" &&
-    /^Dispatch (webpages|social channels)$/i.test(step.label.trim())
+    (step.toolName === "dispatch_webpages" || step.toolName === "dispatch_social_channels")
   );
 }
 

@@ -57,6 +57,7 @@ export type ActivityStep = {
   id: string;
   kind: "thought" | "tool" | "dispatch" | "summary";
   label: string;
+  toolName?: string;
   detail?: string;
   scope: string;
   path: string;
@@ -206,11 +207,17 @@ export type AgentEvent = Envelope &
     | { type: "message_complete"; content: string; partial?: boolean }
     | { type: "dispatch_start"; child: string; task?: string }
     | { type: "dispatch_end"; child: string; summary?: string }
-    | { type: "tool_call_start"; call_id: string; tool_name: string }
+    | {
+        type: "tool_call_start";
+        call_id: string;
+        tool_name: string;
+        title?: string;
+      }
     | {
         type: "tool_call_end";
         call_id: string;
         tool_name: string;
+        title?: string;
         success?: boolean;
       }
     | { type: "citations"; document: CitationDocument }
@@ -219,6 +226,14 @@ export type AgentEvent = Envelope &
     | {
         type: "turn_end";
         status: TurnStatus;
+        tools_used?: {
+          name: string;
+          title?: string;
+          input?: Record<string, unknown>;
+          agent?: string;
+          path?: string;
+          success?: boolean;
+        }[];
         widget_parts?: WidgetPart[];
         credit_warning?: boolean;
         credit_balance?: number;

@@ -3,17 +3,13 @@ import type { AgentMessage, CitationDocument, CitationSource } from "./types";
 export function sourceUrl(source: CitationSource): string | undefined {
   try { const url = new URL(source.url ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : undefined; } catch { return undefined; }
 }
-const labels: Record<string, string> = {
-  search_knowledge: "Strategy search", get_pages_details: "Page details", get_clusters_details: "Social campaign details",
-  save_webpages_plan: "Content plan", save_social_channels_plan: "Social plan", tool_result: "Source", reasoning: "Supporting context",
-};
 export function readableLabel(value: string | undefined, fallback: string): string {
   if (!value?.trim() || /^(?:[\w-]+_src_\d+|[0-9a-f]{8}-[0-9a-f-]{27,})$/i.test(value.trim()) || /^[{[]/.test(value.trim())) return fallback;
-  return labels[value] ?? value.replace(/_/g, " ");
+  return value;
 }
 export function sourceLabel(source: CitationSource): string {
   const url = sourceUrl(source);
-  return readableLabel(source.label, url ? new URL(url).hostname : labels[source.tool_name ?? ""] ?? labels[source.source_type ?? ""] ?? "Source");
+  return readableLabel(source.label, url ? new URL(url).hostname : "Source");
 }
 export function citationEntries(document: CitationDocument) {
   const sources = new Map<string, CitationSource>();

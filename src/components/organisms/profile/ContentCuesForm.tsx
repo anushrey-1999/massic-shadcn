@@ -174,8 +174,8 @@ export const ContentCuesForm = ({
     <div className="space-y-7">
         <Card variant={cardVariant}>
           <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">Differentiators</FieldLabel>
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">Differentiators</FieldLabel>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -195,8 +195,8 @@ export const ContentCuesForm = ({
 
         <Card variant={cardVariant}>
           <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
                 CTAs (Enter CTA copy along with its destination URL)
               </FieldLabel>
             </CardTitle>
@@ -220,8 +220,8 @@ export const ContentCuesForm = ({
 
         <Card variant={cardVariant}>
           <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
                 Brand terms that best describe your business
               </FieldLabel>
             </CardTitle>
@@ -249,8 +249,8 @@ export const ContentCuesForm = ({
 
         <Card variant={cardVariant}>
           <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
                 What is the tone of your brand's content?<span className="text-general-muted-foreground pl-1">Add up to 3 per channel.</span>
               </FieldLabel>
             </CardTitle>
@@ -260,7 +260,7 @@ export const ContentCuesForm = ({
               <div className="flex flex-col gap-3">
                 <Card variant="profileCard" className="bg-white shadow-none p-0 overflow-hidden">
                   <CardHeader className="bg-foreground-light pt-2 px-2.5">
-                    <CardTitle>
+                    <CardTitle className="text-xs font-medium leading-normal">
                       <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Social</FieldLabel>
                     </CardTitle>
                   </CardHeader>
@@ -286,7 +286,7 @@ export const ContentCuesForm = ({
 
                 <Card variant="profileCard" className="bg-white shadow-none p-0 overflow-hidden">
                   <CardHeader className="bg-foreground-light pt-2 px-2.5">
-                    <CardTitle>
+                    <CardTitle className="text-xs font-medium leading-normal">
                       <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Web</FieldLabel>
                     </CardTitle>
                   </CardHeader>
@@ -317,8 +317,8 @@ export const ContentCuesForm = ({
 
         <Card variant={cardVariant}>
           <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
                 Primary stakeholders/key people involved in the business
               </FieldLabel>
             </CardTitle>
@@ -340,8 +340,8 @@ export const ContentCuesForm = ({
 
       {/* <Card variant={cardVariant}>
         <CardHeader className="">
-          <CardTitle>
-            <FieldLabel className="gap-0">
+          <CardTitle className="text-sm font-medium leading-normal">
+            <FieldLabel className="gap-0 text-sm font-medium leading-normal">
               Calendar Events
             </FieldLabel>
           </CardTitle>

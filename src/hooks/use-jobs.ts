@@ -1,22 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/hooks/use-api";
-import { isWorkflowActive } from "@/lib/workflow-status";
+import {
+  isOrchestrationActive,
+  isWorkflowActive,
+} from "@/lib/workflow-status";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import type {
   CreateJobRequest,
   JobResponse,
-  ProfileResponse,
   UpdateJobRequest,
 } from "@/types/profile-v2";
 import {
   buildCreateJobRequest,
   buildUpdateJobRequest,
 } from "@/utils/profile-v2-mappers";
-import { pollProfileUntilTerminal } from "@/utils/profile-v2-api";
 
 const JOBS_KEY = "jobs";
 
@@ -98,7 +98,6 @@ function assertJobIdentity(job: JobResponse, businessId: string): JobResponse {
 }
 
 export function useJobByBusinessId(businessId: string | null) {
-  const queryClient = useQueryClient();
   const jobQuery = useQuery<JobResponse | null>({
     queryKey: [JOBS_KEY, "detail", businessId],
     queryFn: async () => {
@@ -122,10 +121,11 @@ export function useJobByBusinessId(businessId: string | null) {
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
       const job = query.state.data;
-      if (job?.profile_status === "processing") {
-        // A short Job poll recovers the profile id if creation has not exposed it
-        // yet and acts as a low-frequency fallback while Profile polling runs.
-        return job.profile_id ? 20_000 : 5_000;
+      if (
+        job?.profile_status === "processing" ||
+        isOrchestrationActive(job)
+      ) {
+        return 5_000;
       }
       return job && isWorkflowActive(job) ? 20_000 : false;
     },
@@ -136,42 +136,11 @@ export function useJobByBusinessId(businessId: string | null) {
     },
   });
 
-  const processingProfileId =
-    jobQuery.data?.profile_status === "processing"
-      ? jobQuery.data.profile_id
-      : null;
-  const recoveryQuery = useQuery<ProfileResponse>({
-    queryKey: ["profile-v2", "recovery", processingProfileId],
-    queryFn: ({ signal }) =>
-      pollProfileUntilTerminal(String(processingProfileId), "update", { signal }),
-    enabled: Boolean(processingProfileId),
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (!businessId || !recoveryQuery.data) return;
-    const current = queryClient.getQueryData<JobResponse | null>([
-      JOBS_KEY,
-      "detail",
-      businessId,
-    ]);
-    if (
-      current?.profile_id !== recoveryQuery.data.profile_id ||
-      current.profile_status !== "processing"
-    ) return;
-    // Keep the processing head read-only until the canonical Job supplies its fields.
-    void queryClient.invalidateQueries({
-      queryKey: [JOBS_KEY, "detail", businessId],
-    });
-  }, [businessId, queryClient, recoveryQuery.data]);
-
   return jobQuery;
 }
 
 export interface CreateJobParams {
   businessId: string;
-  profileId: string;
   values: BusinessInfoFormData;
   locationOptions?: LocationOption[];
 }
@@ -183,13 +152,11 @@ export function useCreateJob() {
     retry: false,
     mutationFn: async ({
       businessId,
-      profileId,
       values,
       locationOptions = [],
     }) => {
       const request: CreateJobRequest = buildCreateJobRequest(
         businessId,
-        profileId,
         values,
         locationOptions
       );

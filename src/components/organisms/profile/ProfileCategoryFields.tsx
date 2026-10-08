@@ -153,6 +153,7 @@ export function ProfileCategoryFields({
           searchPlaceholder="Search specialties..."
           emptyMessage="No specialties found"
           maxWidth="100%"
+          className="rounded-md border-input bg-white text-general-foreground shadow-none"
           disabled={disabled}
           loading={allSpecialtiesQuery.isLoading}
         />
@@ -179,6 +180,7 @@ export function ProfileCategoryFields({
           onChange={(next) => form.setFieldValue("customerTypes", next)}
           placeholder="Select customer types"
           maxWidth="100%"
+          className="rounded-md border-input bg-white text-general-foreground shadow-none"
           disabled={disabled}
         />
       </div>

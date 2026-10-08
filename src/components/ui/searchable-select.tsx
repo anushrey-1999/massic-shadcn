@@ -91,8 +91,8 @@ export function SearchableSelect({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "h-10 w-full justify-between rounded-lg border-general-border-three bg-white px-3 text-sm font-normal shadow-xs disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100 disabled:shadow-none",
-            !selected && "text-general-muted-foreground",
+            "h-10 w-full justify-between rounded-md border-input bg-white px-3 text-sm font-normal text-general-foreground shadow-none disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100",
+            !selected && "text-xs text-general-muted-foreground/70",
             className
           )}
         >

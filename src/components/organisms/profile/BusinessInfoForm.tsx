@@ -36,7 +36,7 @@ interface BusinessInfoFormProps {
   headerAction?: React.ReactNode;
   embedded?: boolean;
   primaryLocationAction?: React.ReactNode;
-  embeddedVariant?: "full" | "autofillGate";
+  embeddedVariant?: "full" | "initialSetup";
   disabledFields?: Partial<Record<keyof BusinessInfoFormData, boolean>>;
 }
 
@@ -236,11 +236,15 @@ export const BusinessInfoForm = React.memo(({
                 <GenericInput<BusinessInfoFormData>
                   form={form as any}
                   fieldName="website"
-                  type="url"
+                  type="input"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   inputVariant="noBorder"
                   label="Website"
                   required={true}
-                  placeholder="Provide the official url of your business website"
+                  placeholder="example.com"
                   disabled={isWebsiteLocked}
                 />
               </div>
@@ -383,17 +387,21 @@ export const BusinessInfoForm = React.memo(({
         </div>
   );
 
-  if (embedded && embeddedVariant === "autofillGate") {
+  if (embedded && embeddedVariant === "initialSetup") {
     return (
       <div id="business-info" className="flex w-full flex-col gap-6">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
-          type="url"
+          type="input"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           label="Website"
           fieldClassName="gap-0"
           required={true}
-          placeholder="Provide the official url of your business website"
+          placeholder="example.com"
           disabled={isWebsiteLocked || disabledFields?.website}
         />
         <GenericInput<BusinessInfoFormData>
@@ -460,10 +468,14 @@ export const BusinessInfoForm = React.memo(({
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
-          type="url"
+            type="input"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           label="Website"
           required={true}
-          placeholder="Provide the official url of your business website"
+            placeholder="example.com"
           disabled={isWebsiteLocked || disabledFields?.website}
         />
       </div>

@@ -1,20 +1,21 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/hooks/use-api";
 import type { JobResponse } from "@/types/profile-v2";
-import { pollProfileUntilTerminal } from "@/utils/profile-v2-api";
+import { toast } from "sonner";
 
 import ProfileTemplate from "@/components/templates/ProfileTemplate";
 import {
   useBusinessProfileById,
   useUpdateBusinessProfile,
 } from "@/hooks/use-business-profiles";
-import { useCreateJob, useJobByBusinessId } from "@/hooks/use-jobs";
+import {
+  useCreateJob,
+  useJobByBusinessId,
+  useUpdateJob,
+} from "@/hooks/use-jobs";
 import { useLocations } from "@/hooks/use-locations";
-import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import {
@@ -22,18 +23,19 @@ import {
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
 } from "@/utils/profile-form-mappers";
 import { mergeJobAndFormForNodeProfile } from "@/utils/profile-v2-mappers";
+import { deriveBusinessNameFromWebsite } from "@/utils/business-name";
 
 export default function BusinessProfilePage() {
   const params = useParams();
-  const queryClient = useQueryClient();
   const businessId = params?.id as string;
+  const autoCreateAttempted = useRef(false);
   const { profileData, profileDataLoading, refetchProfile } =
     useBusinessProfileById(businessId || null);
   const jobQuery = useJobByBusinessId(businessId || null);
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const updateNodeProfile = useUpdateBusinessProfile(businessId || null);
   const createJob = useCreateJob();
-  const pipeline = useProfilePipeline(locationOptions);
+  const updateJob = useUpdateJob();
   const {
     setLocationOptions,
     setLocationsLoading,
@@ -83,15 +85,65 @@ export default function BusinessProfilePage() {
     await Promise.all([refetchProfile(), jobQuery.refetch()]);
   };
 
-  const handleAgentProfileRefresh = async (signal: AbortSignal) => {
-    let job = await api.get<JobResponse>(`/jobs/${encodeURIComponent(businessId)}`, "python", { signal });
-    if (job.profile_status === "processing") {
-      if (!job.profile_id) throw new Error("The updated profile is still being created. Please retry the refresh.");
-      await pollProfileUntilTerminal(job.profile_id, "update", { signal });
-      job = await api.get<JobResponse>(`/jobs/${encodeURIComponent(businessId)}`, "python", { signal });
+  useEffect(() => {
+    autoCreateAttempted.current = false;
+  }, [businessId]);
+
+  useEffect(() => {
+    if (
+      autoCreateAttempted.current ||
+      !businessId ||
+      !profileData ||
+      profileDataLoading ||
+      locationsLoading ||
+      !jobQuery.isFetched ||
+      jobQuery.data?.job_id ||
+      createJob.isPending
+    ) {
+      return;
     }
+
+    const values = mapBusinessProfileToFormValues(
+      profileData,
+      null,
+      locationOptions
+    );
+    values.businessName =
+      values.businessName.trim() ||
+      deriveBusinessNameFromWebsite(values.website);
+    if (
+      !values.website.trim() ||
+      !values.primaryLocation.trim() ||
+      !values.serviceAreaType
+    ) {
+      return;
+    }
+
+    autoCreateAttempted.current = true;
+    void createJob
+      .mutateAsync({ businessId, values, locationOptions })
+      .catch((error) => {
+        toast.error("Couldn't create the Infer job automatically.", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "Complete the required fields and save the profile.",
+        });
+      });
+  }, [
+    businessId,
+    createJob,
+    jobQuery.data?.job_id,
+    jobQuery.isFetched,
+    locationOptions,
+    locationsLoading,
+    profileData,
+    profileDataLoading,
+  ]);
+
+  const handleAgentProfileRefresh = async (signal: AbortSignal) => {
     if (signal.aborted) return;
-    queryClient.setQueryData(["jobs", "detail", businessId], job);
+    await jobQuery.refetch();
   };
 
   const handleUpdateProfile = async (
@@ -105,16 +157,14 @@ export default function BusinessProfilePage() {
     let jobExistsAfterSave = Boolean(jobQuery.data?.job_id);
     let canonicalJob = jobQuery.data;
     if (jobExistsAfterSave) {
-      const result = await pipeline.updateJobAndPoll(businessId, formValues);
-      canonicalJob = result.job;
+      canonicalJob = await updateJob.mutateAsync({
+        businessId,
+        values: formValues,
+        locationOptions,
+      });
     } else {
-      const profileId = String(nodePayload.ProfileId ?? "").trim();
-      if (!profileId) {
-        throw new Error("Run quick profile before saving this business.");
-      }
       canonicalJob = await createJob.mutateAsync({
         businessId,
-        profileId,
         values: formValues,
         locationOptions,
       });
@@ -131,7 +181,7 @@ export default function BusinessProfilePage() {
     locationsLoading ||
     updateNodeProfile.isPending ||
     createJob.isPending ||
-    pipeline.isProcessing;
+    updateJob.isPending;
 
   return (
     <ProfileTemplate

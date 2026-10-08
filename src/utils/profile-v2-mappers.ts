@@ -8,9 +8,7 @@ import type {
   JobResponse,
   JobServiceArea,
   JobValueItem,
-  ProfileDocument,
   ProfileReadOnlyDetails,
-  ProfileResponse,
   RequiredJobFieldState,
   ServiceAreaType,
   UpdateJobRequest,
@@ -20,7 +18,11 @@ import {
   normalizeProfileCountry,
   parsePrimaryLocationForPayload,
 } from "@/utils/primary-location";
-import { cleanWebsiteUrl, normalizeWebsiteUrl } from "@/utils/utils";
+import {
+  cleanWebsiteUrl,
+  isValidWebsiteUrl,
+  normalizeWebsiteUrl,
+} from "@/utils/utils";
 
 type LocationOption = {
   value: string;
@@ -91,27 +93,6 @@ function sourcedMetadata(
       ]];
     })
   );
-}
-
-function profileField(data: ProfileDocument, key: string): unknown {
-  const queue: unknown[] = [data];
-  const seen = new Set<unknown>();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || typeof current !== "object" || seen.has(current)) continue;
-    seen.add(current);
-
-    if (!Array.isArray(current)) {
-      const record = current as Record<string, unknown>;
-      if (Object.prototype.hasOwnProperty.call(record, key)) {
-        return record[key];
-      }
-      queue.push(...Object.values(record));
-    }
-  }
-
-  return undefined;
 }
 
 function mapOfferingsFromApi(value: unknown): BusinessInfoFormData["offeringsList"] {
@@ -414,14 +395,12 @@ export function buildJobWriteFields(
 
 export function buildCreateJobRequest(
   businessId: string,
-  profileId: string,
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = []
 ): CreateJobRequest {
   return {
     ...buildJobWriteFields(values, locationOptions),
     business_id: businessId,
-    profile_id: profileId,
   };
 }
 
@@ -435,76 +414,6 @@ export function buildUpdateJobRequest(
   delete request.country;
   delete request.service_area_type;
   return request;
-}
-
-export function mapProfileToFormValues(
-  profile: ProfileResponse,
-  currentValues: BusinessInfoFormData
-): BusinessInfoFormData {
-  const data = profile.data;
-  const businessName = stringValue(profileField(data, "business_name"));
-  const offerings = profileField(data, "offerings") ?? data.offerings;
-  const customerTypes = stringArray(profileField(data, "customer_types")).filter(
-    (value): value is "b2b" | "b2c" => value === "b2b" || value === "b2c"
-  );
-  const sell = stringValue(profileField(data, "sell"));
-  const serve = stringValue(profileField(data, "serve"));
-
-  return {
-    ...currentValues,
-    website: profile.business_url || currentValues.website,
-    primaryLocation: profile.location || currentValues.primaryLocation,
-    serviceAreaType:
-      profile.service_area_type || currentValues.serviceAreaType,
-    businessName: businessName || currentValues.businessName,
-    primaryCategory:
-      stringValue(profileField(data, "primary_category")) ||
-      currentValues.primaryCategory,
-    secondaryCategory:
-      stringValue(profileField(data, "secondary_category")) ||
-      currentValues.secondaryCategory,
-    categoriesTagged:
-      stringArray(profileField(data, "categories_tagged")).length > 0
-        ? stringArray(profileField(data, "categories_tagged"))
-        : currentValues.categoriesTagged,
-    foundingDate:
-      String(profileField(data, "year_founded") ?? "").trim() ||
-      currentValues.foundingDate,
-    logoUrl:
-      stringValue(profileField(data, "logo_url")) || currentValues.logoUrl,
-    businessDescription:
-      stringValue(profileField(data, "user_defined_business_description")) ||
-      currentValues.businessDescription,
-    serviceType:
-      serve === "local"
-        ? "physical"
-        : serve === "both"
-          ? "both"
-          : serve === "online"
-            ? "online"
-            : currentValues.serviceType,
-    offerings:
-      sell === "products" || sell === "services" || sell === "both"
-        ? sell
-        : currentValues.offerings,
-    offeringsList:
-      mapOfferingsFromApi(offerings)?.length
-        ? mapOfferingsFromApi(offerings)
-        : currentValues.offeringsList,
-    differentiators:
-      mapDifferentiatorsFromApi(profileField(data, "differentiators")).length > 0
-        ? mapDifferentiatorsFromApi(profileField(data, "differentiators"))
-        : currentValues.differentiators,
-    customerTypes:
-      customerTypes.length > 0 ? customerTypes : currentValues.customerTypes,
-    usps:
-      mapDifferentiatorsToText(profileField(data, "differentiators")) ||
-      currentValues.usps,
-    brandTerms:
-      sourcedValues(profileField(data, "brand_terms")).length > 0
-        ? sourcedValues(profileField(data, "brand_terms"))
-        : currentValues.brandTerms,
-  };
 }
 
 export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
@@ -601,6 +510,29 @@ export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
   };
 }
 
+export function mergeJobAndNodeFormValues(
+  job: JobResponse,
+  nodeValues: BusinessInfoFormData
+): BusinessInfoFormData {
+  const jobValues = mapJobToFormValues(job);
+
+  return {
+    ...jobValues,
+    businessName:
+      stringValue(job.business_name) || nodeValues.businessName,
+    website:
+      stringValue(job.business_url) ? jobValues.website : nodeValues.website,
+    primaryLocation:
+      stringValue(job.location)
+        ? jobValues.primaryLocation
+        : nodeValues.primaryLocation,
+    serviceAreaType:
+      stringValue(job.service_area_type)
+        ? jobValues.serviceAreaType
+        : nodeValues.serviceAreaType,
+  };
+}
+
 export function mapJobToReadOnlyDetails(
   job: JobResponse | null | undefined
 ): ProfileReadOnlyDetails {
@@ -636,6 +568,7 @@ export function getRequiredJobFieldState(
 ): RequiredJobFieldState {
   return {
     businessName: Boolean(stringValue(job?.business_name)),
+    website: isValidWebsiteUrl(stringValue(job?.business_url)),
     offerings: Boolean(
       job?.offerings?.some((offering) => Boolean(stringValue(offering.name)))
     ),

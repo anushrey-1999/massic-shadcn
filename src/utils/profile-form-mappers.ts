@@ -506,13 +506,15 @@ export function buildBusinessProfilePayload(
       Location: location,
       Country: country,
     },
-    BusinessObjective:
-      values.serviceType === "physical"
+    BusinessObjective: values.serviceType
+      ? values.serviceType === "physical"
         ? "local"
         : values.serviceType === "both"
           ? businessObjectiveBothValue
-          : "online",
-    LocationType: values.offerings,
+          : "online"
+      : (existingProfile as any)?.BusinessObjective,
+    LocationType:
+      values.offerings || (existingProfile as any)?.LocationType,
     ProfileId: (existingProfile as any)?.ProfileId,
     BusinessCategory:
       values.primaryCategory?.trim() ||

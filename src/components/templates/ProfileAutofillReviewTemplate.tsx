@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@tanstack/react-form";
-import { ArrowRight, Lock, Pencil, Unlink, Loader2 } from "lucide-react";
+import { ArrowRight, Lock, Unlink, Loader2 } from "lucide-react";
 
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
@@ -18,13 +18,6 @@ import { cn } from "@/lib/utils";
 import { GenericInput } from "@/components/ui/generic-input";
 import { TagsInput } from "@/components/ui/tags-input";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
@@ -39,7 +32,7 @@ import {
   type ProfileValidationIssue,
 } from "@/utils/profile-form-fields";
 
-const SECTIONS: Array<{ id: SectionId; label: string }> = [
+const FULL_SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: "identity", label: "Identity" },
   { id: "classification", label: "Classification" },
   { id: "locations", label: "Locations" },
@@ -51,20 +44,16 @@ const SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: "competitors", label: "Competitors" },
 ];
 
+const MINIMAL_SECTIONS = FULL_SECTIONS.filter((section) =>
+  ["identity", "offerings", "competitors"].includes(section.id)
+);
+
 function IdentitySummary({ form }: { form: any }) {
-  const website = useStore(form.store, (state: any) =>
-    String(state.values?.website ?? "").trim()
-  );
-  const primaryLocation = useStore(form.store, (state: any) =>
-    String(state.values?.primaryLocation ?? "").trim()
-  );
-  const serviceAreaType = useStore(form.store, (state: any) =>
-    String(state.values?.serviceAreaType ?? "").trim()
-  );
+  const values = useStore(form.store, (state: any) => state.values);
   const rows = [
-    { label: "Website", value: website },
-    { label: "Primary Location", value: primaryLocation },
-    { label: "Service-area type", value: serviceAreaType },
+    { label: "Website", value: values?.website },
+    { label: "Primary location", value: values?.primaryLocation },
+    { label: "Service-area type", value: values?.serviceAreaType },
   ];
 
   return (
@@ -73,17 +62,15 @@ function IdentitySummary({ form }: { form: any }) {
         <div
           key={row.label}
           className={cn(
-            "flex min-w-0 items-center gap-0.5 py-3",
+            "flex min-w-0 items-center gap-2 py-3",
             index < rows.length - 1 && "border-b border-general-border"
           )}
         >
-          <div className="flex w-[120px] shrink-0 items-center">
-            <p className="whitespace-nowrap text-xs font-medium leading-normal tracking-[0.18px] text-general-muted-foreground">
-              {row.label}
-            </p>
-          </div>
-          <p className="min-w-0 flex-1 truncate text-xs font-medium leading-normal tracking-[0.18px] text-general-foreground">
-            {row.value || "—"}
+          <p className="w-[120px] shrink-0 text-xs font-medium text-general-muted-foreground">
+            {row.label}
+          </p>
+          <p className="min-w-0 flex-1 truncate text-xs text-general-foreground">
+            {String(row.value ?? "").trim() || "—"}
           </p>
         </div>
       ))}
@@ -91,8 +78,9 @@ function IdentitySummary({ form }: { form: any }) {
   );
 }
 
-export function ProfileAutofillReviewTemplate({
+export function ProfileEditorTemplate({
   form,
+  mode = "full",
   leftTitle = "Profile",
   onSaveChanges,
   onSaveAndUpdateStrategy,
@@ -100,9 +88,6 @@ export function ProfileAutofillReviewTemplate({
   savePending,
   saveDisabledReason,
   proceedDisabled,
-  onAutofillProfile,
-  autofillDisabled,
-  autofillLoading,
   onUnlinkBusiness,
   showUnlinkBusiness = true,
   unlinkBusinessDisabled,
@@ -112,12 +97,14 @@ export function ProfileAutofillReviewTemplate({
   profileStatus,
   readOnlyDetails,
   submissionIssues = [],
+  validationFocusRequest = 0,
   customHeaderActions,
   notice,
   showDefaultActions = true,
   className,
 }: {
   form: any;
+  mode?: "minimal" | "full";
   leftTitle?: string;
   onSaveChanges: () => void;
   onSaveAndUpdateStrategy: () => void;
@@ -125,9 +112,6 @@ export function ProfileAutofillReviewTemplate({
   savePending?: boolean;
   saveDisabledReason?: string;
   proceedDisabled?: boolean;
-  onAutofillProfile?: () => void;
-  autofillDisabled?: boolean;
-  autofillLoading?: boolean;
   onUnlinkBusiness?: () => void;
   showUnlinkBusiness?: boolean;
   unlinkBusinessDisabled?: boolean;
@@ -137,13 +121,17 @@ export function ProfileAutofillReviewTemplate({
   profileStatus?: ProfileStatus | null;
   readOnlyDetails?: ProfileReadOnlyDetails;
   submissionIssues?: ProfileValidationIssue[];
+  validationFocusRequest?: number;
   customHeaderActions?: React.ReactNode;
   notice?: React.ReactNode;
   showDefaultActions?: boolean;
   className?: string;
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
-  const [isEditGateOpen, setIsEditGateOpen] = useState(false);
+  const pendingFocusRef = useRef<ProfileValidationIssue | null>(null);
+  const submissionIssuesRef = useRef(submissionIssues);
+  submissionIssuesRef.current = submissionIssues;
+  const sections = mode === "minimal" ? MINIMAL_SECTIONS : FULL_SECTIONS;
 
   const sectionIssueCounts = useMemo(
     () => countIssuesBySection(submissionIssues),
@@ -156,20 +144,29 @@ export function ProfileAutofillReviewTemplate({
   );
 
   useEffect(() => {
-    const firstIssue = submissionIssues[0];
-    if (firstIssue) setActiveSection(firstIssue.section);
-  }, [submissionIssues]);
+    const firstIssue = submissionIssuesRef.current[0];
+    if (!firstIssue || validationFocusRequest === 0) return;
+    pendingFocusRef.current = firstIssue;
+    setActiveSection(firstIssue.section);
+  }, [validationFocusRequest]);
 
   useEffect(() => {
-    const firstIssue = submissionIssues[0];
-    if (!firstIssue || firstIssue.section !== activeSection) return;
+    if (!sections.some((section) => section.id === activeSection)) {
+      setActiveSection("identity");
+    }
+  }, [activeSection, sections]);
+
+  useEffect(() => {
+    const issue = pendingFocusRef.current;
+    if (!issue || issue.section !== activeSection) return;
     const frame = requestAnimationFrame(() => {
-      const field = document.getElementById(String(firstIssue.field));
+      const field = document.getElementById(String(issue.field));
       field?.focus();
       field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      pendingFocusRef.current = null;
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeSection, submissionIssues]);
+  }, [activeSection, validationFocusRequest]);
 
   return (
     <Card
@@ -181,7 +178,7 @@ export function ProfileAutofillReviewTemplate({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-general-border-three bg-general-primary-foreground px-4 py-4 sm:px-6 sm:py-6">
         <div className="flex items-center gap-6">
-          <div className="text-2xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+          <div className="text-2xl font-medium leading-[1.2] tracking-[-0.02em] text-general-foreground">
             {leftTitle}
           </div>
           {profileStatus === "needs_verification" ? (
@@ -257,7 +254,7 @@ export function ProfileAutofillReviewTemplate({
         {/* Sidebar */}
         <aside className="flex w-full min-w-0 shrink-0 flex-col justify-between border-b border-general-border/30 bg-white md:w-[200px] md:border-b-0 md:border-r">
           <nav className="flex min-w-0 overflow-x-auto md:flex-col">
-            {SECTIONS.map((s) => {
+            {sections.map((s) => {
               const isActive = s.id === activeSection;
               const issueCount = sectionIssueCounts[s.id] ?? 0;
               return (
@@ -316,30 +313,52 @@ export function ProfileAutofillReviewTemplate({
           disabled={isWorkflowProcessing}
           className={cn(
             "flex-1 min-h-0 min-w-0 px-4 py-4 overflow-y-auto sm:px-6",
-            isWorkflowProcessing && "cursor-not-allowed opacity-60"
+            isWorkflowProcessing && "cursor-not-allowed"
           )}
         >
           {activeSectionIssues.length > 0 ? (
             <div
               role="alert"
-              className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3"
+              className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"
             >
-              <p className="text-sm font-medium text-destructive">
-                Complete the highlighted {activeSectionIssues.length === 1 ? "field" : "fields"}
+              <p className="text-xs font-medium text-destructive">
+                {activeSectionIssues.length === 1
+                  ? activeSectionIssues[0].message
+                  : `Complete ${activeSectionIssues.length} required fields.`}
               </p>
-              <ul className="mt-1 list-disc pl-5 text-xs text-destructive">
-                {activeSectionIssues.map((issue) => (
-                  <li key={`${issue.field}-${issue.message}`}>
-                    {issue.label}: {issue.message}
-                  </li>
-                ))}
-              </ul>
             </div>
           ) : null}
-          {activeSection === "identity" ? (
+          {activeSection === "identity" ? (mode === "minimal" ? (
+            <div className="max-w-[920px]">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
+                Identity
+              </h2>
+              <div className="mb-6">
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="businessName"
+                  type="input"
+                  label="Business name"
+                  fieldClassName="gap-0"
+                  required
+                />
+              </div>
+              <BusinessInfoForm
+                form={form}
+                embedded
+                embeddedVariant="initialSetup"
+                disableWebsiteLock
+                disabledFields={{
+                  website: initialFieldsLocked || isWorkflowProcessing,
+                  primaryLocation: initialFieldsLocked || isWorkflowProcessing,
+                  serviceAreaType: initialFieldsLocked || isWorkflowProcessing,
+                }}
+              />
+            </div>
+          ) : (
             <div className="flex min-w-0 flex-col gap-6 xl:flex-row">
               <div className="flex-1 min-w-0">
-                <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+                <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                   Identity
                 </h2>
 
@@ -384,7 +403,11 @@ export function ProfileAutofillReviewTemplate({
                     <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="website"
-                      type="url"
+                      type="input"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       label="Website"
                       fieldOrientation="horizontal"
                       fieldClassName="flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0"
@@ -444,38 +467,11 @@ export function ProfileAutofillReviewTemplate({
 
               <div className="w-full shrink-0 self-start rounded-lg border border-general-border bg-general-primary-foreground p-3 xl:w-[352px]">
                 <IdentitySummary form={form} />
-                <div className="mt-1.5 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditGateOpen(true)}
-                    disabled={initialFieldsLocked || isWorkflowProcessing}
-                    aria-label={
-                      initialFieldsLocked
-                        ? "Website and location are locked"
-                        : isWorkflowProcessing
-                          ? "Profile processing"
-                          : "Edit website and location"
-                    }
-                    title={
-                      initialFieldsLocked
-                        ? "Website, primary location, and service-area type are locked after the business profile is created."
-                        : isWorkflowProcessing
-                          ? "Profile processing is in progress."
-                          : undefined
-                    }
-                    className="inline-flex min-h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-general-border bg-white px-3 py-1.5 text-general-foreground shadow-sm transition-colors enabled:hover:border-general-primary enabled:hover:bg-general-accent disabled:cursor-not-allowed disabled:bg-general-secondary disabled:text-general-muted-foreground disabled:shadow-none"
-                  >
-                    <Pencil className="size-3.5 shrink-0" />
-                    <span className="text-xs font-medium leading-normal">
-                      Edit
-                    </span>
-                  </button>
-                </div>
               </div>
             </div>
-          ) : activeSection === "classification" ? (
+          )) : activeSection === "classification" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                 Classification
               </h2>
               <div className="flex flex-col gap-6">
@@ -546,14 +542,11 @@ export function ProfileAutofillReviewTemplate({
             </div>
           ) : activeSection === "locations" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Locations
-              </h2>
               <LocationsForm form={form} embedded />
             </div>
           ) : activeSection === "service-areas" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                 Service Areas
               </h2>
               <div className="flex flex-col gap-6">
@@ -651,12 +644,10 @@ export function ProfileAutofillReviewTemplate({
             </div>
           ) : activeSection === "offerings" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Offerings
-              </h2>
               <OfferingsForm
                 form={form}
                 embedded
+                required={mode === "full"}
                 validationMessage={
                   activeSectionIssues.find(
                     (issue) => issue.field === "offeringsList"
@@ -666,7 +657,7 @@ export function ProfileAutofillReviewTemplate({
             </div>
           ) : activeSection === "positioning" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                 Positioning
               </h2>
               <div className="mb-6 flex flex-col gap-6">
@@ -681,7 +672,7 @@ export function ProfileAutofillReviewTemplate({
                 {readOnlyDetails?.generatedDescription ||
                 readOnlyDetails?.generatedDetailedDescription ||
                 readOnlyDetails?.naicsContext ? (
-                  <div className="rounded-lg border border-general-border bg-general-primary-foreground p-4">
+                  <div className="rounded-lg border border-general-border bg-white p-4">
                     <div className="mb-4 flex items-center gap-2">
                       <Lock className="size-4 text-general-muted-foreground" />
                       <p className="text-sm font-medium text-general-foreground">
@@ -701,14 +692,14 @@ export function ProfileAutofillReviewTemplate({
                         </div>
                       ) : null}
                       {readOnlyDetails.generatedDetailedDescription ? (
-                        <div>
-                          <p className="text-xs font-medium text-general-muted-foreground">
+                        <details>
+                          <summary className="cursor-pointer text-xs font-medium text-general-muted-foreground">
                             Detailed profile
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-general-foreground">
+                          </summary>
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-general-foreground">
                             {readOnlyDetails.generatedDetailedDescription}
                           </p>
-                        </div>
+                        </details>
                       ) : null}
                       {readOnlyDetails.naicsContext ? (
                         <details>
@@ -728,14 +719,14 @@ export function ProfileAutofillReviewTemplate({
             </div>
           ) : activeSection === "competitors" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Competitors
-              </h2>
-              <CompetitorsForm form={form} embedded />
+              <CompetitorsForm
+                form={form}
+                embedded
+              />
             </div>
           ) : activeSection === "trust-people" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                 Trust & People
               </h2>
               <div className="flex flex-col gap-6">
@@ -851,7 +842,7 @@ export function ProfileAutofillReviewTemplate({
             </div>
           ) : activeSection === "channels" ? (
             <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+              <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-semibold text-general-foreground">
                 Channels
               </h2>
               <div className="flex flex-col gap-6">
@@ -936,47 +927,6 @@ export function ProfileAutofillReviewTemplate({
         </fieldset>
       </div>
 
-      <Dialog open={isEditGateOpen} onOpenChange={setIsEditGateOpen}>
-        <DialogContent className="sm:max-w-[520px] gap-0 p-0 overflow-hidden">
-          <div className="w-full border-b border-general-border-three bg-general-primary-foreground px-4 py-4 sm:px-6 sm:py-6">
-            <DialogHeader className="space-y-0">
-              <DialogTitle className="text-2xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Edit website & location
-              </DialogTitle>
-              <DialogDescription className="mt-1 text-xs font-normal leading-normal text-general-muted-foreground">
-                Update these inputs and rebuild the profile if needed.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-          <div className="px-6 py-6">
-            <BusinessInfoForm
-              form={form}
-              embedded
-              embeddedVariant="autofillGate"
-              disableWebsiteLock={true}
-              disabledFields={{
-                website: initialFieldsLocked || isWorkflowProcessing,
-                primaryLocation: initialFieldsLocked || isWorkflowProcessing,
-                serviceAreaType: initialFieldsLocked || isWorkflowProcessing,
-              }}
-              primaryLocationAction={
-                onAutofillProfile ? (
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      onAutofillProfile();
-                    }}
-                    disabled={autofillDisabled}
-                    className="w-full gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                  >
-                    {autofillLoading ? "Building profile..." : "Build Profile"}
-                  </Button>
-                ) : null
-              }
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

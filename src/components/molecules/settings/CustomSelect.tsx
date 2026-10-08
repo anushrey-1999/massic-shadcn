@@ -105,11 +105,11 @@ export function CustomSelect({
     <Badge
       key={option.value}
       variant="secondary"
-      className="text-xs flex items-center gap-1 max-w-[200px] bg-foreground-light"
+      className="flex max-w-[200px] items-center gap-1 border-general-border bg-white text-xs text-general-foreground"
       onClick={(e) => e.stopPropagation()}
       title={option.label}
     >
-      <span className="truncate max-w-40 font-normal text-[10px] text-general-secondary-foreground">{option.label}</span>
+      <span className="max-w-40 truncate text-xs font-normal text-general-foreground">{option.label}</span>
       {!disabled ? (
         <span
           onClick={(e) => handleRemove(option.value, e)}
@@ -168,7 +168,7 @@ export function CustomSelect({
                 )}
               </>
             ) : (
-              <span className="text-muted-foreground text-xs font-normal">{placeholder}</span>
+              <span className="text-xs font-normal text-general-muted-foreground/70">{placeholder}</span>
             )}
             {loading ? (
               <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin opacity-50" />

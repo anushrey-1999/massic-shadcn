@@ -8,22 +8,15 @@ import { toast } from "sonner";
 import { DuplicateBusinessConflictDialog } from "@/components/create-business/DuplicateBusinessConflictDialog";
 import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTemplate";
 import {
-  ProfileActionConfirmDialog,
-  type ProfileConfirmAction,
-} from "@/components/organisms/profile/ProfileActionConfirmDialog";
-import {
   useConvertPitchToBusiness,
   useReactivateBusiness,
 } from "@/hooks/use-business-actions";
 import {
-  updateCreatedBusinessProfileSafely,
-  useBusinessProfiles,
-  useCreateBusiness,
-} from "@/hooks/use-business-profiles";
+  IncompleteBusinessCreationError,
+  useManualBusinessCreation,
+} from "@/hooks/use-manual-business-creation";
 import { useLocations } from "@/hooks/use-locations";
-import { useCreateJob } from "@/hooks/use-jobs";
 import { useRoleGuard } from "@/hooks/use-permissions";
-import { useProfilePipeline } from "@/hooks/use-profile-pipeline";
 import {
   CreateBusinessConflictError,
   type ExistingBusinessSummary,
@@ -33,20 +26,9 @@ import {
   businessInfoSchema,
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
-import { useBusinessStore, type BusinessProfile } from "@/store/business-store";
-import {
-  applyFormValues,
-  buildBusinessProfilePayload,
-  profileFormDefaults,
-} from "@/utils/profile-form-mappers";
-import {
-  mapJobToFormValues,
-  mapProfileToFormValues,
-} from "@/utils/profile-v2-mappers";
-import {
-  validateProfileForm,
-  type ProfileValidationIssue,
-} from "@/utils/profile-form-fields";
+import { useBusinessStore } from "@/store/business-store";
+import { profileFormDefaults } from "@/utils/profile-form-mappers";
+import { validateInitialProfileFields } from "@/utils/profile-form-fields";
 
 export default function CreateBusinessPage() {
   const allowed = useRoleGuard({
@@ -61,24 +43,16 @@ export default function CreateBusinessPage() {
   const setLocationsLoading = useBusinessStore(
     (state) => state.setLocationsLoading
   );
-  const createBusiness = useCreateBusiness();
-  const createJob = useCreateJob();
-  const pipeline = useProfilePipeline(locationOptions);
-  const { refetchBusinessProfiles } = useBusinessProfiles();
+  const manualCreation = useManualBusinessCreation({
+    isPitch: false,
+    locationOptions,
+  });
   const convertPitch = useConvertPitchToBusiness();
   const reactivateBusiness = useReactivateBusiness();
-  const [hasQuickProfile, setHasQuickProfile] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [pendingConfirmAction, setPendingConfirmAction] =
-    useState<ProfileConfirmAction | null>(null);
   const creationInFlight = useRef(false);
-  const [createdBusiness, setCreatedBusiness] =
-    useState<BusinessProfile | null>(null);
   const [conflictingBusiness, setConflictingBusiness] =
     useState<ExistingBusinessSummary | null>(null);
-  const [submissionIssues, setSubmissionIssues] = useState<
-    ProfileValidationIssue[]
-  >([]);
 
   const form = useForm({
     defaultValues: profileFormDefaults,
@@ -95,136 +69,35 @@ export default function CreateBusinessPage() {
     setLocationsLoading,
   ]);
 
-  const handleQuickProfile = useCallback(async () => {
-    const values = form.state.values as BusinessInfoFormData;
-    if (
-      !values.website.trim() ||
-      !values.primaryLocation.trim() ||
-      !values.serviceAreaType
-    ) {
-      toast.error("Add a website, primary location, and service-area type.");
-      return;
-    }
-
-    try {
-      const profile = await pipeline.runQuick(values);
-      if (profile.status === "error") {
-        toast.error("Quick profile failed", {
-          description: pipeline.failure?.message,
-        });
-        return;
-      }
-      const nextValues = mapProfileToFormValues(profile, values);
-      applyFormValues(form, nextValues);
-      setSubmissionIssues([]);
-      setHasQuickProfile(true);
-      if (profile.status === "needs_verification") {
-        toast.warning("Some profile details need verification.", {
-          description: "Review the highlighted profile fields before creating.",
-        });
-      }
-    } catch (error) {
-      toast.error("Couldn't build the profile", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    }
-  }, [form, pipeline]);
-
   const handleSubmitCreate = useCallback(async () => {
     if (creationInFlight.current) return;
     const values = form.state.values as BusinessInfoFormData;
-    form.validate("submit");
-    const issues = validateProfileForm(values);
-    setSubmissionIssues(issues);
+    const issues = validateInitialProfileFields(values);
     if (issues.length > 0) {
-      const labels = [...new Set(issues.map((issue) => issue.label))];
-      toast.error("Complete the highlighted fields before creating.", {
-        description: labels.join(", "),
+      toast.error("Complete the required business details.", {
+        description: issues.map((issue) => issue.label).join(", "),
       });
-      return;
-    }
-    if (!pipeline.quickProfile || pipeline.quickProfile.status === "error") {
-      toast.error("Run quick profile before creating the business.");
       return;
     }
 
     creationInFlight.current = true;
     setIsCreating(true);
-    let business = createdBusiness;
     try {
-      if (!business?.UniqueId) {
-        const result = await createBusiness.mutateAsync({
-          website: values.website,
-          businessName: values.businessName,
-          primaryLocation: values.primaryLocation,
-          serveCustomers:
-            values.serviceType === "physical"
-              ? "local"
-              : values.serviceType === "both"
-                ? "both"
-                : values.serviceType === "online"
-                  ? "online"
-                  : "",
-          offerType: values.offerings || "",
-          suppressErrorToast: true,
-        });
-        business = result.createdBusiness;
-        if (!business?.UniqueId) {
-          throw new Error("The business API did not return a business id.");
-        }
-        setCreatedBusiness(business);
-      }
-
-      const nodePayload = buildBusinessProfilePayload(values, {
-        locationOptions,
-        normalizeWebsite: true,
-        ctasMode: "wrapped-json",
-      });
-      nodePayload.ProfileId = pipeline.quickProfile.profile_id;
-      await updateCreatedBusinessProfileSafely(
-        business.UniqueId,
-        { ...business, ...nodePayload },
-        { expectedWebsite: values.website, expectedIsPitch: false }
-      );
-
-      const job = await createJob.mutateAsync({
-        businessId: business.UniqueId,
-        profileId: pipeline.quickProfile.profile_id,
-        values,
-        locationOptions,
-      });
-      const canonicalValues = {
-        ...mapJobToFormValues(job),
-        website: values.website,
-        primaryLocation: values.primaryLocation,
-        serviceAreaType: values.serviceAreaType,
-      };
-      const canonicalNodePayload = buildBusinessProfilePayload(
-        canonicalValues,
-        {
-          existingProfile: business,
-          locationOptions,
-          normalizeWebsite: true,
-          ctasMode: "wrapped-json",
-          preserveExistingProfile: true,
-        }
-      );
-      canonicalNodePayload.ProfileId = job.profile_id;
-      await updateCreatedBusinessProfileSafely(
-        business.UniqueId,
-        canonicalNodePayload,
-        { expectedWebsite: values.website, expectedIsPitch: false }
-      );
-      await refetchBusinessProfiles();
-      router.push(`/business/${business.UniqueId}/profile`);
+      const result = await manualCreation.create(values);
+      router.replace(`/business/${result.business.UniqueId}/profile`);
     } catch (error) {
       if (error instanceof CreateBusinessConflictError) {
         setConflictingBusiness(error.conflict.existingBusiness);
+        creationInFlight.current = false;
+        setIsCreating(false);
         return;
       }
+      const incompleteBusiness =
+        error instanceof IncompleteBusinessCreationError
+          ? error.business
+          : null;
       toast.error(
-        business
+        incompleteBusiness
           ? "Business created, but setup is incomplete."
           : "Failed to create business",
         {
@@ -232,21 +105,16 @@ export default function CreateBusinessPage() {
             error instanceof Error ? error.message : "Please try again.",
         }
       );
-      if (business?.UniqueId) {
-        router.push(`/business/${business.UniqueId}/profile`);
+      if (incompleteBusiness?.UniqueId) {
+        router.replace(`/business/${incompleteBusiness.UniqueId}/profile`);
+        return;
       }
-    } finally {
       creationInFlight.current = false;
       setIsCreating(false);
     }
   }, [
-    createBusiness,
-    createJob,
-    createdBusiness,
     form,
-    locationOptions,
-    pipeline,
-    refetchBusinessProfiles,
+    manualCreation,
     router,
   ]);
 
@@ -282,28 +150,10 @@ export default function CreateBusinessPage() {
     <>
       <CreateBusinessTemplate
         form={form}
-        locationOptions={locationOptions}
         locationsLoading={locationsLoading}
-        isSubmitting={isCreating}
-        isPending={createBusiness.isPending || createJob.isPending || pipeline.isProcessing}
-        isAutofillLoading={pipeline.stage === "quick"}
-        hasAutofilledProfile={hasQuickProfile}
-        submissionIssues={submissionIssues}
-        onAutofillProfile={() => {
-          if (hasQuickProfile) setPendingConfirmAction("autofill");
-          else void handleQuickProfile();
-        }}
-        onSubmitCreate={() => setPendingConfirmAction("create")}
+        isSubmitting={isCreating || manualCreation.isPending}
+        onSubmitCreate={() => void handleSubmitCreate()}
         onCancel={() => router.push("/")}
-      />
-      <ProfileActionConfirmDialog
-        action={pendingConfirmAction}
-        onCancel={() => setPendingConfirmAction(null)}
-        onConfirm={(action) => {
-          setPendingConfirmAction(null);
-          if (action === "autofill") void handleQuickProfile();
-          else void handleSubmitCreate();
-        }}
       />
       <DuplicateBusinessConflictDialog
         open={Boolean(conflictingBusiness)}

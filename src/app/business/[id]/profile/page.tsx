@@ -1,354 +1,197 @@
-"use client"
+"use client";
 
-import ProfileTemplate from '@/components/templates/ProfileTemplate'
-import React, { useEffect, useRef, useMemo } from 'react'
-import { useBusinessProfileById, useUpdateBusinessProfile } from '@/hooks/use-business-profiles'
-import { useLocations } from '@/hooks/use-locations'
-import { useParams } from 'next/navigation'
-import { useBusinessStore } from '@/store/business-store'
-import { useJobByBusinessId, useCreateJob, useUpdateJob, type Offering } from '@/hooks/use-jobs'
+import React, { useEffect, useRef } from "react";
+import { useParams } from "next/navigation";
+import type { JobResponse } from "@/types/profile-v2";
+import { toast } from "sonner";
+
+import ProfileTemplate from "@/components/templates/ProfileTemplate";
+import {
+  useBusinessProfileById,
+  useUpdateBusinessProfile,
+} from "@/hooks/use-business-profiles";
+import {
+  useCreateJob,
+  useJobByBusinessId,
+  useUpdateJob,
+} from "@/hooks/use-jobs";
+import { useLocations } from "@/hooks/use-locations";
+import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
+import { useBusinessStore } from "@/store/business-store";
+import {
+  buildBusinessProfilePayload,
+  mapProfileDataToFormValues as mapBusinessProfileToFormValues,
+} from "@/utils/profile-form-mappers";
+import { mergeJobAndFormForNodeProfile } from "@/utils/profile-v2-mappers";
+import { deriveBusinessNameFromWebsite } from "@/utils/business-name";
 
 export default function BusinessProfilePage() {
-  const params = useParams()
-  const businessId = params?.id as string
-
-  // Fetch business profile data
+  const params = useParams();
+  const businessId = params?.id as string;
+  const autoCreateAttempted = useRef(false);
+  const { profileData, profileDataLoading, refetchProfile } =
+    useBusinessProfileById(businessId || null);
+  const jobQuery = useJobByBusinessId(businessId || null);
+  const { locationOptions, isLoading: locationsLoading } = useLocations("us");
+  const updateNodeProfile = useUpdateBusinessProfile(businessId || null);
+  const createJob = useCreateJob();
+  const updateJob = useUpdateJob();
   const {
+    setLocationOptions,
+    setLocationsLoading,
+    setCurrentBusinessId,
+  } = useBusinessStore();
+
+  useEffect(() => {
+    setLocationOptions(locationOptions);
+    setLocationsLoading(locationsLoading);
+    setCurrentBusinessId(businessId || null);
+  }, [
+    businessId,
+    locationOptions,
+    locationsLoading,
+    setCurrentBusinessId,
+    setLocationOptions,
+    setLocationsLoading,
+  ]);
+
+  const syncNodeProfile = async (
+    canonicalJob: JobResponse | null | undefined,
+    formValues: BusinessInfoFormData,
+    nodePayload: Record<string, unknown> = {}
+  ) => {
+    const existingNodeValues = mapBusinessProfileToFormValues(
+      profileData ?? null,
+      null,
+      locationOptions
+    );
+    const canonicalNodePayload = canonicalJob
+      ? buildBusinessProfilePayload(
+          mergeJobAndFormForNodeProfile(
+            canonicalJob,
+            formValues,
+            existingNodeValues
+          ),
+          {
+            existingProfile: profileData,
+            locationOptions,
+            preserveExistingProfile: true,
+          }
+        )
+      : nodePayload;
+    canonicalNodePayload.ProfileId =
+      canonicalJob?.profile_id ?? (String(nodePayload.ProfileId ?? "") || null);
+    await updateNodeProfile.mutateAsync(canonicalNodePayload);
+    await Promise.all([refetchProfile(), jobQuery.refetch()]);
+  };
+
+  useEffect(() => {
+    autoCreateAttempted.current = false;
+  }, [businessId]);
+
+  useEffect(() => {
+    if (
+      autoCreateAttempted.current ||
+      !businessId ||
+      !profileData ||
+      profileDataLoading ||
+      locationsLoading ||
+      !jobQuery.isFetched ||
+      jobQuery.data?.job_id ||
+      createJob.isPending
+    ) {
+      return;
+    }
+
+    const values = mapBusinessProfileToFormValues(
+      profileData,
+      null,
+      locationOptions
+    );
+    values.businessName =
+      values.businessName.trim() ||
+      deriveBusinessNameFromWebsite(values.website);
+    if (
+      !values.website.trim() ||
+      !values.primaryLocation.trim() ||
+      !values.serviceAreaType
+    ) {
+      return;
+    }
+
+    autoCreateAttempted.current = true;
+    void createJob
+      .mutateAsync({ businessId, values, locationOptions })
+      .catch((error) => {
+        toast.error("Couldn't create the Infer job automatically.", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "Complete the required fields and save the profile.",
+        });
+      });
+  }, [
+    businessId,
+    createJob,
+    jobQuery.data?.job_id,
+    jobQuery.isFetched,
+    locationOptions,
+    locationsLoading,
     profileData,
     profileDataLoading,
-    refetchProfile
-  } = useBusinessProfileById(businessId || null)
+  ]);
 
-  // Check job existence on page load - only used for offerings data
-  // Business API is source of truth for all other fields
-  // React Query automatically fetches job details when component mounts
-  const {
-    data: jobDetails,
-    isLoading: jobDetailsLoading,
-    refetch: refetchJob
-  } = useJobByBusinessId(businessId || null)
+  const handleAgentProfileRefresh = async (signal: AbortSignal) => {
+    if (signal.aborted) return;
+    await jobQuery.refetch();
+  };
 
-  // Refetch job details on mount to get latest workflow status
-  useEffect(() => {
-    if (businessId) {
-      refetchJob()
-    }
-  }, [businessId, refetchJob])
-
-  // Sync job API USPs to business API on mount
-  useEffect(() => {
-    const syncUspsOnMount = async () => {
-      if (!jobDetails || !profileData || !businessId) return
-
-      const normalizeUsps = (raw: unknown): string[] => {
-        if (!raw) return []
-        if (Array.isArray(raw)) {
-          return raw.map((item) => String(item).trim()).filter(Boolean)
-        }
-        if (typeof raw === "string") {
-          try {
-            const parsed = JSON.parse(raw)
-            if (Array.isArray(parsed)) {
-              return parsed.map((item) => String(item).trim()).filter(Boolean)
-            }
-          } catch {
-            // ignore
-          }
-          return raw.split(",").map((item) => item.trim()).filter(Boolean)
-        }
-        return []
-      }
-
-      const jobUsps = normalizeUsps((jobDetails as any)?.usps ?? (jobDetails as any)?.USPs)
-      const businessUsps = normalizeUsps((profileData as any)?.USPs ?? (profileData as any)?.SellingPoints)
-
-      // Only sync if job has USPs and they differ from business API
-      if (jobUsps.length > 0 && JSON.stringify(jobUsps) !== JSON.stringify(businessUsps)) {
-        try {
-          await updateBusinessProfileMutation.mutateAsync({
-            ...profileData,
-            USPs: jobUsps,
-            SellingPoints: jobUsps,
-          })
-          await refetchProfile()
-        } catch (error) {
-          console.error("Failed to sync USPs on mount:", error)
-        }
-      }
+  const handleUpdateProfile = async (
+    nodePayload: Record<string, unknown>,
+    formValues?: BusinessInfoFormData
+  ) => {
+    if (!businessId || !formValues) {
+      throw new Error("Business profile values are required.");
     }
 
-    syncUspsOnMount()
-  }, [jobDetails, profileData, businessId])
-
-  // Fetch locations using React Query. LocationSelect handles large-list rendering/search.
-  const { locationOptions, isLoading: locationsLoading } = useLocations("us")
-
-  // Sync location options to Zustand store
-  const { setLocationOptions, setLocationsLoading, setCurrentBusinessId } = useBusinessStore()
-  const prevLocationOptionsRef = useRef<typeof locationOptions>([])
-  const prevLocationsLoadingRef = useRef<boolean | null>(null)
-  const prevBusinessIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    // React Query/useMemo keep this reference stable until the fetched list changes.
-    // Avoid scanning huge option arrays just to decide whether to sync Zustand.
-    if (prevLocationOptionsRef.current !== locationOptions) {
-      setLocationOptions(locationOptions)
-      prevLocationOptionsRef.current = locationOptions
+    let jobExistsAfterSave = Boolean(jobQuery.data?.job_id);
+    let canonicalJob = jobQuery.data;
+    if (jobExistsAfterSave) {
+      canonicalJob = await updateJob.mutateAsync({
+        businessId,
+        values: formValues,
+        locationOptions,
+      });
+    } else {
+      canonicalJob = await createJob.mutateAsync({
+        businessId,
+        values: formValues,
+        locationOptions,
+      });
+      jobExistsAfterSave = true;
     }
 
-    // Only update loading state if it actually changed
-    if (prevLocationsLoadingRef.current !== locationsLoading) {
-      setLocationsLoading(locationsLoading)
-      prevLocationsLoadingRef.current = locationsLoading
-    }
+    await syncNodeProfile(canonicalJob, formValues, nodePayload);
+    return { jobExistsAfterSave };
+  };
 
-    // Only update business ID if it changed
-    if (prevBusinessIdRef.current !== businessId) {
-      setCurrentBusinessId(businessId || null)
-      prevBusinessIdRef.current = businessId
-    }
-  }, [locationOptions, locationsLoading, businessId, setLocationOptions, setLocationsLoading, setCurrentBusinessId])
-
-  // Update mutations
-  const updateBusinessProfileMutation = useUpdateBusinessProfile(businessId || null)
-  const createJobMutation = useCreateJob()
-  const updateJobMutation = useUpdateJob()
-
-  // SIMPLIFIED FLOW:
-  // - Business API is source of truth for all fields (always update it)
-  // - Job API only stores offerings + syncs same data to maintain consistency
-  // - Always update both APIs when job exists to keep them in sync
-  const handleUpdateProfile = async (payload: any, formValues?: any) => {
-    if (!businessId) {
-      throw new Error("Business ID is required")
-    }
-
-    const normalizeUsps = (raw: unknown): string[] => {
-      if (!raw) return []
-      if (Array.isArray(raw)) {
-        return raw.map((item) => String(item).trim()).filter(Boolean)
-      }
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw)
-          if (Array.isArray(parsed)) {
-            return parsed.map((item) => String(item).trim()).filter(Boolean)
-          }
-        } catch {
-          // ignore
-        }
-        return raw
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean)
-      }
-      return []
-    }
-
-    const normalizeOfferings = (raw: any): Offering[] => {
-      if (!Array.isArray(raw)) return []
-      return raw
-        .map((offering: any) => ({
-          name: String(offering?.offering ?? offering?.name ?? "").trim(),
-          description: String(offering?.description ?? "").trim(),
-          link: String(offering?.url ?? offering?.link ?? "").trim(),
-          offering_type: String(offering?.offering_type ?? offering?.offeringType ?? "").trim(),
-          price_range: String(offering?.price_range ?? offering?.priceRange ?? "").trim(),
-          duration: String(offering?.duration ?? "").trim(),
-          inclusions: Array.isArray(offering?.inclusions)
-            ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
-            : typeof offering?.inclusions === "string"
-              ? offering.inclusions
-                .split(",")
-                .map((item: string) => item.trim())
-                .filter(Boolean)
-              : [],
-        }))
-        .filter((offering) => Boolean(offering.name))
-    }
-
-    const mergeUsps = (base: string[], extra: string[]) =>
-      Array.from(new Set([...base, ...extra]))
-
-    const syncBusinessUspsFromJob = async (usps: string[], basePayload: any) => {
-      if (usps.length === 0) return
-
-      await updateBusinessProfileMutation.mutateAsync({
-        ...basePayload,
-        USPs: usps,
-        SellingPoints: usps,
-      })
-    }
-
-    try {
-      // Step 1: Check if job exists and if user has filled offerings
-      const jobExists = jobDetails && jobDetails.job_id
-      const normalizedOfferings: Offering[] = Array.isArray(formValues?.offeringsList)
-        ? (formValues.offeringsList as any[])
-          .filter((offering) => Boolean(offering?.name?.trim()))
-          .map((offering: any) => ({
-            name: offering.name || "",
-            description: offering.description || "",
-            link: offering.link || "",
-            offering_type: String(offering.offeringType || ""),
-            price_range: String(offering.priceRange || offering.pricePositioning || ""),
-            duration: String(offering.duration || ""),
-            inclusions: Array.isArray(offering.inclusions)
-              ? offering.inclusions
-              : typeof offering.inclusions === "string"
-                ? offering.inclusions
-                  .split(",")
-                  .map((item: string) => item.trim())
-                  .filter(Boolean)
-                : [],
-          }))
-        : []
-      const jobOfferings = normalizeOfferings(jobDetails?.offerings)
-      const offeringsChanged =
-        !jobExists || JSON.stringify(normalizedOfferings) !== JSON.stringify(jobOfferings)
-      const hasOfferings = normalizedOfferings.length > 0
-
-      // Step 2: ALWAYS update Business Profile API first (source of truth)
-      // Remove offerings from payload (offerings are only in job API, not business API)
-      const { ProductsServices, ...businessPayload } = payload
-      const jobUsps = normalizeUsps(jobDetails?.usps ?? jobDetails?.USPs)
-      const businessPayloadWithUsps = {
-        ...businessPayload,
-        USPs: jobUsps.length > 0 ? jobUsps : null,
-        SellingPoints: jobUsps.length > 0 ? jobUsps : null,
-      }
-      await updateBusinessProfileMutation.mutateAsync(businessPayloadWithUsps)
-
-      // Step 3: Handle Job API - sync data to maintain consistency
-      let jobExistsAfterSave = Boolean(jobExists)
-
-      if (jobExists) {
-        // Job exists - ALWAYS update both APIs to keep them in sync
-        if (formValues) {
-          const offerings = normalizedOfferings
-
-          // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
-          const ctasArray = businessPayload.CTAs || []
-          const payloadWithCTAs = {
-            ...businessPayloadWithUsps,
-            CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
-              ? {
-                value: JSON.stringify(
-                  ctasArray.map((cta: any) => ({
-                    buttonText: cta.buttonText || "",
-                    url: cta.url || "",
-                  }))
-                ),
-              }
-              : null,
-          }
-
-          // Update job API with same data to maintain sync
-          await updateJobMutation.mutateAsync({
-            businessId,
-            businessProfilePayload: payloadWithCTAs,
-            offerings,
-            includeOfferings: offeringsChanged,
-          })
-
-          const refreshedJob = await refetchJob()
-          const refreshedUsps = normalizeUsps(
-            refreshedJob?.data?.usps ?? refreshedJob?.data?.USPs
-          )
-
-          if (refreshedUsps.length > 0) {
-            await syncBusinessUspsFromJob(refreshedUsps, businessPayloadWithUsps)
-          }
-
-          // Refresh job details after update
-          await refetchJob()
-        }
-      } else {
-        // No job exists - create job ONLY if user has filled offerings
-        // If user changes other fields but offerings are empty → NO job creation
-        // If user fills offerings and saves → CREATE job
-        if (hasOfferings && formValues) {
-          const offerings = normalizedOfferings
-
-          // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
-          const ctasArray = businessPayload.CTAs || []
-          const payloadWithCTAs = {
-            ...businessPayloadWithUsps,
-            CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
-              ? {
-                value: JSON.stringify(
-                  ctasArray.map((cta: any) => ({
-                    buttonText: cta.buttonText || "",
-                    url: cta.url || "",
-                  }))
-                ),
-              }
-              : null,
-          }
-
-          // Create job with same data from business API to maintain sync
-          await createJobMutation.mutateAsync({
-            businessId,
-            businessProfilePayload: payloadWithCTAs,
-            offerings,
-          })
-          jobExistsAfterSave = true
-
-          const refreshedJob = await refetchJob()
-          const refreshedUsps = normalizeUsps(
-            refreshedJob?.data?.usps ?? refreshedJob?.data?.USPs
-          )
-
-          if (refreshedUsps.length > 0) {
-            await syncBusinessUspsFromJob(refreshedUsps, businessPayloadWithUsps)
-          }
-
-          // Refresh job details after creation
-          await refetchJob()
-        } else {
-          // No job exists and no offerings filled - only update business API
-        }
-      }
-
-      // Step 4: Refresh data in background with slight delay to ensure server has processed updates
-      setTimeout(() => {
-        refetchProfile()
-        // Always refetch job details after save to get latest job existence status
-        refetchJob()
-      }, 1000)
-
-      return { jobExistsAfterSave }
-    } catch (error) {
-      // Error is handled by the mutations' onError
-      throw error
-    }
-  }
-
-  const isLoading = useMemo(() => {
-    return (
-      profileDataLoading ||
-      jobDetailsLoading ||
-      updateBusinessProfileMutation.isPending ||
-      createJobMutation.isPending ||
-      updateJobMutation.isPending
-    )
-  }, [
-    profileDataLoading,
-    jobDetailsLoading,
-    updateBusinessProfileMutation.isPending,
-    createJobMutation.isPending,
-    updateJobMutation.isPending,
-  ])
+  const isLoading =
+    profileDataLoading ||
+    jobQuery.isLoading ||
+    locationsLoading ||
+    updateNodeProfile.isPending ||
+    createJob.isPending ||
+    updateJob.isPending;
 
   return (
     <ProfileTemplate
-      key={`${businessId}-${profileData ? "ready" : "loading"}`}
+      key={businessId}
       businessId={businessId}
       profileData={profileData}
-      jobDetails={jobDetails}
+      jobDetails={jobQuery.data}
       isLoading={isLoading}
       onUpdateProfile={handleUpdateProfile}
+      onAgentProfileRefresh={handleAgentProfileRefresh}
     />
-  )
+  );
 }

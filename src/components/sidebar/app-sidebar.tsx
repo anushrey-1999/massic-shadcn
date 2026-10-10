@@ -281,9 +281,6 @@ export default function AppSidebar() {
 
   const pitchBusinessSubItems = [
     { label: 'Reports', slug: 'reports' },
-    { label: 'Strategy', slug: 'strategy' },
-    { label: 'Web', slug: 'web' },
-    { label: 'Social', slug: 'social' },
     { label: 'Profile', slug: 'profile' },
   ] as const
 

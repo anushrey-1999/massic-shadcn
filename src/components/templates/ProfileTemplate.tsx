@@ -10,46 +10,33 @@ import React, {
 import { useRouter } from "next/navigation";
 import PageHeader from "../molecules/PageHeader";
 import { useBusinessStore } from "@/store/business-store";
-import { BusinessInfoForm } from "../organisms/profile/BusinessInfoForm";
 import { useForm, useStore } from "@tanstack/react-form";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
-import { isWorkflowActive } from "@/lib/workflow-status";
-import {
-  parseArrayField,
-  cleanWebsiteUrl,
-  normalizeWebsiteUrl,
-  isValidWebsiteUrl,
-} from "@/utils/utils";
-import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
-import { formatLocationLabel, physicalLocations } from "@/lib/business-locations";
+import { isOrchestrationActive } from "@/lib/workflow-status";
+import { isValidWebsiteUrl } from "@/utils/utils";
 import {
   buildBusinessProfilePayload,
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
 } from "@/utils/profile-form-mappers";
-import {
-  formatPrimaryLocationApiValue,
-  parsePrimaryLocationForPayload,
-  primaryLocationFromProfile,
-  resolvePrimaryLocationFormValue,
-} from "@/utils/primary-location";
 import { Button } from "@/components/ui/button";
-import { GenericInput } from "@/components/ui/generic-input";
-// Legacy tabs template (replaced by sidebar shell)
-import { ArrowRight, Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "lucide-react";
+import { ProfileAgentButton, ProfileAgentDialog, useProfileAgent } from "@/components/massic-agent/profile-agent";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
-import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
-import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
+import { ProfileEditorTemplate } from "@/components/templates/ProfileEditorTemplate";
 import { useSubscription } from "@/hooks/use-subscription";
-import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
-import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import {
+  ProfileActionConfirmDialog,
+  type ProfileConfirmAction,
+} from "@/components/organisms/profile/ProfileActionConfirmDialog";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { stableStringify } from "@/utils/stable-stringify";
 import {
   AlertDialog,
@@ -65,35 +52,30 @@ import {
   businessInfoSchema,
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
+import { BusinessProfile } from "@/store/business-store";
 import {
-  BusinessProfile,
-  OfferingRow,
-  CTARow,
-  StakeholderRow,
-  LocationRow,
-  CompetitorRow,
-} from "@/store/business-store";
+  mergeJobAndNodeFormValues,
+  mapJobToReadOnlyDetails,
+} from "@/utils/profile-v2-mappers";
+import type { JobResponse } from "@/types/profile-v2";
+import { assertProfileStrategyReady } from "@/utils/profile-strategy-gate";
+import {
+  type ProfileValidationIssue,
+  validateProfileForm,
+  validateStrategyProfileFields,
+} from "@/utils/profile-form-fields";
 
 interface ProfileTemplateProps {
   businessId: string;
   profileData?: BusinessProfile | null;
-  jobDetails?: any | null; // Job details from job API
+  jobDetails?: JobResponse | null;
   isLoading?: boolean;
   onUpdateProfile?: (
     payload: any,
     formValues?: any
   ) => Promise<{ jobExistsAfterSave?: boolean } | void>;
+  onAgentProfileRefresh?: (signal: AbortSignal) => Promise<void>;
 }
-
-const basicDetailsSchema = businessInfoSchema.pick({
-  website: true,
-  businessName: true,
-  primaryLocation: true,
-  serviceType: true,
-  lifetimeValue: true,
-  offerings: true,
-  offeringsList: true,
-});
 
 // Form schema and types are imported from @/schemas/ProfileFormSchema
 
@@ -103,6 +85,7 @@ const ProfileTemplate = ({
   jobDetails: externalJobDetails,
   isLoading: externalLoading = false,
   onUpdateProfile,
+  onAgentProfileRefresh,
 }: ProfileTemplateProps) => {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -111,10 +94,12 @@ const ProfileTemplate = ({
   const locationsLoading = useBusinessStore((state) => state.profileForm.locationsLoading);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
+  const [isMissingFieldsOpen, setIsMissingFieldsOpen] = useState(false);
+  const [pendingConfirmAction, setPendingConfirmAction] = useState<ProfileConfirmAction | null>(null);
   const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
     useState(false);
-  const offeringsExtractor = useOfferingsExtractor(businessId);
   const toggleBusinessStatusMutation = useToggleBusinessStatus();
+  const { canAccessStrategy } = useEntitlements(businessId);
 
   // Derive whitelist status from profiles (agency-level check)
   const isAgencyWhitelisted = useMemo(() => {
@@ -125,9 +110,6 @@ const ProfileTemplate = ({
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
-  const [autofillProfileResult, setAutofillProfileResult] =
-    useState<NormalizedProfileResult | null>(null);
   const [hasCreatedJobAfterSave, setHasCreatedJobAfterSave] = useState(false);
   const {
     loading: subscriptionLoading,
@@ -135,338 +117,43 @@ const ProfileTemplate = ({
     handleSubscribeToPlan,
     refetchData: refetchSubscriptionData,
   } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
-  const [showSubmitErrors, setShowSubmitErrors] = useState(false);
-  const lastProfileDataRef = useRef<string | null>(null);
-  const lastProfileDataStringRef = useRef<string | null>(null);
-  // Track the offerings that were just saved to prevent overwriting with stale data
-  const lastSavedOfferingsRef = useRef<OfferingRow[] | null>(null);
+  const [submissionIssues, setSubmissionIssues] = useState<
+    ProfileValidationIssue[]
+  >([]);
+  const [submissionValidationMode, setSubmissionValidationMode] = useState<
+    "save" | "strategy" | null
+  >(null);
+  const [validationFocusRequest, setValidationFocusRequest] = useState(0);
+  const hydratedServerRevisionRef = useRef<string | null>(null);
   const isJobCreated = Boolean(externalJobDetails?.job_id) || hasCreatedJobAfterSave;
 
-  // Helper function to map profile data and job data to form values
-  // ALWAYS checks if job exists first - this determines which data source to use
-  // If job exists: fill inputs from job API data
-  // If no job: fill inputs from business API data
-  const mapProfileDataToFormValues = (
-    profileData: typeof externalProfileData,
-    jobDetails: typeof externalJobDetails
-  ): BusinessInfoFormData => {
-    // SIMPLIFIED FLOW: Business API is always the source of truth for all fields except offerings
-    // Job API only provides offerings data
-
-    if (!profileData) {
-      return {
-        website: "",
-        businessName: "",
-        businessCategory: "",
-        foundingDate: "",
-        logoUrl: "",
-        businessDescription: "",
-        primaryLocation: "",
-        serviceAreaType: "city_local",
-        serviceAreas: [],
-        serviceType: "physical",
-        lifetimeValue: "",
-        b2bB2c: "",
-        offerings: "products",
-        offeringsList: [],
-        usps: "",
-        ctas: [],
-        brandTerms: [],
-        stakeholders: [],
-        locations: [],
-        detailedLocations: [],
-        keyPeople: [],
-        licensesCompliance: [],
-        awardsCertifications: [],
-        colorsFontsCss: "",
-        imagePhotoLibrary: [],
-        socialProfiles: [],
-        directoryProfiles: [],
-        supportEmail: "",
-        commsEmail: "",
-        competitors: [],
-        brandToneSocial: [],
-        brandToneWeb: [],
-      };
-    }
-
-    // Extract primary location from business API (resolve to LocationSelect option value)
-    let primaryLocation = "";
-    const profileDataAny = profileData as any; // Type assertion for PrimaryLocation
-    const locationOptions = useBusinessStore.getState().profileForm.locationOptions;
-
-    if (profileDataAny?.PrimaryLocation) {
-      primaryLocation = primaryLocationFromProfile(
-        profileDataAny.PrimaryLocation,
+  const serverValues = useMemo(
+    () => {
+      const nodeValues = mapBusinessProfileToFormValues(
+        externalProfileData || null,
+        null,
         locationOptions
       );
-    } else {
-      // Falls back to a physical address label; a GBP resource name can never
-      // resolve to a market option.
-      const [firstPhysical] = physicalLocations(profileData?.Locations);
-      if (firstPhysical) {
-        primaryLocation = resolvePrimaryLocationFormValue(
-          formatLocationLabel(firstPhysical),
-          locationOptions
-        );
-      }
-    }
-
-    // Offerings: ONLY field that comes from job API (if job exists)
-    const jobExists = jobDetails && jobDetails.job_id;
-    const offeringsList = (() => {
-      if (
-        jobExists &&
-        jobDetails?.offerings &&
-        jobDetails.offerings.length > 0
-      ) {
-        return jobDetails.offerings.map(
-          (offering: any): OfferingRow => ({
-            name: offering.offering || offering.name || "",
-            description: offering.description || "",
-            link: offering.url || offering.link || "",
-            pricePositioning:
-              offering.price_positioning || offering.priceRange || "",
-          })
-        );
-      }
-      return [];
-    })();
-
-    // ALL OTHER FIELDS come from business API (source of truth)
-    const ctasList = parseArrayField((profileData as any).CTAs).map(
-      (cta: any): CTARow => ({
-        buttonText: cta?.buttonText || "",
-        url: cta?.url || "",
-      })
-    );
-
-    const rawStakeholders = parseArrayField(profileData.CustomerPersonas);
-    const rawKeyPeople = parseArrayField((profileData as any).KeyPeople);
-    const stakeholdersList = (rawStakeholders.length > 0 ? rawStakeholders : rawKeyPeople).map(
-      (person: any): StakeholderRow => ({
-        name: person.personName || "",
-        title: person.personDescription || person.role || "",
-        bio: person.bio || "",
-      })
-    );
-
-    // Only physical addresses are editable here; linked GBP locations are managed
-    // from Settings and must not be pulled into this table.
-    const locationsList = physicalLocations(profileData.Locations).map(
-      (location, index): LocationRow => ({
-        id: location.Id,
-        name: location.DisplayName || `Location ${index + 1}`,
-        address: location.Address?.Line1 || "",
-        timezone: location.TimeZone || "",
-      })
-    );
-
-    const competitorsList = parseArrayField(profileData.Competitors).map(
-      (comp: any): CompetitorRow => ({
-        url: cleanWebsiteUrl(comp.website || comp.Website),
-      })
-    );
-
-    const normalizeStringArray = (raw: unknown): string[] => {
-      if (!raw) return [];
-      if (Array.isArray(raw)) {
-        return raw.map((item) => String(item).trim()).filter(Boolean);
-      }
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            return parsed.map((item) => String(item).trim()).filter(Boolean);
-          }
-        } catch {
-          // ignore
-        }
-        return raw
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-      return [];
-    };
-
-    const normalizeUsps = (raw: unknown): string[] => {
-      if (!raw) return [];
-      if (Array.isArray(raw)) {
-        return raw.map((item) => String(item).trim()).filter(Boolean);
-      }
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            return parsed.map((item) => String(item).trim()).filter(Boolean);
-          }
-        } catch {
-          // ignore
-        }
-        return raw
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-      return [];
-    };
-
-    const uspsFromJob = normalizeUsps(
-      (jobDetails as any)?.usps ?? (jobDetails as any)?.USPs
-    );
-    const usps = uspsFromJob.join(", ");
-
-    const brandToneSocial = (profileData as any).SocialBrandVoice
-      ? (profileData as any).SocialBrandVoice.map((s: string) =>
-        s.trim()
-      ).filter(Boolean).slice(0, 3)
-      : [];
-
-    const brandToneWeb = (profileData as any).WebBrandVoice
-      ? (profileData as any).WebBrandVoice.map((s: string) =>
-        s.trim()
-      ).filter(Boolean).slice(0, 3)
-      : [];
-
-    return {
-      // All fields from business API (source of truth)
-      website: cleanWebsiteUrl(profileData.Website),
-      businessName: profileData.Name || "",
-      businessCategory:
-        (profileData as any).BusinessCategory ||
-        (profileData as any).business_category ||
-        (jobDetails as any)?.business_category ||
-        "",
-      foundingDate:
-        (profileData as any).FoundingDate ||
-        (profileData as any).foundingDate ||
-        (profileData as any).year_founded ||
-        "",
-      logoUrl:
-        (profileData as any).LogoUrl ||
-        (profileData as any).logoUrl ||
-        (profileData as any).logo_url ||
-        "",
-      businessDescription:
-        profileData.UserDefinedBusinessDescription ||
-        profileData.Description ||
-        "",
-      primaryLocation: primaryLocation,
-      serviceAreaType:
-        (profileData as any).ServiceAreaType ||
-        (profileData as any).service_area_type ||
-        (jobDetails as any)?.service_area_type ||
-        "",
-      serviceAreas: normalizeStringArray(
-        (profileData as any).ServiceAreas ??
-        (profileData as any).service_areas ??
-        (jobDetails as any)?.service_areas
-      ),
-      serviceType: (() => {
-        const objective = profileData.BusinessObjective?.toLowerCase();
-        if (objective === "local") return "physical";
-        if (objective === "hybrid" || objective === "both") return "both";
-        return "online";
-      })() as "physical" | "online" | "both",
-      lifetimeValue: (() => {
-        const ltvFromBusiness = (profileData as any).LTV ?? (profileData as any).ltv;
-        const ltvFromJob = (jobDetails as any)?.ltv;
-        const ltv = ltvFromBusiness ?? ltvFromJob;
-        const s = ltv != null ? String(ltv).trim().toLowerCase() : "";
-        return s === "high" || s === "low" ? s : "";
-      })(),
-      b2bB2c:
-        (profileData as any).B2bB2c ||
-        (profileData as any).b2b_b2c ||
-        (jobDetails as any)?.b2b_b2c ||
-        "",
-      offerings: (() => {
-        const locationType = profileData.LocationType?.toLowerCase();
-        return locationType === "products"
-          ? "products"
-          : locationType === "services"
-            ? "services"
-            : locationType === "both"
-              ? "both"
-              : "products";
-      })() as "products" | "services" | "both",
-      usps: usps,
-      ctas: ctasList,
-      brandTerms: (() => {
-        const brandTermsFromBusiness =
-          (profileData as any).BrandTerms ?? (profileData as any).brand_terms;
-        const brandTermsFromJob = (jobDetails as any)?.brand_terms;
-        const brandTerms = brandTermsFromBusiness ?? brandTermsFromJob;
-
-        const normalize = (raw: unknown): string[] => {
-          if (!raw) return [];
-          if (Array.isArray(raw)) {
-            return raw.map((t) => String(t).trim()).filter(Boolean);
-          }
-          if (typeof raw === "string") {
-            const s = raw.trim();
-            if (!s) return [];
-            try {
-              const parsed = JSON.parse(s);
-              if (Array.isArray(parsed)) {
-                return parsed.map((t) => String(t).trim()).filter(Boolean);
-              }
-            } catch {
-              // ignore
-            }
-            return s
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean);
-          }
-          return [];
-        };
-
-        return normalize(brandTerms);
-      })(),
-      stakeholders: stakeholdersList,
-      locations: locationsList,
-      detailedLocations: parseArrayField((profileData as any).DetailedLocations),
-      keyPeople: parseArrayField((profileData as any).KeyPeople),
-      licensesCompliance: normalizeStringArray(
-        (profileData as any).LicensesCompliance ?? (profileData as any).licenses
-      ),
-      awardsCertifications: normalizeStringArray(
-        (profileData as any).AwardsCertifications ?? (profileData as any).awards
-      ),
-      colorsFontsCss: String((profileData as any).ColorsFontsCss ?? ""),
-      imagePhotoLibrary: normalizeStringArray(
-        (profileData as any).ImagePhotoLibrary
-      ),
-      socialProfiles: parseArrayField((profileData as any).SocialProfiles),
-      directoryProfiles: parseArrayField((profileData as any).DirectoryProfiles),
-      supportEmail: String((profileData as any).SupportEmail ?? ""),
-      commsEmail: String((profileData as any).CommsEmail ?? ""),
-      competitors: competitorsList,
-      brandToneSocial: brandToneSocial,
-      brandToneWeb: brandToneWeb,
-      // ONLY offerings come from job API (if job exists)
-      offeringsList: offeringsList,
-    };
-  };
-
-  // On page load: Business API is source of truth for all fields except offerings
-  // Offerings come from job API if job exists
-  const defaultValues = mapBusinessProfileToFormValues(
-    externalProfileData || null,
-    externalJobDetails || null,
-    locationOptions
+      return externalJobDetails?.job_id
+        ? mergeJobAndNodeFormValues(externalJobDetails, nodeValues)
+        : nodeValues;
+    },
+    [externalJobDetails, externalProfileData, locationOptions]
+  );
+  const serverRevision = useMemo(
+    () => stableStringify(serverValues),
+    [serverValues]
   );
 
   // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
   // silently while any field still holds a validation error, so a stale error on
-  // an unrelated autofilled field would make Save look dead. `handleSaveChanges`
+  // an unrelated profile field would make Save look dead. `handleSaveChanges`
   // reads `form.state.values` and runs its own explicit checks instead.
   const form = useForm({
-    defaultValues,
+    defaultValues: serverValues,
     validators: {
-      onChange: businessInfoSchema as any,
+      onBlur: businessInfoSchema as any,
+      onSubmit: businessInfoSchema as any,
     },
   });
 
@@ -478,9 +165,15 @@ const ProfileTemplate = ({
   } = useFormDirtyState({ form });
 
   const { allowNavigation } = useUnsavedChangesGuard({ isDirty: hasChanges });
+  const profileAgent = useProfileAgent({
+    businessId, job: externalJobDetails, dirty: hasChanges,
+    saving: externalLoading || isSaving,
+    onRefresh: onAgentProfileRefresh,
+  });
 
   const saveProfileValues = useCallback(
     async (value: BusinessInfoFormData): Promise<boolean> => {
+      if (profileAgent.busy) return false;
       if (!onUpdateProfile) {
         console.warn("onUpdateProfile not provided");
         return false;
@@ -531,7 +224,6 @@ const ProfileTemplate = ({
 
         const payload = {
           ...buildBusinessProfilePayload(value, {
-            autofillResult: autofillProfileResult,
             existingProfile: externalProfileData,
             locationOptions: useBusinessStore.getState().profileForm.locationOptions,
             normalizeWebsite: true,
@@ -540,21 +232,10 @@ const ProfileTemplate = ({
           }),
           USPs: uspsPayload.length > 0 ? uspsPayload : null,
           SellingPoints: uspsPayload.length > 0 ? uspsPayload : null,
+          ProfileId:
+            externalJobDetails?.profile_id ||
+            (externalProfileData as any)?.ProfileId,
         };
-
-        // Store offerings that are being saved (ensure proper type - all fields must be strings)
-        lastSavedOfferingsRef.current = (value.offeringsList || []).map(
-          (off: any): OfferingRow => ({
-            name: off.name || "",
-            description: off.description || "",
-            link: off.link || "",
-            pricePositioning: off.pricePositioning || "",
-            offeringType: (off as any).offeringType || "",
-            priceRange: (off as any).priceRange || "",
-            duration: (off as any).duration || "",
-            inclusions: (off as any).inclusions || [],
-          })
-        );
 
         const updateResult = await onUpdateProfile(payload, value);
 
@@ -574,7 +255,8 @@ const ProfileTemplate = ({
     },
     [
       businessId,
-      autofillProfileResult,
+      profileAgent.busy,
+      externalJobDetails?.profile_id,
       externalProfileData,
       onUpdateProfile,
       resetBaseline,
@@ -582,202 +264,49 @@ const ProfileTemplate = ({
     ]
   );
 
-  const guardAutofillProfile = useFeatureActionGuard("actions.autofillProfile");
   const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan");
   const guardSaveProfile = useFeatureActionGuard("profile.save");
   const guardUnlinkBusiness = useFeatureActionGuard("business.unlink");
   const guardSubscribePlan = useFeatureActionGuard("billing.subscribe");
   const guardChangeBillingPlan = useFeatureActionGuard("billing.changePlan");
 
-  const { autofillProfile: handleAutofillProfile, isAutofillLoading } =
-    useProfileAutofillForm({
-      form,
-      locationOptions,
-      guard: guardAutofillProfile,
-      onBeforeAutofill: (website) => {
-        const values = form.state.values as BusinessInfoFormData;
-        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
-        const context = trimmedPrimaryLocation
-          ? (() => {
-              const payload = parsePrimaryLocationForPayload(
-                trimmedPrimaryLocation,
-                locationOptions
-              );
-              return {
-                country: normalizeProfileCountry(payload.Country),
-                location: formatPrimaryLocationApiValue(payload),
-              };
-            })()
-          : undefined;
-
-        void offeringsExtractor.startExtraction(website, context).catch(() => {});
-      },
-      onAutofillSuccess: (profile) => {
-        setAutofillProfileResult(profile);
-        setHasAutofilledProfile(true);
-      },
-    });
-
-  // Track job details to detect changes
-  const lastJobDetailsRef = useRef<string | null>(null);
-
-  // Update form when external profile data or job details change
-  // Job details only affect offerings, but we still need to update when job is created/updated
   useEffect(() => {
-    // Don't update form while saving - preserve user's current input
-    if (isSaving) {
+    if (isSaving || locationsLoading) return;
+    if (!externalProfileData && !externalJobDetails?.job_id) {
+      if (hasBaseline()) {
+        clearBaseline();
+        hydratedServerRevisionRef.current = null;
+      }
+      return;
+    }
+    if (hydratedServerRevisionRef.current === serverRevision) return;
+
+    // The first server payload establishes the baseline even if TanStack has
+    // already observed its new default values. Later background refetches must
+    // never erase edits that have not been saved.
+    if (
+      hydratedServerRevisionRef.current !== null &&
+      hasBaseline() &&
+      hasChanges
+    ) {
       return;
     }
 
-      const currentJobDetailsString = externalJobDetails
-      ? stableStringify(externalJobDetails)
-      : null;
-    const jobDetailsChanged =
-      lastJobDetailsRef.current !== currentJobDetailsString;
-
-    if (externalProfileData) {
-      // Serialize current profile data to detect if it changed
-      const currentDataString = stableStringify(externalProfileData);
-      const currentProfileId = externalProfileData.UniqueId;
-      const isNewProfile = lastProfileDataRef.current !== currentProfileId;
-      const isDataChanged =
-        lastProfileDataStringRef.current !== currentDataString;
-
-      // Update form if:
-      // 1. It's a new profile
-      // 2. Profile data changed (business API is source of truth)
-      // 3. Job details changed (important: job creation affects offerings)
-      // 4. We haven't initialized yet
-      if (
-        isNewProfile ||
-        isDataChanged ||
-        jobDetailsChanged ||
-        !hasBaseline()
-      ) {
-        const mappedValues = mapBusinessProfileToFormValues(
-          externalProfileData,
-          externalJobDetails,
-          locationOptions
-        );
-
-        // IMPORTANT: Preserve current offeringsList if user has made changes or just saved
-        // Only update offeringsList from API if:
-        // 1. Form hasn't been initialized yet, OR
-        // 2. Current form has no offerings (empty array), OR
-        // 3. The new API data is different from what was just saved (avoid stale data overwrite)
-        const currentOfferings = form.state.values.offeringsList || [];
-        const hasUserOfferings =
-          currentOfferings.length > 0 &&
-          currentOfferings.some((off: any) => off?.name?.trim());
-
-        // Check if the new API offerings match what was just saved
-        const newApiOfferings = mappedValues.offeringsList || [];
-        const apiOfferingsMatchSaved =
-          lastSavedOfferingsRef.current &&
-          newApiOfferings.length === lastSavedOfferingsRef.current.length &&
-          newApiOfferings.every((apiOff: any, idx: number) => {
-            const savedOff = lastSavedOfferingsRef.current![idx];
-            return (
-              apiOff.name === savedOff.name &&
-              apiOff.description === savedOff.description &&
-              apiOff.link === savedOff.link
-            );
-          });
-
-        // Only update offeringsList if:
-        // - No user offerings exist, OR
-        // - Form not initialized, OR
-        // - API data doesn't match what was just saved (means it's fresh data)
-        const shouldUpdateOfferings =
-          !hasUserOfferings ||
-          !hasBaseline() ||
-          !apiOfferingsMatchSaved;
-
-        if (shouldUpdateOfferings) {
-          // Set form values for each field individually to ensure they update
-          Object.entries(mappedValues).forEach(([key, value]) => {
-            form.setFieldValue(key as any, value as any);
-          });
-        } else {
-          // Preserve user's offerings, only update other fields
-          Object.entries(mappedValues).forEach(([key, value]) => {
-            if (key !== "offeringsList") {
-              form.setFieldValue(key as any, value as any);
-            }
-          });
-        }
-
-        Object.keys(mappedValues).forEach((key) => {
-          form.setFieldMeta(key as any, (prev: any) => ({
-            ...prev,
-            isTouched: false,
-          }));
-        });
-
-        // Clear the saved offerings ref after processing (so next update can proceed normally)
-        if (apiOfferingsMatchSaved) {
-          lastSavedOfferingsRef.current = null;
-        }
-
-        // Whatever the form holds once these writes settle is the clean state
-        resetBaseline();
-        lastProfileDataRef.current = currentProfileId;
-        lastProfileDataStringRef.current = currentDataString;
-        lastJobDetailsRef.current = currentJobDetailsString;
-      }
-    } else if (!externalProfileData && hasBaseline()) {
-      // If profile data is cleared, reset the form
-      clearBaseline();
-      lastProfileDataRef.current = null;
-      lastProfileDataStringRef.current = null;
-      lastJobDetailsRef.current = null;
-    }
+    form.reset(serverValues);
+    resetBaseline(serverValues);
+    hydratedServerRevisionRef.current = serverRevision;
   }, [
     clearBaseline,
+    externalJobDetails?.job_id,
     externalProfileData,
-    externalJobDetails,
     form,
     hasBaseline,
+    hasChanges,
     isSaving,
-    locationOptions,
-    resetBaseline,
-  ]);
-
-  // Re-resolve primary location once options load (saved API labels -> select values)
-  useEffect(() => {
-    if (isSaving || locationsLoading || !externalProfileData) return;
-
-    const hasSelectableOptions = locationOptions.some(
-      (opt) => !opt.disabled && opt.value !== ""
-    );
-    if (!hasSelectableOptions) return;
-
-    const resolved = primaryLocationFromProfile(
-      (externalProfileData as any).PrimaryLocation,
-      locationOptions
-    );
-    if (!resolved) return;
-
-    const current = String(form.state.values.primaryLocation || "");
-    const currentIsValid = locationOptions.some(
-      (opt) => !opt.disabled && opt.value !== "" && opt.value === current
-    );
-
-    if (!currentIsValid && resolved !== current) {
-      form.setFieldValue("primaryLocation", resolved);
-      form.setFieldMeta("primaryLocation", (prev: any) => ({
-        ...prev,
-        isTouched: false,
-      }));
-      resetBaseline();
-    }
-  }, [
-    externalProfileData,
-    form,
-    isSaving,
-    locationOptions,
     locationsLoading,
     resetBaseline,
+    serverRevision,
+    serverValues,
   ]);
 
   useEffect(() => {
@@ -789,9 +318,24 @@ const ProfileTemplate = ({
     setHasCreatedJobAfterSave(false);
   }, [businessId, externalJobDetails?.job_id]);
 
-  // Form values drive the validation and save-blocking checks below; dirty
-  // tracking itself lives in `useFormDirtyState`.
-  const formValues = useStore(form.store, (state) => state.values);
+  const saveRequirementReason = useStore(form.store, (state) => {
+    const values = state.values;
+    const website = String(values.website ?? "").trim();
+    if (!website) return "Add a website before saving.";
+    if (!isValidWebsiteUrl(website)) {
+      return "Enter a valid website URL before saving.";
+    }
+    if (!String(values.businessName ?? "").trim()) {
+      return "Add a business name before saving.";
+    }
+    if (!String(values.primaryLocation ?? "").trim()) {
+      return "Select a primary location before saving.";
+    }
+    if (!String(values.serviceAreaType ?? "").trim()) {
+      return "Select a service area type before saving.";
+    }
+    return null;
+  });
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
@@ -852,6 +396,7 @@ const ProfileTemplate = ({
         }
       }
 
+      assertProfileStrategyReady(externalJobDetails);
       setIsTriggeringWorkflow(true);
 
       // Call trigger workflow API
@@ -958,62 +503,22 @@ const ProfileTemplate = ({
     [businessName, businessId]
   );
 
-  const profileForInitialFillCheck = externalProfileData || currentProfile;
-  const hasPersistedProfileCore = useMemo(() => {
-    const profile = profileForInitialFillCheck as any;
-    if (!profile) return false;
-
-    const primaryLocation = profile.PrimaryLocation;
-    const hasPrimaryLocation =
-      Boolean(String(primaryLocation?.Location || "").trim()) ||
-      Boolean(String(primaryLocation?.Country || "").trim()) ||
-      Boolean(String(profile.ProfileLocation || "").trim()) ||
-      physicalLocations(profile.Locations).length > 0;
-
-    return (
-      Boolean(String(profile.Website || "").trim()) &&
-      Boolean(String(profile.Name || profile.DisplayName || "").trim()) &&
-      hasPrimaryLocation &&
-      Boolean(String(profile.BusinessObjective || "").trim()) &&
-      Boolean(String(profile.LocationType || "").trim())
-    );
-  }, [profileForInitialFillCheck]);
-
-  const isFirstProfileFill = !isJobCreated && !hasPersistedProfileCore;
-
-  // Check if workflow is currently processing
-  const isWorkflowProcessing = useMemo(() => {
-    return isWorkflowActive(externalJobDetails);
+  const orchestrationStatus = externalJobDetails?.orchestration_status;
+  const isOrchestrationProcessing = useMemo(() => {
+    return isOrchestrationActive(externalJobDetails);
   }, [externalJobDetails]);
+  const isProfileProcessing =
+    externalJobDetails?.profile_status === "processing";
+  const hasProfileError = externalJobDetails?.profile_status === "error";
 
-  const handleAutofillProfileClick = useCallback(async () => {
-    if (!String((form.state.values as any)?.serviceAreaType || "").trim()) {
-      form.setFieldValue("serviceAreaType" as any, "city_local" as any);
-    }
-
-    await handleAutofillProfile();
-  }, [form, handleAutofillProfile]);
-
-  const isAutofillProfileDisabled =
-    isAutofillLoading ||
-    offeringsExtractor.isExtracting ||
-    !(formValues?.website ?? "").toString().trim() ||
-    !(formValues?.primaryLocation ?? "").toString().trim();
-
-  const isSaveChangesAction = !isJobCreated || hasChanges;
-
-  // Always prioritize showing "Save Changes" when there are changes, regardless of workflow state
-  const buttonText = isSaveChangesAction
-    ? isSaving
-      ? "Saving..."
-      : "Save Changes"
-    : isCheckingPlan
-      ? "Checking Plan..."
-      : isTriggeringWorkflow
-        ? "Starting your analysis..."
-        : isWorkflowProcessing
-          ? "Workflow Processing..."
-          : "Confirm & Proceed to Strategy";
+  const editorMode = canAccessStrategy ? "full" : "minimal";
+  const visibleSections = useMemo(
+    () =>
+      editorMode === "minimal"
+        ? (["identity", "offerings", "competitors"] as const)
+        : undefined,
+    [editorMode]
+  );
 
   // Check if CTAs have validation errors
   const hasCtaValidationErrors = useStore(form.store, (state: any) => {
@@ -1026,217 +531,212 @@ const ProfileTemplate = ({
     const offeringsMeta = state.fieldMeta?.offeringsList;
     return offeringsMeta?.hasValidationErrors === true;
   });
+  const currentFormValues = useStore(
+    form.store,
+    (state: any) => state.values as BusinessInfoFormData
+  );
 
-  const hasBasicDetailsSchemaValidationErrors = useMemo(() => {
-    return !basicDetailsSchema.safeParse(formValues).success;
-  }, [formValues]);
+  useEffect(() => {
+    if (!submissionValidationMode) return;
 
-  const hasBasicDetailsValidationErrors =
-    hasBasicDetailsSchemaValidationErrors || hasOfferingsValidationErrors;
+    const issues =
+      submissionValidationMode === "strategy"
+        ? validateStrategyProfileFields(currentFormValues)
+        : validateProfileForm(currentFormValues, {
+            offerings: hasOfferingsValidationErrors,
+            ctas: hasCtaValidationErrors,
+            sectionMode: editorMode,
+            visibleSections: visibleSections
+              ? [...visibleSections]
+              : undefined,
+          });
 
-  const isAutofillGateActive = isFirstProfileFill && !hasAutofilledProfile;
-
-  const isAutofillWorkflowInProgress =
-    isAutofillLoading || offeringsExtractor.isExtracting;
-
-  const hasSchemaValidationErrors = useMemo(() => {
-    return !businessInfoSchema.safeParse(formValues).success;
-  }, [formValues]);
-
-  const hasAtLeastOneOffering = useMemo(() => {
-    const list = Array.isArray((formValues as any)?.offeringsList)
-      ? ((formValues as any).offeringsList as any[])
-      : [];
-    return list.some((row) => Boolean(String(row?.name ?? "").trim()));
-  }, [formValues]);
-
-  // Combine all validation errors
-  const hasAnyValidationErrors =
-    hasSchemaValidationErrors || hasCtaValidationErrors || hasOfferingsValidationErrors;
-
-  // Block Save Changes (job create/update) unless required fields are valid.
-  const canConfirmAndProceed =
-    !hasSchemaValidationErrors &&
-    !hasCtaValidationErrors &&
-    !hasOfferingsValidationErrors &&
-    hasAtLeastOneOffering;
+    setSubmissionIssues(issues);
+    if (issues.length === 0) {
+      setSubmissionValidationMode(null);
+    }
+  }, [
+    currentFormValues,
+    editorMode,
+    hasCtaValidationErrors,
+    hasOfferingsValidationErrors,
+    submissionValidationMode,
+    visibleSections,
+  ]);
 
   // Only the fields the profile/job calls actually require. Unrelated schema
   // noise must never block a save, and every block must name its own cause.
   const getSaveBlockReason = useCallback(
     (values: BusinessInfoFormData): string | null => {
       if (externalLoading) return "Wait for the profile to finish loading before saving.";
-      if (isWorkflowProcessing) return "A workflow is running. Wait for it to finish before saving.";
-
-      const website = String(values?.website ?? "").trim();
-      if (!website) return "Add a website before saving.";
-      if (!isValidWebsiteUrl(website)) return "Enter a valid website URL before saving.";
-      if (!String(values?.businessName ?? "").trim()) {
-        return "Add a business name before saving.";
-      }
-      if (!String(values?.primaryLocation ?? "").trim()) {
-        return "Select a primary location before saving.";
-      }
-      if (hasOfferingsValidationErrors) {
-        return "Fix the highlighted errors in Offerings before saving.";
-      }
-      if (hasCtaValidationErrors) {
-        return "Fix the highlighted errors in CTAs before saving.";
-      }
-      const offerings = Array.isArray(values?.offeringsList) ? values.offeringsList : [];
-      if (!offerings.some((row: any) => Boolean(String(row?.name ?? "").trim()))) {
-        return "Add at least one offering with a name before saving.";
-      }
-      return null;
+      if (isOrchestrationProcessing) return "Strategy generation is running. Wait for it to finish before saving.";
+      if (isProfileProcessing) return "Profile processing is in progress. Wait for it to finish before saving.";
+      const [firstIssue] = validateProfileForm(values, {
+        offerings: hasOfferingsValidationErrors,
+        ctas: hasCtaValidationErrors,
+        sectionMode: editorMode,
+        visibleSections: visibleSections
+          ? [...visibleSections]
+          : undefined,
+      });
+      return firstIssue?.message ?? null;
     },
     [
       externalLoading,
       hasCtaValidationErrors,
       hasOfferingsValidationErrors,
-      isWorkflowProcessing,
+      isOrchestrationProcessing,
+      isProfileProcessing,
+      editorMode,
+      visibleSections,
     ]
-  );
-
-  const saveBlockReason = useMemo(
-    () => getSaveBlockReason(formValues as BusinessInfoFormData),
-    [formValues, getSaveBlockReason]
   );
 
   const handleSaveChanges = useCallback(async (): Promise<boolean> => {
     if (!guardSaveProfile()) return false;
     if (isSaving) return false;
 
-    setShowSubmitErrors(true);
-
-    // Force field-level errors to render (GenericInput only shows errors when touched/has value)
-    const values = form.state.values as Record<string, unknown>;
-    Object.keys(values).forEach((key) => {
-      form.setFieldMeta(key as any, (prev: any) => ({
-        ...prev,
-        isTouched: true,
-      }));
-    });
-
     const currentValues = form.state.values as BusinessInfoFormData;
+    form.validate("submit");
+    const issues = validateProfileForm(currentValues, {
+      offerings: hasOfferingsValidationErrors,
+      ctas: hasCtaValidationErrors,
+      sectionMode: editorMode,
+      visibleSections: visibleSections
+        ? [...visibleSections]
+        : undefined,
+    });
+    setSubmissionValidationMode("save");
+    setSubmissionIssues(issues);
+    if (issues.length > 0) {
+      setValidationFocusRequest((request) => request + 1);
+    }
     const blockReason = getSaveBlockReason(currentValues);
     if (blockReason) {
       toast.error(blockReason);
       return false;
     }
 
-    if (offeringsExtractor.isExtracting) {
-      toast("Offerings extraction is still running.", {
-        description: "Saving now will use the offerings currently in the form.",
-      });
+    const saved = await saveProfileValues(currentValues);
+    if (saved) {
+      setSubmissionIssues([]);
+      setSubmissionValidationMode(null);
     }
-
-    return await saveProfileValues(currentValues);
+    return saved;
   }, [
     form,
     getSaveBlockReason,
     guardSaveProfile,
+    hasCtaValidationErrors,
+    hasOfferingsValidationErrors,
     isSaving,
-    offeringsExtractor.isExtracting,
     saveProfileValues,
+    editorMode,
+    visibleSections,
   ]);
 
-  // "Save & Update Strategy" saves first, and that save now reports its own block
-  // reason, so field validity must not disable this button — otherwise the user
-  // gets a dead control with nothing telling them which field is at fault.
-  const isProceedDisabled =
-    externalLoading ||
-    isSaving ||
-    isAutofillWorkflowInProgress ||
-    isCheckingPlan ||
-    isTriggeringWorkflow ||
-    isWorkflowProcessing;
-
-  // Disable button logic:
-  // - For "Save Changes": disable if loading, saving, or has any validation errors
-  // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
-  const isButtonDisabled = isSaveChangesAction
-    ? externalLoading ||
-      isSaving ||
-      isAutofillWorkflowInProgress ||
-      !canConfirmAndProceed
-    : externalLoading ||
-    isSaving ||
-      isAutofillWorkflowInProgress ||
-    isCheckingPlan ||
-    isTriggeringWorkflow ||
-    isWorkflowProcessing || // Disable if workflow is already processing
-    !externalJobDetails?.job_id; // Require job to exist before proceeding
-
-  const buttonHelperText = useMemo(() => {
-    if (!isButtonDisabled) return undefined;
-
-    if (isSaveChangesAction) {
-      if (externalLoading) return "Please wait for the profile to finish loading.";
-      if (isSaving) return "Saving in progress.";
-      if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
-      if (!hasAtLeastOneOffering) return "Add at least one offering to enable saving.";
-      if (hasOfferingsValidationErrors) return "Fix the errors in Offerings to enable saving.";
-      if (hasCtaValidationErrors) return "Fix the errors in CTAs to enable saving.";
-      if (hasSchemaValidationErrors) return "Fix the highlighted fields to enable saving.";
-      return "Unable to save right now.";
+  const handleRunStrategy = useCallback(() => {
+    if (!guardAcceptPlan()) return;
+    if (!canAccessStrategy) {
+      setPlanModalOpen(true);
+      return;
+    }
+    if (hasChanges) {
+      toast.error("Save your changes before running Strategy.");
+      return;
+    }
+    if (!externalJobDetails?.job_id) {
+      toast.error("Save the business profile before running Strategy.");
+      return;
     }
 
-    if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
-    if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
-    if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
-    if (isCheckingPlan) return "Checking your plan...";
-    if (isTriggeringWorkflow) return "Triggering workflow...";
-    if (externalLoading) return "Please wait for the profile to finish loading.";
-    if (isSaving) return "Saving in progress.";
-    return "Unable to proceed right now.";
+    const currentValues = form.state.values as BusinessInfoFormData;
+    const issues = validateStrategyProfileFields(currentValues);
+    setSubmissionValidationMode(issues.length > 0 ? "strategy" : null);
+    setSubmissionIssues(issues);
+    if (issues.length > 0) {
+      setValidationFocusRequest((request) => request + 1);
+      setIsMissingFieldsOpen(true);
+      return;
+    }
+
+    setIsStrategyConfirmOpen(true);
   }, [
-    isButtonDisabled,
-    isSaveChangesAction,
-    externalLoading,
-    isSaving,
-    isAutofillWorkflowInProgress,
-    hasAnyValidationErrors,
-    hasAtLeastOneOffering,
-    hasOfferingsValidationErrors,
-    hasCtaValidationErrors,
-    hasSchemaValidationErrors,
+    canAccessStrategy,
     externalJobDetails?.job_id,
-    isWorkflowProcessing,
-    isCheckingPlan,
-    isTriggeringWorkflow,
+    form,
+    guardAcceptPlan,
+    hasChanges,
+  ]);
+
+  const isRunStrategyDisabled =
+    externalLoading ||
+    isSaving ||
+    isCheckingPlan ||
+    isTriggeringWorkflow ||
+    isOrchestrationProcessing ||
+    isProfileProcessing ||
+    hasProfileError ||
+    hasChanges ||
+    !externalJobDetails?.job_id;
+
+  const runStrategyDisabledReason = useMemo(() => {
+    if (hasChanges) return "Save your changes before running Strategy.";
+    if (!externalJobDetails?.job_id) {
+      return "Save the business profile before running Strategy.";
+    }
+    if (isSaving) return "Wait for the profile to finish saving.";
+    if (externalLoading) return "Wait for the profile to finish loading.";
+    if (isOrchestrationProcessing) return "Strategy is already running.";
+    if (isProfileProcessing) return "Wait for profile processing to finish.";
+    if (hasProfileError) return "Resolve the profile error before running Strategy.";
+    return undefined;
+  }, [
+    externalJobDetails?.job_id,
+    externalLoading,
+    hasChanges,
+    hasProfileError,
+    isOrchestrationProcessing,
+    isProfileProcessing,
+    isSaving,
   ]);
 
   // Hint only. The button stays clickable and `handleSaveChanges` toasts the same
   // reason, so the user is never left with a dead control and no explanation.
   const saveDisabledReason = useMemo(() => {
     if (isSaving) return "Saving in progress.";
-    return saveBlockReason ?? undefined;
-  }, [isSaving, saveBlockReason]);
-
-  const handlePrimaryButtonClick = useCallback(async () => {
-    if (isSaveChangesAction) {
-      try {
-        await handleSaveChanges();
-      } catch (e) {
-        toast.error("Something went wrong. Please try again.");
-      }
-      return;
+    if (isJobCreated && !hasChanges) return "No unsaved changes.";
+    if (externalLoading) return "Wait for the profile to finish loading before saving.";
+    if (isOrchestrationProcessing) return "Strategy generation is running. Wait for it to finish.";
+    if (isProfileProcessing) return "Profile processing is in progress.";
+    if (hasOfferingsValidationErrors) {
+      return "Fix the highlighted errors in Offerings before saving.";
     }
-
-    if (!guardAcceptPlan()) return;
-    setIsStrategyConfirmOpen(true);
-  }, [handleSaveChanges, isSaveChangesAction, guardAcceptPlan]);
+    if (hasCtaValidationErrors) {
+      return "Fix the highlighted errors in CTAs before saving.";
+    }
+    return saveRequirementReason ?? undefined;
+  }, [
+    externalLoading,
+    hasCtaValidationErrors,
+    hasOfferingsValidationErrors,
+    isProfileProcessing,
+    isJobCreated,
+    hasChanges,
+    isSaving,
+    isOrchestrationProcessing,
+    saveRequirementReason,
+  ]);
 
   // Determine loading state and message
   const isLoading =
-    externalLoading || isSaving || isTriggeringWorkflow || isAutofillLoading;
+    externalLoading || isSaving || isTriggeringWorkflow;
   const loadingMessage = useMemo(() => {
-    if (isAutofillLoading) return "Autofilling profile...";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (isSaving) return "Saving changes...";
     if (externalLoading) return "Loading profile data...";
     return undefined;
-  }, [isAutofillLoading, isTriggeringWorkflow, isSaving, externalLoading]);
+  }, [isTriggeringWorkflow, isSaving, externalLoading]);
 
   const currentPlanLabel = useMemo(() => {
     const planType = getPlanTypeFromData(subscriptionData);
@@ -1319,7 +819,7 @@ const ProfileTemplate = ({
           if (!guardUnlinkBusiness()) return;
           setIsUnlinkBusinessConfirmOpen(true);
         }}
-        disabled={externalLoading || toggleBusinessStatusMutation.isPending}
+        disabled={externalLoading || toggleBusinessStatusMutation.isPending || isProfileProcessing || profileAgent.busy}
       >
         {toggleBusinessStatusMutation.isPending
           ? "Unlinking..."
@@ -1368,121 +868,154 @@ const ProfileTemplate = ({
 
           {/* Content area: takes remaining height, scroll lives inside form column */}
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div
-              className={cn(
-                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
-                isAutofillGateActive && "justify-center items-center"
-              )}
-            >
+            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
           <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
-            {isAutofillGateActive ? (
-              <div className="flex flex-1 items-center justify-center">
-                <ProfileGateCard
-                  title="Add a business"
-                  description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
-                  className="max-w-[490px]"
-                >
-                  <div className="mx-auto w-full max-w-[442px]">
-                    <BusinessInfoForm
-                      form={form}
-                      embedded
-                      embeddedVariant="autofillGate"
-                      disableWebsiteLock
-                      primaryLocationAction={
-                        <Button
-                          type="button"
-                          onClick={handleAutofillProfileClick}
-                          disabled={isAutofillProfileDisabled}
-                          className="w-full gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        >
-                          {isAutofillLoading ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" />
-                              Autofilling...
-                            </>
-                          ) : (
-                            <>
-                              Autofill Profile
-                              <ArrowRight className="size-4 shrink-0" />
-                            </>
-                          )}
-                        </Button>
-                      }
-                    />
-                  </div>
-                </ProfileGateCard>
-              </div>
-            ) : (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void handleSaveChanges();
+                  setPendingConfirmAction("save");
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileAutofillReviewTemplate
+                <ProfileEditorTemplate
                   form={form}
-                  businessId={businessId}
-                  extractionController={offeringsExtractor}
-                  restrictFetchOfferings
-                  onSaveChanges={() => {
-                    void handleSaveChanges();
-                  }}
-                  onSaveAndUpdateStrategy={() => {
-                    void (async () => {
-                      if (isSaveChangesAction) {
-                        const saved = await handleSaveChanges();
-                        if (!saved) return;
-                      }
-                      if (!externalJobDetails?.job_id) return;
-                      if (!guardAcceptPlan()) return;
-                      setIsStrategyConfirmOpen(true);
-                    })();
-                  }}
-                  onAutofillProfile={() => {
-                    void handleAutofillProfileClick();
-                  }}
-                  autofillDisabled={isAutofillProfileDisabled}
-                  autofillLoading={isAutofillLoading}
+                  mode={editorMode}
+                  readOnlyDetails={mapJobToReadOnlyDetails(
+                    externalJobDetails
+                  )}
+                  submissionIssues={submissionIssues}
+                  validationFocusRequest={validationFocusRequest}
+                  notice={
+                    isOrchestrationProcessing || isProfileProcessing ? (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="flex shrink-0 items-center gap-3 border-b border-general-border bg-general-primary-foreground px-4 py-3 sm:px-6"
+                      >
+                        <Loader2
+                          className="size-5 shrink-0 animate-spin text-general-primary"
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-general-foreground">
+                            {isProfileProcessing && !isOrchestrationProcessing
+                              ? "Preparing your business profile"
+                              : orchestrationStatus === "deep_running"
+                              ? "Analyzing your business profile"
+                              : "Building your growth strategy"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-general-muted-foreground">
+                            {isProfileProcessing && !isOrchestrationProcessing
+                              ? "We’re analyzing your business details. You can leave this page and return when your profile is ready."
+                              : "This comprehensive analysis may take up to an hour. You can leave this page and return later."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : orchestrationStatus === "error" ? (
+                      <div
+                        role="alert"
+                        className="flex shrink-0 items-center gap-3 border-b border-destructive/30 bg-destructive/5 px-4 py-3 sm:px-6"
+                      >
+                        <CircleAlert
+                          className="size-5 shrink-0 text-destructive"
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-destructive">
+                            Strategy generation stopped
+                          </p>
+                          <p className="mt-0.5 text-xs text-destructive">
+                            Review the profile details and run Strategy again.
+                          </p>
+                        </div>
+                      </div>
+                    ) : undefined
+                  }
+                  customHeaderActions={<>
+                    {externalJobDetails?.job_id && onAgentProfileRefresh && <ProfileAgentButton agent={profileAgent} />}
+                  </>}
+                  onSaveChanges={() => setPendingConfirmAction("save")}
+                  onRunStrategy={handleRunStrategy}
                   onUnlinkBusiness={() => {
                     if (!guardUnlinkBusiness()) return;
                     setIsUnlinkBusinessConfirmOpen(true);
                   }}
                   unlinkBusinessDisabled={
-                    externalLoading || toggleBusinessStatusMutation.isPending
+                    externalLoading || toggleBusinessStatusMutation.isPending || isProfileProcessing || profileAgent.busy
                   }
-                  saveDisabled={isSaving}
+                  saveDisabled={
+                    isSaving || (isJobCreated && !hasChanges)
+                  }
                   savePending={isSaving}
-                  saveDisabledReason={saveDisabledReason}
-                  isWorkflowProcessing={isWorkflowProcessing}
-                  proceedDisabled={
-                    isProceedDisabled ||
-                    (!isSaveChangesAction && !externalJobDetails?.job_id)
+                  saveDisabledReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : saveDisabledReason}
+                  isWorkflowProcessing={
+                    isOrchestrationProcessing || isProfileProcessing || profileAgent.busy
                   }
+                  busyReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : isOrchestrationProcessing ? "Your growth strategy is being built." : externalJobDetails?.profile_status === "processing" ? "Your profile is still processing." : undefined}
+                  initialFieldsLocked={Boolean(externalJobDetails?.job_id)}
+                  runStrategyDisabled={isRunStrategyDisabled}
+                  runStrategyDisabledReason={runStrategyDisabledReason}
                   className="flex-1"
                 />
               </form>
-            )}
           </div>
             </div>
         </div>
         </div>
 
-        {/* Confirm & Proceed to Strategy Modal */}
+        <ProfileAgentDialog businessId={businessId} agent={profileAgent} />
+
+        <ProfileActionConfirmDialog
+          action={pendingConfirmAction}
+          onCancel={() => setPendingConfirmAction(null)}
+          onConfirm={(action) => {
+            setPendingConfirmAction(null);
+            if (action === "save") void handleSaveChanges();
+          }}
+        />
+
+        <AlertDialog
+          open={isMissingFieldsOpen}
+          onOpenChange={setIsMissingFieldsOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Complete required profile fields</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add the following details before running Strategy.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-general-foreground">
+              {submissionIssues.map((issue) => (
+                <li key={`${issue.field}-${issue.message}`}>
+                  <span className="font-medium">{issue.label}:</span>{" "}
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setIsMissingFieldsOpen(false)}>
+                Review fields
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Run Strategy confirmation */}
         <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm & Proceed to Strategy</AlertDialogTitle>
+              <AlertDialogTitle>Run Strategy?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will trigger deep analysis of search data and build strategy for this business. It may take upto an hour.
+                This will analyze search data and build the strategy for this
+                business. It may take up to an hour.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel
                 disabled={
                   isTriggeringWorkflow ||
-                  isCheckingPlan ||
-                  isAutofillWorkflowInProgress
+                  isCheckingPlan
                 }
               >
                 Do Later
@@ -1500,11 +1033,10 @@ const ProfileTemplate = ({
                   }}
                   disabled={
                     isTriggeringWorkflow ||
-                    isCheckingPlan ||
-                    isAutofillWorkflowInProgress
+                    isCheckingPlan
                   }
                 >
-                  Confirm
+                  Run Strategy
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

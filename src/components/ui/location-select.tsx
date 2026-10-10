@@ -408,8 +408,8 @@ export function LocationSelect({
             role="combobox"
             aria-expanded={open}
             className={cn(
-              'w-full justify-between text-foreground font-normal',
-              !triggerClassName && 'h-10 rounded-lg',
+              'w-full justify-between border-input bg-white font-normal text-general-foreground shadow-none disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100',
+              !triggerClassName && 'h-10 rounded-md',
               triggerClassName
             )}
             disabled={disabled || loading}
@@ -418,8 +418,8 @@ export function LocationSelect({
               className={cn(
                 'truncate',
                 isPlaceholder
-                  ? 'text-general-muted-foreground text-xs'
-                  : 'text-sm text-foreground'
+                  ? 'text-xs text-general-muted-foreground/70'
+                  : 'text-sm text-general-foreground'
               )}
             >
               {loading ? 'Loading locations...' : displayValue}

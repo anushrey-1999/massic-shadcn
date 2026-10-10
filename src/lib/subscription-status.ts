@@ -22,6 +22,17 @@ export function hasBusinessPlanAccess(
   return isSubscriptionAccessStatus(subscription.status);
 }
 
+export function hasActiveCoreOrGrowthPlan(
+  subscription?: { status?: string | null; plan_type?: string | null } | null,
+  isWhitelisted = false
+): boolean {
+  if (isWhitelisted) return true;
+  if (!hasBusinessPlanAccess(subscription)) return false;
+
+  const planType = subscription?.plan_type?.trim().toLowerCase();
+  return planType === "core" || planType === "growth";
+}
+
 export function hasMassicOpportunitiesAccess(
   status?: { has_subscription?: boolean; status?: string; whitelisted?: boolean } | null
 ): boolean {

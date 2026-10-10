@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -407,6 +407,7 @@ interface LinkedBusinessTableProps {
 }
 
 export default function LinkedBusinessTable({ readOnly = false }: LinkedBusinessTableProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const permissions = usePermissions();
   const isReadOnly = readOnly || !permissions.canManageLinkedBusinesses;
@@ -664,10 +665,13 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       return;
     }
     try {
-      await createBusinessMutation.mutateAsync({
+      const [connectedBusiness] = await createBusinessMutation.mutateAsync({
         businesses: [row],
         suppressDuplicateToast: true,
       });
+      if (connectedBusiness?.businessId) {
+        router.push(`/business/${connectedBusiness.businessId}/profile`);
+      }
     } catch (error) {
       if (error instanceof CreateBusinessConflictError) {
         setMergeConfirmRow(row);
@@ -685,7 +689,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     }
     if (!mergeConfirmRow || !mergeTarget?.UniqueId) return;
 
-    await createBusinessMutation.mutateAsync({
+    const [connectedBusiness] = await createBusinessMutation.mutateAsync({
       businesses: [mergeConfirmRow],
       mergeExisting: true,
       mergeTargetUniqueId: mergeTarget.UniqueId,
@@ -694,6 +698,9 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     setMergeConfirmOpen(false);
     setMergeConfirmRow(null);
     setMergeTarget(null);
+    if (connectedBusiness?.businessId) {
+      router.push(`/business/${connectedBusiness.businessId}/profile`);
+    }
   };
 
   const handleSaveChanges = async (row: LinkedBusiness) => {

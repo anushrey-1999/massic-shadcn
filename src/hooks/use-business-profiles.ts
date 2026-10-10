@@ -17,7 +17,7 @@ const BUSINESS_PROFILES_KEY = "businessProfiles";
 // `strict` exists for the create flow. A silently-empty list there is dangerous:
 // it makes every pre-existing business look "new", which is how a create can end
 // up pointing at somebody else's business. Strict callers get an exception instead.
-async function fetchBusinessProfiles(
+export async function fetchBusinessProfiles(
   userUniqueId: string | undefined,
   isPitch?: boolean,
   options?: { strict?: boolean }
@@ -383,8 +383,8 @@ interface CreateBusinessPayload {
   website: string;
   businessName: string;
   primaryLocation: string; // Format: "Location,Country" or just "Location"
-  serveCustomers: "local" | "online" | "both";
-  offerType: "products" | "services" | "both";
+  serveCustomers: "" | "local" | "online" | "both";
+  offerType: "" | "products" | "services" | "both";
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
   suppressErrorToast?: boolean;
@@ -519,14 +519,6 @@ export function useCreateBusiness() {
         throw error;
       }
 
-      // Invalidate and refetch business profiles to get the newly created one
-      await queryClient.invalidateQueries({
-        queryKey: [BUSINESS_PROFILES_KEY, userUniqueId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["pitchBusinesses", userUniqueId],
-      });
-
       const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
       const websiteInput = websiteKey(formData.website);
@@ -550,36 +542,36 @@ export function useCreateBusiness() {
         extractCreatedBusinessFromResponse(response)
       );
 
-      // Refetch with retry: the create endpoint can be eventually consistent with list endpoints.
-      let updatedProfiles: BusinessProfile[] = [];
-      for (let attempt = 0; attempt < 4; attempt++) {
-        updatedProfiles = await fetchBusinessProfiles(userUniqueId);
-        const hasNew = updatedProfiles.some((p) => {
-          const id = String(p?.UniqueId || "").trim();
-          return Boolean(id) && !beforeAllIds.has(id);
-        });
-        if (hasNew) break;
-        if (attempt < 3) await sleep(250 * (attempt + 1));
-      }
-
-      let updatedPitchProfiles: BusinessProfile[] | null = null;
-      if (formData.isPitch === true) {
-        updatedPitchProfiles = [];
+      // The response id is sufficient after it clears the identity guard. Poll
+      // the eventually-consistent list endpoints only as a fallback when the
+      // create endpoint does not identify its new record.
+      let updatedProfiles: BusinessProfile[] = beforeAll;
+      let updatedPitchProfiles: BusinessProfile[] | null = beforePitch;
+      if (!createdFromResponse) {
         for (let attempt = 0; attempt < 4; attempt++) {
-          updatedPitchProfiles = await fetchBusinessProfiles(userUniqueId, true);
-          const beforeIds = beforePitchIds ?? new Set<string>();
-          const hasNew = updatedPitchProfiles.some((p) => {
+          updatedProfiles = await fetchBusinessProfiles(userUniqueId);
+          const hasNew = updatedProfiles.some((p) => {
             const id = String(p?.UniqueId || "").trim();
-            return Boolean(id) && !beforeIds.has(id);
+            return Boolean(id) && !beforeAllIds.has(id);
           });
           if (hasNew) break;
           if (attempt < 3) await sleep(250 * (attempt + 1));
         }
-      }
 
-      // Update the store
-      const { setBusinessProfiles } = useBusinessStore.getState();
-      setBusinessProfiles(updatedProfiles);
+        if (formData.isPitch === true) {
+          updatedPitchProfiles = [];
+          for (let attempt = 0; attempt < 4; attempt++) {
+            updatedPitchProfiles = await fetchBusinessProfiles(userUniqueId, true);
+            const beforeIds = beforePitchIds ?? new Set<string>();
+            const hasNew = updatedPitchProfiles.some((p) => {
+              const id = String(p?.UniqueId || "").trim();
+              return Boolean(id) && !beforeIds.has(id);
+            });
+            if (hasNew) break;
+            if (attempt < 3) await sleep(250 * (attempt + 1));
+          }
+        }
+      }
 
       const pickCreatedFromLists = (
         after: BusinessProfile[] | null | undefined,
@@ -615,6 +607,33 @@ export function useCreateBusiness() {
         // Fail safe: returning the wrong business here can overwrite a real profile.
         throw new Error(
           "Business was created, but the app couldn't reliably identify it. Please refresh and open it from the list before editing."
+        );
+      }
+
+      const includeCreated = (
+        profiles: BusinessProfile[],
+        created: BusinessProfile
+      ): BusinessProfile[] =>
+        profiles.some((profile) => profile.UniqueId === created.UniqueId)
+          ? profiles
+          : [...profiles, created];
+
+      const nextProfiles = includeCreated(updatedProfiles, createdBusiness);
+      const { setBusinessProfiles } = useBusinessStore.getState();
+      setBusinessProfiles(nextProfiles);
+      queryClient.setQueryData(
+        [BUSINESS_PROFILES_KEY, userUniqueId],
+        nextProfiles
+      );
+
+      if (formData.isPitch === true) {
+        const nextPitchProfiles = includeCreated(
+          updatedPitchProfiles ?? [],
+          createdBusiness
+        );
+        queryClient.setQueryData(
+          ["pitchBusinesses", userUniqueId],
+          nextPitchProfiles
         );
       }
 

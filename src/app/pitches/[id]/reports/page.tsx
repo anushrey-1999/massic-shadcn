@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import {
   Zap,
-  ListChecks,
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -106,13 +105,8 @@ export default function PitchReportsPage() {
 
   const {
     canExecuteSnapshot,
-    canExecuteDetailed,
-    needsUpgradeForSnapshot,
-    needsUpgradeForDetailed,
-    isLoading: massicOpportunitiesLoading,
     status,
     getSnapshotChipsData,
-    getDetailedChipsData,
   } = useCanExecuteMassicOpportunities();
 
   const {
@@ -122,7 +116,6 @@ export default function PitchReportsPage() {
   } = useExecutionCredits();
 
   const snapshotChips = getSnapshotChipsData();
-  const detailedChips = getDetailedChipsData();
 
   const cancelMassicOpportunities = useCancelMassicOpportunities();
   const subscribeMassicOpportunities = useSubscribeMassicOpportunities();
@@ -827,7 +820,7 @@ export default function PitchReportsPage() {
   React.useEffect(() => {
     const prev = prevOpenParamRef.current;
     // If we arrived via deep link (?open=...) and then navigated to plain /reports,
-    // reset the viewer state so the user sees the Snapshot/Detailed cards again.
+    // reset the viewer state so the user sees the Snapshot card again.
     if (prev && !openParam) {
       setActiveReport(null);
       setReportContent("");
@@ -1171,70 +1164,6 @@ export default function PitchReportsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
-                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="h-7.5 w-7.5 text-general-primary" />
-                    <Typography
-                      variant="h2"
-                      className="text-general-primary font-semibold"
-                    >
-                      Detailed
-                    </Typography>
-                  </div>
-
-                  {detailedChips && (
-                    <div className="flex gap-2">
-                      {detailedChips.usageChip && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] text-primary py-1"
-                        >
-                          {detailedChips.usageChip}
-                        </Badge>
-                      )}
-                      {detailedChips.creditsChip && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] text-primary py-1"
-                        >
-                          {detailedChips.creditsChip}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-                    <Typography
-                      variant="p"
-                      className="text-primary leading-relaxed"
-                    >
-                      A full, data-driven growth proposal built from Massic's
-                      complete strategy workflows. It combines deterministic
-                      calculations, real search data, and the SEO Segment Matrix to
-                      generate a rich, narrative plan tailored to your business.
-                      This is the in-depth version—actionable, comprehensive, and
-                      grounded entirely in your actual inputs and proven tactics.
-                    </Typography>
-                  </div>
-
-                  {/* <div className="mt-4">
-                <Typography variant="small" className="text-general-muted-foreground text-center">
-                  Generated on —
-                </Typography>
-              </div> */}
-
-                  <div className="mt-4">
-                    <Button
-                      size="lg"
-                      className="w-full"
-                      disabled
-                    >
-                      Coming Soon
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             <div className="flex-1 min-h-[260px] min-w-0 rounded-lg overflow-hidden flex flex-col">

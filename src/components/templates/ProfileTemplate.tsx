@@ -511,7 +511,6 @@ const ProfileTemplate = ({
     externalJobDetails?.profile_status === "processing";
   const hasProfileError = externalJobDetails?.profile_status === "error";
 
-  const isSaveChangesAction = !isJobCreated || hasChanges;
   const editorMode = canAccessStrategy ? "full" : "minimal";
   const visibleSections = useMemo(
     () =>
@@ -636,10 +635,18 @@ const ProfileTemplate = ({
     visibleSections,
   ]);
 
-  const handleSaveAndUpdateStrategy = useCallback(async () => {
+  const handleRunStrategy = useCallback(() => {
     if (!guardAcceptPlan()) return;
     if (!canAccessStrategy) {
       setPlanModalOpen(true);
+      return;
+    }
+    if (hasChanges) {
+      toast.error("Save your changes before running Strategy.");
+      return;
+    }
+    if (!externalJobDetails?.job_id) {
+      toast.error("Save the business profile before running Strategy.");
       return;
     }
 
@@ -653,35 +660,46 @@ const ProfileTemplate = ({
       return;
     }
 
-    if (isSaveChangesAction) {
-      const saved = await handleSaveChanges();
-      if (!saved) return;
-    }
-    if (!externalJobDetails?.job_id) {
-      toast.error("Save the business profile before updating Strategy.");
-      return;
-    }
     setIsStrategyConfirmOpen(true);
   }, [
     canAccessStrategy,
     externalJobDetails?.job_id,
     form,
     guardAcceptPlan,
-    handleSaveChanges,
-    isSaveChangesAction,
+    hasChanges,
   ]);
 
-  // "Save & Update Strategy" saves first, and that save now reports its own block
-  // reason, so field validity must not disable this button — otherwise the user
-  // gets a dead control with nothing telling them which field is at fault.
-  const isProceedDisabled =
+  const isRunStrategyDisabled =
     externalLoading ||
     isSaving ||
     isCheckingPlan ||
     isTriggeringWorkflow ||
     isOrchestrationProcessing ||
     isProfileProcessing ||
-    hasProfileError;
+    hasProfileError ||
+    hasChanges ||
+    !externalJobDetails?.job_id;
+
+  const runStrategyDisabledReason = useMemo(() => {
+    if (hasChanges) return "Save your changes before running Strategy.";
+    if (!externalJobDetails?.job_id) {
+      return "Save the business profile before running Strategy.";
+    }
+    if (isSaving) return "Wait for the profile to finish saving.";
+    if (externalLoading) return "Wait for the profile to finish loading.";
+    if (isOrchestrationProcessing) return "Strategy is already running.";
+    if (isProfileProcessing) return "Wait for profile processing to finish.";
+    if (hasProfileError) return "Resolve the profile error before running Strategy.";
+    return undefined;
+  }, [
+    externalJobDetails?.job_id,
+    externalLoading,
+    hasChanges,
+    hasProfileError,
+    isOrchestrationProcessing,
+    isProfileProcessing,
+    isSaving,
+  ]);
 
   // Hint only. The button stays clickable and `handleSaveChanges` toasts the same
   // reason, so the user is never left with a dead control and no explanation.
@@ -868,7 +886,7 @@ const ProfileTemplate = ({
                   submissionIssues={submissionIssues}
                   validationFocusRequest={validationFocusRequest}
                   notice={
-                    isOrchestrationProcessing ? (
+                    isOrchestrationProcessing || isProfileProcessing ? (
                       <div
                         role="status"
                         aria-live="polite"
@@ -880,13 +898,16 @@ const ProfileTemplate = ({
                         />
                         <div>
                           <p className="text-sm font-medium text-general-foreground">
-                            {orchestrationStatus === "deep_running"
+                            {isProfileProcessing && !isOrchestrationProcessing
+                              ? "Preparing your business profile"
+                              : orchestrationStatus === "deep_running"
                               ? "Analyzing your business profile"
                               : "Building your growth strategy"}
                           </p>
                           <p className="mt-0.5 text-xs text-general-muted-foreground">
-                            This comprehensive analysis may take up to an hour.
-                            You can leave this page and return later.
+                            {isProfileProcessing && !isOrchestrationProcessing
+                              ? "We’re analyzing your business details. You can leave this page and return when your profile is ready."
+                              : "This comprehensive analysis may take up to an hour. You can leave this page and return later."}
                           </p>
                         </div>
                       </div>
@@ -914,7 +935,7 @@ const ProfileTemplate = ({
                     {externalJobDetails?.job_id && onAgentProfileRefresh && <ProfileAgentButton agent={profileAgent} />}
                   </>}
                   onSaveChanges={() => setPendingConfirmAction("save")}
-                  onSaveAndUpdateStrategy={() => void handleSaveAndUpdateStrategy()}
+                  onRunStrategy={handleRunStrategy}
                   onUnlinkBusiness={() => {
                     if (!guardUnlinkBusiness()) return;
                     setIsUnlinkBusinessConfirmOpen(true);
@@ -932,10 +953,8 @@ const ProfileTemplate = ({
                   }
                   busyReason={profileAgent.busy ? "The profile agent is working. Wait for the profile refresh to finish." : isOrchestrationProcessing ? "Your growth strategy is being built." : externalJobDetails?.profile_status === "processing" ? "Your profile is still processing." : undefined}
                   initialFieldsLocked={Boolean(externalJobDetails?.job_id)}
-                  proceedDisabled={
-                    isProceedDisabled ||
-                    (!isSaveChangesAction && !externalJobDetails?.job_id)
-                  }
+                  runStrategyDisabled={isRunStrategyDisabled}
+                  runStrategyDisabledReason={runStrategyDisabledReason}
                   className="flex-1"
                 />
               </form>
@@ -963,7 +982,7 @@ const ProfileTemplate = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Complete required profile fields</AlertDialogTitle>
               <AlertDialogDescription>
-                Add the following details before updating Strategy.
+                Add the following details before running Strategy.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <ul className="list-disc space-y-1 pl-5 text-sm text-general-foreground">
@@ -982,13 +1001,14 @@ const ProfileTemplate = ({
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Confirm & Proceed to Strategy Modal */}
+        {/* Run Strategy confirmation */}
         <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm & Proceed to Strategy</AlertDialogTitle>
+              <AlertDialogTitle>Run Strategy?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will trigger deep analysis of search data and build strategy for this business. It may take upto an hour.
+                This will analyze search data and build the strategy for this
+                business. It may take up to an hour.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1016,7 +1036,7 @@ const ProfileTemplate = ({
                     isCheckingPlan
                   }
                 >
-                  Confirm
+                  Run Strategy
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

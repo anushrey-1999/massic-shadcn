@@ -8,6 +8,7 @@ import type {
   JobResponse,
   JobServiceArea,
   JobValueItem,
+  JobWriteFields,
   ProfileReadOnlyDetails,
   RequiredJobFieldState,
   ServiceAreaType,
@@ -306,7 +307,7 @@ function mapBrandAssetsForWrite(values: BusinessInfoFormData): JobBrandAssets | 
 export function buildJobWriteFields(
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = []
-): UpdateJobRequest {
+): JobWriteFields {
   const primaryLocation = parsePrimaryLocationForPayload(
     values.primaryLocation,
     locationOptions
@@ -390,25 +391,31 @@ export function buildJobWriteFields(
       }))
       .filter((person) => Boolean(person.name)),
     brand_assets: mapBrandAssetsForWrite(values),
-  }) as UpdateJobRequest;
+  }) as JobWriteFields;
 }
 
 export function buildCreateJobRequest(
   businessId: string,
   values: BusinessInfoFormData,
-  locationOptions: LocationOption[] = []
+  locationOptions: LocationOption[] = [],
+  isBusinessPurchased = false
 ): CreateJobRequest {
   return {
     ...buildJobWriteFields(values, locationOptions),
     business_id: businessId,
+    is_business_purchased: isBusinessPurchased,
   };
 }
 
 export function buildUpdateJobRequest(
   values: BusinessInfoFormData,
-  locationOptions: LocationOption[] = []
+  locationOptions: LocationOption[] = [],
+  isBusinessPurchased = false
 ): UpdateJobRequest {
-  const request = buildJobWriteFields(values, locationOptions);
+  const request: UpdateJobRequest = {
+    ...buildJobWriteFields(values, locationOptions),
+    is_business_purchased: isBusinessPurchased,
+  };
   delete request.business_url;
   delete request.location;
   delete request.country;

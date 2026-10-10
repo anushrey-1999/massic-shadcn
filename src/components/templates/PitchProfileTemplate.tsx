@@ -222,7 +222,7 @@ export function PitchProfileTemplate() {
             mode="minimal"
             leftTitle="Pitch Profile"
             onSaveChanges={() => void save()}
-            onSaveAndUpdateStrategy={() => undefined}
+            onRunStrategy={() => undefined}
             showUnlinkBusiness={false}
             showDefaultActions={false}
             isWorkflowProcessing={processing}

@@ -99,16 +99,11 @@ export const businessInfoSchema = z.object({
             .string()
             .optional()
             .refine(
-              (val) => {
-                if (!val || val.trim() === "") return true;
-                try {
-                  new URL(val);
-                  return true;
-                } catch {
-                  return false;
-                }
-              },
-              { message: "Please enter a valid URL" }
+              (val) =>
+                !val ||
+                val.trim() === "" ||
+                isValidWebsiteUrl(val),
+              { message: "Enter a valid URL, such as example.com." }
             ),
           pricePositioning: z.string().optional(),
           offeringType: z.string().optional(),

@@ -102,6 +102,7 @@ const SettingsTemplate = () => {
             <TabsContent value="access-requests" className="mt-6">
               <AccessRequestSettings isActive={activeTab === "access-requests"} />
             </TabsContent>
+
           </Tabs>
         </div>
       </div>

@@ -7,9 +7,12 @@ import {
   isOrchestrationActive,
   isWorkflowActive,
 } from "@/lib/workflow-status";
+import { hasActiveCoreOrGrowthPlan } from "@/lib/subscription-status";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
+import { useBusinessStore } from "@/store/business-store";
 import type {
   CreateJobRequest,
+  JobWriteFields,
   JobResponse,
   UpdateJobRequest,
 } from "@/types/profile-v2";
@@ -21,6 +24,19 @@ import {
 const JOBS_KEY = "jobs";
 
 export type JobDetails = JobResponse;
+
+function isBusinessPurchased(businessId: string): boolean {
+  const profiles = useBusinessStore.getState().profiles;
+  const business = profiles.find((profile) => profile.UniqueId === businessId);
+  const isAgencyWhitelisted = profiles.some(
+    (profile) => profile.isWhitelisted === true
+  );
+
+  return hasActiveCoreOrGrowthPlan(
+    business?.SubscriptionItems,
+    isAgencyWhitelisted
+  );
+}
 
 /** Legacy Node business-profile shape. It is never sent to Infer. */
 export interface BusinessProfilePayload {
@@ -158,7 +174,8 @@ export function useCreateJob() {
       const request: CreateJobRequest = buildCreateJobRequest(
         businessId,
         values,
-        locationOptions
+        locationOptions,
+        isBusinessPurchased(businessId)
       );
       const response = await api.post<JobResponse>(
         "/jobs",
@@ -193,7 +210,8 @@ export function useUpdateJob() {
     }) => {
       const request: UpdateJobRequest = buildUpdateJobRequest(
         values,
-        locationOptions
+        locationOptions,
+        isBusinessPurchased(businessId)
       );
       const response = await api.put<JobResponse>(
         `/jobs/${encodeURIComponent(businessId)}`,
@@ -216,14 +234,17 @@ export function usePatchJob() {
   return useMutation<
     JobResponse,
     Error,
-    { businessId: string; request: UpdateJobRequest }
+    { businessId: string; request: JobWriteFields }
   >({
     retry: false,
     mutationFn: async ({ businessId, request }) => {
       const response = await api.put<JobResponse>(
         `/jobs/${encodeURIComponent(businessId)}`,
         "python",
-        request
+        {
+          ...request,
+          is_business_purchased: isBusinessPurchased(businessId),
+        } satisfies UpdateJobRequest
       );
       return assertJobIdentity(response, businessId);
     },

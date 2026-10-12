@@ -22,10 +22,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import type {
-  ProfileReadOnlyDetails,
-  ProfileStatus,
-} from "@/types/profile-v2";
+import type { ProfileReadOnlyDetails } from "@/types/profile-v2";
 import {
   countIssuesBySection,
   type ProfileSectionId as SectionId,
@@ -83,18 +80,18 @@ export function ProfileEditorTemplate({
   mode = "full",
   leftTitle = "Profile",
   onSaveChanges,
-  onSaveAndUpdateStrategy,
+  onRunStrategy,
   saveDisabled,
   savePending,
   saveDisabledReason,
-  proceedDisabled,
+  runStrategyDisabled,
+  runStrategyDisabledReason,
   onUnlinkBusiness,
   showUnlinkBusiness = true,
   unlinkBusinessDisabled,
   isWorkflowProcessing = false,
   busyReason,
   initialFieldsLocked = false,
-  profileStatus,
   readOnlyDetails,
   submissionIssues = [],
   validationFocusRequest = 0,
@@ -107,18 +104,18 @@ export function ProfileEditorTemplate({
   mode?: "minimal" | "full";
   leftTitle?: string;
   onSaveChanges: () => void;
-  onSaveAndUpdateStrategy: () => void;
+  onRunStrategy: () => void;
   saveDisabled?: boolean;
   savePending?: boolean;
   saveDisabledReason?: string;
-  proceedDisabled?: boolean;
+  runStrategyDisabled?: boolean;
+  runStrategyDisabledReason?: string;
   onUnlinkBusiness?: () => void;
   showUnlinkBusiness?: boolean;
   unlinkBusinessDisabled?: boolean;
   isWorkflowProcessing?: boolean;
   busyReason?: string;
   initialFieldsLocked?: boolean;
-  profileStatus?: ProfileStatus | null;
   readOnlyDetails?: ProfileReadOnlyDetails;
   submissionIssues?: ProfileValidationIssue[];
   validationFocusRequest?: number;
@@ -181,9 +178,6 @@ export function ProfileEditorTemplate({
           <div className="text-2xl font-medium leading-[1.2] tracking-[-0.02em] text-general-foreground">
             {leftTitle}
           </div>
-          {profileStatus === "needs_verification" ? (
-            <Badge variant="outline">Needs verification</Badge>
-          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -230,18 +224,22 @@ export function ProfileEditorTemplate({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={onSaveAndUpdateStrategy}
-                      disabled={proceedDisabled || isWorkflowProcessing}
+                      onClick={onRunStrategy}
+                      disabled={runStrategyDisabled || isWorkflowProcessing}
                     >
-                      Save &amp; Update Strategy
+                      Run Strategy
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {isWorkflowProcessing && (
+                {runStrategyDisabledReason ? (
+                  <TooltipContent>
+                    <p>{runStrategyDisabledReason}</p>
+                  </TooltipContent>
+                ) : isWorkflowProcessing ? (
                   <TooltipContent>
                     <p>{busyReason ?? "Workflow In Process"}</p>
                   </TooltipContent>
-                )}
+                ) : null}
               </Tooltip>
             </>
           )}

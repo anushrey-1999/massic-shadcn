@@ -134,10 +134,13 @@ export interface JobWriteFields {
 
 export interface CreateJobRequest extends JobWriteFields {
   business_id: string;
+  is_business_purchased: boolean;
   profile_id?: string;
 }
 
-export type UpdateJobRequest = JobWriteFields;
+export type UpdateJobRequest = JobWriteFields & {
+  is_business_purchased: boolean;
+};
 
 export interface WorkflowStatus {
   status?: "pending" | "processing" | "success" | "error" | null;
@@ -148,6 +151,7 @@ export interface WorkflowStatus {
 export interface JobResponse extends JobWriteFields {
   job_id: string;
   business_id: string;
+  is_business_purchased?: boolean;
   created_at: string;
   updated_at?: string | null;
   profile_id?: string | null;

@@ -80,11 +80,12 @@ export function ProfileEditorTemplate({
   mode = "full",
   leftTitle = "Profile",
   onSaveChanges,
-  onSaveAndUpdateStrategy,
+  onRunStrategy,
   saveDisabled,
   savePending,
   saveDisabledReason,
-  proceedDisabled,
+  runStrategyDisabled,
+  runStrategyDisabledReason,
   onUnlinkBusiness,
   showUnlinkBusiness = true,
   unlinkBusinessDisabled,
@@ -103,11 +104,12 @@ export function ProfileEditorTemplate({
   mode?: "minimal" | "full";
   leftTitle?: string;
   onSaveChanges: () => void;
-  onSaveAndUpdateStrategy: () => void;
+  onRunStrategy: () => void;
   saveDisabled?: boolean;
   savePending?: boolean;
   saveDisabledReason?: string;
-  proceedDisabled?: boolean;
+  runStrategyDisabled?: boolean;
+  runStrategyDisabledReason?: string;
   onUnlinkBusiness?: () => void;
   showUnlinkBusiness?: boolean;
   unlinkBusinessDisabled?: boolean;
@@ -222,18 +224,22 @@ export function ProfileEditorTemplate({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={onSaveAndUpdateStrategy}
-                      disabled={proceedDisabled || isWorkflowProcessing}
+                      onClick={onRunStrategy}
+                      disabled={runStrategyDisabled || isWorkflowProcessing}
                     >
-                      Save &amp; Update Strategy
+                      Run Strategy
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {isWorkflowProcessing && (
+                {runStrategyDisabledReason ? (
+                  <TooltipContent>
+                    <p>{runStrategyDisabledReason}</p>
+                  </TooltipContent>
+                ) : isWorkflowProcessing ? (
                   <TooltipContent>
                     <p>{busyReason ?? "Workflow In Process"}</p>
                   </TooltipContent>
-                )}
+                ) : null}
               </Tooltip>
             </>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useStore } from "@tanstack/react-form";
 import {
   Card,
@@ -11,8 +11,14 @@ import {
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
-import { MicVocal } from "lucide-react";
+import {
+  ProfileItemLink,
+  ProfileListEditor,
+  useProfileItemEditor,
+  type ProfileListField,
+} from "@/components/organisms/profile/ProfileListEditor";
 import { CTARow, StakeholderRow, CalendarEventRow } from "@/store/business-store";
+import { MicVocal } from "lucide-react";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { TagsInput } from "@/components/ui/tags-input";
@@ -44,6 +50,73 @@ interface ContentCuesFormProps {
   embedded?: boolean;
 }
 
+const CTA_FIELDS: ProfileListField<CTARow>[] = [
+  {
+    key: "buttonText",
+    label: "Button text",
+    placeholder: "E.g. Book a free consultation",
+    validation: { required: true },
+  },
+  {
+    key: "url",
+    label: "Destination URL",
+    placeholder: "https://example.com/contact",
+    inputMode: "url",
+    validation: { required: true, url: true },
+  },
+];
+
+const STAKEHOLDER_FIELDS: ProfileListField<StakeholderRow>[] = [
+  { key: "name", label: "Name", placeholder: "E.g. Jane Doe" },
+  { key: "title", label: "Role", placeholder: "E.g. Founder & Lead Designer" },
+];
+
+const DIFFERENTIATOR_FIELDS: ProfileListField<DifferentiatorRow>[] = [
+  {
+    key: "differentiator",
+    label: "Differentiator",
+    placeholder: "E.g. Same-day service across the metro area",
+    validation: { required: true },
+  },
+  {
+    key: "whyItMatters",
+    label: "Why it matters",
+    placeholder: "How this helps customers choose you",
+    multiline: true,
+    rows: 4,
+  },
+];
+
+const emptyCta = (): CTARow => ({ buttonText: "", url: "" });
+const emptyStakeholder = (): StakeholderRow => ({ name: "", title: "" });
+const emptyDifferentiator = (): DifferentiatorRow => ({
+  differentiator: "",
+  whyItMatters: "",
+  proof: [],
+});
+
+function PrimaryWithDetail({
+  primary,
+  detail,
+}: {
+  primary: string;
+  detail?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-sm font-medium text-general-foreground">{primary}</p>
+      {detail}
+    </div>
+  );
+}
+
+const mutedDetail = (text?: string) =>
+  text?.trim() ? (
+    <p className="whitespace-pre-line text-sm leading-6 text-general-muted-foreground">
+      {text}
+    </p>
+  ) : null;
+
 export const ContentCuesForm = ({
   form,
   embedded = false,
@@ -59,82 +132,23 @@ export const ContentCuesForm = ({
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
   const calendarEventsData = useStore(form.store, (state: any) => (state.values?.calendarEvents || []) as CalendarEventRow[]);
 
-  // Track CTA validation errors
-  const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
+  const ctaEditor = useProfileItemEditor();
+  const stakeholderEditor = useProfileItemEditor();
+  const differentiatorEditor = useProfileItemEditor();
 
-  // Update form field when CTA validation errors change
-  React.useEffect(() => {
-    form.setFieldMeta('ctas', (prev: any) => ({
-      ...prev,
-      hasValidationErrors: hasCtaErrors,
-    }));
-  }, [hasCtaErrors, form]);
-
-  // Own column definitions
-  const ctaColumns: Column<CTARow>[] = useMemo(() => [
-    { key: "buttonText", label: "Button Text", validation: { required: true } },
-    { key: "url", label: "URL", validation: { required: true, url: true } },
-  ], []);
-
-  const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
-    { key: "name", label: "Name", validation: { required: false } },
-    { key: "title", label: "Role", validation: { required: false } },
-  ], []);
-
-  const differentiatorColumns: Column<DifferentiatorRow>[] = useMemo(
-    () => [
-      {
-        key: "differentiator",
-        label: "Differentiator",
-        validation: { required: true },
-      },
-      {
-        key: "whyItMatters",
-        label: "Why it matters",
-        validation: { required: false },
-      },
-    ],
-    []
+  const handleCtaValidationChange = useCallback(
+    (hasErrors: boolean) => {
+      form.setFieldMeta("ctas", (prev: any) => ({
+        ...prev,
+        hasValidationErrors: hasErrors,
+      }));
+    },
+    [form]
   );
 
-  // Own handlers - encapsulated logic
-  const {
-    handleAddRow: handleAddCTARow,
-    handleRowChange: handleCTARowChange,
-    handleDeleteRow: handleCTADeleteRow,
-  } = useAddRowTableState<CTARow>({
-    data: ctasData,
-    formFieldName: "ctas",
-    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ buttonText: "", url: "" }),
-  });
-
-  const {
-    handleAddRow: handleAddStakeholderRow,
-    handleRowChange: handleStakeholderRowChange,
-    handleDeleteRow: handleStakeholderDeleteRow,
-  } = useAddRowTableState<StakeholderRow>({
-    data: stakeholdersData,
-    formFieldName: "stakeholders",
-    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ name: "", title: "" }),
-  });
-
-  const {
-    handleAddRow: handleAddDifferentiator,
-    handleRowChange: handleDifferentiatorChange,
-    handleDeleteRow: handleDeleteDifferentiator,
-  } = useAddRowTableState<DifferentiatorRow>({
-    data: differentiatorsData,
-    formFieldName: "differentiators",
-    setFormFieldValue: (name: string, value: any) =>
-      form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({
-      differentiator: "",
-      whyItMatters: "",
-      proof: [],
-    }),
-  });
+  const setListValue =
+    (name: keyof BusinessInfoFormData) => (next: unknown[]) =>
+      form.setFieldValue(name, next);
 
   const {
     handleAddRow: handleAddCalendarEventRow,
@@ -197,20 +211,28 @@ export const ContentCuesForm = ({
           </CardHeader>
           <CardContent>
             <div className="w-full md:w-3/4">
-              <CustomAddRowTable
-                columns={differentiatorColumns}
-                data={differentiatorsData}
-                onAddRow={handleAddDifferentiator}
-                onRowChange={handleDifferentiatorChange}
-                onDeleteRow={handleDeleteDifferentiator}
-                addButtonText="Add Differentiator"
-                variant="card"
+              <ProfileListEditor
+                editor={differentiatorEditor}
+                items={differentiatorsData}
+                fields={DIFFERENTIATOR_FIELDS}
+                itemLabel="differentiator"
+                emptyItem={emptyDifferentiator}
+                onChange={setListValue("differentiators")}
+                renderItem={(item) => (
+                  <PrimaryWithDetail
+                    primary={item.differentiator}
+                    detail={mutedDetail(item.whyItMatters)}
+                  />
+                )}
+                getItemTitle={(item) => item.differentiator || "differentiator"}
+                emptyMessage="No differentiators yet. Add what sets the business apart."
+                showAddButton
               />
             </div>
           </CardContent>
         </Card>
 
-        <Card variant={cardVariant}>
+        <Card id="ctas" tabIndex={-1} variant={cardVariant} className="outline-none">
           <CardHeader className="">
             <CardTitle className="text-sm font-medium leading-normal">
               <FieldLabel className="gap-0 text-sm font-medium leading-normal">
@@ -220,17 +242,26 @@ export const ContentCuesForm = ({
           </CardHeader>
           <CardContent>
             <div className="w-full md:w-3/4">
-            <CustomAddRowTable
-              columns={ctaColumns}
-              data={ctasData}
-              onAddRow={handleAddCTARow}
-              onRowChange={handleCTARowChange}
-              onDeleteRow={handleCTADeleteRow}
-              addButtonText="Add Button"
-              onValidationChange={setHasCtaErrors}
-              showErrorsWithoutTouch={hasCtaErrors}
-              variant="card"
-            />
+              <ProfileListEditor
+                editor={ctaEditor}
+                items={ctasData}
+                fields={CTA_FIELDS}
+                itemLabel="CTA"
+                emptyItem={emptyCta}
+                onChange={setListValue("ctas")}
+                renderItem={(cta) => (
+                  <PrimaryWithDetail
+                    primary={cta.buttonText || "Untitled CTA"}
+                    detail={
+                      cta.url?.trim() ? <ProfileItemLink href={cta.url} /> : null
+                    }
+                  />
+                )}
+                getItemTitle={(cta) => cta.buttonText || "CTA"}
+                emptyMessage="No CTAs yet. Add the button copy and where it should link."
+                showAddButton
+                onValidationChange={handleCtaValidationChange}
+              />
             </div>
           </CardContent>
         </Card>
@@ -341,15 +372,23 @@ export const ContentCuesForm = ({
           </CardHeader>
           <CardContent>
             <div className="w-full md:w-3/4">
-            <CustomAddRowTable
-              columns={stakeholdersColumns}
-              data={stakeholdersData}
-              onAddRow={handleAddStakeholderRow}
-              onRowChange={handleStakeholderRowChange}
-              onDeleteRow={handleStakeholderDeleteRow}
-              addButtonText="Add Person"
-              variant="card"
-            />
+              <ProfileListEditor
+                editor={stakeholderEditor}
+                items={stakeholdersData}
+                fields={STAKEHOLDER_FIELDS}
+                itemLabel="person"
+                emptyItem={emptyStakeholder}
+                onChange={setListValue("stakeholders")}
+                renderItem={(person) => (
+                  <PrimaryWithDetail
+                    primary={person.name || "Unnamed person"}
+                    detail={mutedDetail(person.title)}
+                  />
+                )}
+                getItemTitle={(person) => person.name || "person"}
+                emptyMessage="No key people yet. Add the founders, owners, or experts behind the business."
+                showAddButton
+              />
             </div>
           </CardContent>
         </Card>

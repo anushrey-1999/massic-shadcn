@@ -72,7 +72,7 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
 }
 
 // Validation helper
-const validateField = (
+export const validateField = (
   value: any,
   validation?: ColumnValidation,
   row?: any

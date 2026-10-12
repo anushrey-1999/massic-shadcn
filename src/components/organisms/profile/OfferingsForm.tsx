@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback } from "react";
 import { useStore } from "@tanstack/react-form";
 import {
   Card,
@@ -11,34 +11,15 @@ import {
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import {
-  CustomAddRowTable,
-  Column,
-} from "@/components/organisms/CustomAddRowTable";
+import { Badge } from "@/components/ui/badge";
 import { OfferingRow } from "@/store/business-store";
-import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import {
+  ProfileItemLink,
+  ProfileListEditor,
+  useProfileItemEditor,
+  type ProfileListField,
+} from "@/components/organisms/profile/ProfileListEditor";
 import { PackageSearch, Plus } from "lucide-react";
-
-type BusinessInfoFormData = {
-  website: string;
-  businessName: string;
-  businessDescription: string;
-  primaryLocation: string;
-  serviceType: "physical" | "online" | "both";
-  lifetimeValue: string;
-  offerings: "products" | "services" | "both";
-  offeringsList?: Array<{
-    name: string;
-    description: string;
-    link: string;
-    pricePositioning?: string;
-    offeringType?: string;
-    priceRange?: string;
-    duration?: string;
-    inclusions?: string[] | string;
-  }>;
-  offeringsSavedIndices?: number[];
-};
 
 interface OfferingsFormProps {
   form: any; // TanStack Form instance
@@ -48,6 +29,62 @@ interface OfferingsFormProps {
   required?: boolean;
 }
 
+const OFFERING_FIELDS: ProfileListField<OfferingRow>[] = [
+  {
+    key: "name",
+    label: "Name",
+    placeholder: "E.g. Emergency plumbing repair",
+    validation: { required: true },
+  },
+  {
+    key: "pricePositioning",
+    label: "Price positioning",
+    placeholder: "E.g. Premium, Mid-range, Budget",
+  },
+  {
+    key: "description",
+    label: "Description",
+    placeholder: "What it is, who it's for, and what makes it worth buying",
+    multiline: true,
+    rows: 5,
+  },
+  {
+    key: "link",
+    label: "Link",
+    placeholder: "https://example.com/services/repair",
+    inputMode: "url",
+    validation: { url: true },
+  },
+];
+
+const emptyOffering = (): OfferingRow => ({
+  name: "",
+  description: "",
+  link: "",
+  pricePositioning: "",
+});
+
+function OfferingSummary({ offering }: { offering: OfferingRow }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium text-general-foreground">
+          {offering.name}
+        </p>
+        {offering.pricePositioning?.trim() ? (
+          <Badge variant="outline">{offering.pricePositioning}</Badge>
+        ) : null}
+      </div>
+      {offering.description?.trim() ? (
+        <p className="whitespace-pre-line text-sm leading-6 text-general-muted-foreground">
+          {offering.description}
+        </p>
+      ) : null}
+      {offering.link?.trim() ? <ProfileItemLink href={offering.link} /> : null}
+    </div>
+  );
+}
+
 export const OfferingsForm = ({
   form,
   embedded = false,
@@ -55,120 +92,55 @@ export const OfferingsForm = ({
   validationMessage,
   required = true,
 }: OfferingsFormProps) => {
-  // Subscribe only to specific fields this component cares about
-  // Component will only re-render when these fields change
-  const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
-  const emptyOfferingRow = useMemo<OfferingRow>(
-    () => ({
-      name: "",
-      description: "",
-      link: "",
-      pricePositioning: "",
-    }),
-    []
+  const offeringsData = useStore(
+    form.store,
+    (state: any) => (state.values?.offeringsList || []) as OfferingRow[]
   );
-  // Track offerings validation errors
-  const [hasOfferingsErrors, setHasOfferingsErrors] = React.useState(false);
+  const editor = useProfileItemEditor();
 
-  // Update form field when offerings validation errors change
-  React.useEffect(() => {
-    form.setFieldMeta('offeringsList', (prev: any) => ({
-      ...prev,
-      hasValidationErrors: hasOfferingsErrors,
-    }));
-  }, [hasOfferingsErrors, form]);
-
-  // Own column definitions
-  const offeringsColumns: Column<OfferingRow>[] = useMemo(
-    () => [
-      {
-        key: "name",
-        label: "Name",
-        validation: { required: true },
-      },
-      {
-        key: "pricePositioning",
-        label: "Price positioning",
-        validation: { required: false },
-      },
-      {
-        key: "description",
-        label: "Description",
-        validation: { required: false },
-        multiline: true,
-        rows: 2,
-        cardClassName: "sm:col-span-2",
-      },
-      {
-        key: "link",
-        label: "Link",
-        validation: { required: false, url: true },
-        cardClassName: "sm:col-span-2",
-      },
-    ],
-    []
+  const handleValidationChange = useCallback(
+    (hasErrors: boolean) => {
+      form.setFieldMeta("offeringsList", (prev: any) => ({
+        ...prev,
+        hasValidationErrors: hasErrors,
+      }));
+    },
+    [form]
   );
-
-  // Own handlers - encapsulated logic
-  const {
-    handleAddRow,
-    handleRowChange,
-    handleDeleteRow,
-  } = useAddRowTableState<OfferingRow>({
-    data: offeringsData,
-    formFieldName: "offeringsList",
-    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({
-      name: "",
-      description: "",
-      link: "",
-      pricePositioning: "",
-    }),
-  });
 
   const innerContent = (
     <div id="offeringsList" tabIndex={-1} className="space-y-3 outline-none">
-        <Card variant="noBorderShadowCard">
-          <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
-            <div className="flex items-center">
-              <CardTitle className="text-sm font-medium leading-normal">
-                <FieldLabel className="gap-0 text-sm font-medium leading-normal">
-                  {required ? (
-                    <span className="text-destructive mr-0.5">*</span>
-                  ) : null}
-                  What products and services does your business sell?
-                </FieldLabel>
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className={embedded ? "p-0" : "space-y-4"}>
-            <div className="w-full">
-              <CustomAddRowTable
-                  columns={offeringsColumns}
-                  data={offeringsData}
-                  onAddRow={() => {
-                    if (!disabled) handleAddRow();
-                  }}
-                  onRowChange={(rowIndex, field, value) => {
-                    if (!disabled) handleRowChange(rowIndex, field, value);
-                  }}
-                  onDeleteRow={(rowIndex) => {
-                    if (!disabled) handleDeleteRow(rowIndex);
-                  }}
-                  addButtonText="Add Product/Service"
-                  onValidationChange={setHasOfferingsErrors}
-                  showErrorsWithoutTouch={
-                    Boolean(validationMessage) || hasOfferingsErrors
-                  }
-                  emptyRowData={required ? emptyOfferingRow : undefined}
-                  variant="card"
-                  cardLayout="stacked"
-                  hideAddButton={embedded}
-                  disabled={disabled}
-                />
-            </div>
-          </CardContent>
-        </Card>
+      <Card variant="noBorderShadowCard">
+        <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
+          <div className="flex items-center">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
+                {required ? (
+                  <span className="text-destructive mr-0.5">*</span>
+                ) : null}
+                What products and services does your business sell?
+              </FieldLabel>
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className={embedded ? "p-0" : "space-y-4"}>
+          <ProfileListEditor
+            editor={editor}
+            items={offeringsData}
+            fields={OFFERING_FIELDS}
+            itemLabel="offering"
+            emptyItem={emptyOffering}
+            onChange={(next) => form.setFieldValue("offeringsList", next)}
+            renderItem={(offering) => <OfferingSummary offering={offering} />}
+            getItemTitle={(offering) => offering.name || "offering"}
+            emptyMessage="No offerings yet. Add the products or services you sell."
+            showAddButton={!embedded}
+            showEmptyError={Boolean(validationMessage)}
+            onValidationChange={handleValidationChange}
+            disabled={disabled}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 
@@ -183,7 +155,7 @@ export const OfferingsForm = ({
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleAddRow}
+            onClick={editor.openAdd}
             disabled={disabled}
             className="h-8 shrink-0 gap-1.5"
           >
@@ -221,4 +193,3 @@ export const OfferingsForm = ({
     </Card>
   );
 };
-

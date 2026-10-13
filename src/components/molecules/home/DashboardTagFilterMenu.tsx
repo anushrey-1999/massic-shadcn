@@ -119,8 +119,7 @@ export function DashboardTagFilterMenu({
     >
       {isSidebar ? (
         <Filter
-          className="size-3.5 text-general-muted-foreground"
-          strokeWidth={1.5}
+          className="size-3.5"
           aria-hidden
         />
       ) : (
@@ -180,7 +179,7 @@ export function DashboardTagFilterMenu({
                 )}
               >
                 {isSidebar ? (
-                  <Filter className="size-3.5 text-general-muted-foreground" />
+                  <Filter className="size-3.5" />
                 ) : (
                   <Tag className="size-[13.25px] text-general-muted-foreground" />
                 )}

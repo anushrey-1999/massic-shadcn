@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import { getOverallWorkflowStatus } from "@/lib/workflow-status";
 
 export function AgentAccessGuard({
   businessId,
@@ -24,20 +23,6 @@ export function AgentAccessGuard({
 }) {
   const router = useRouter();
   const job = useJobByBusinessId(businessId);
-  const workflowStatus = getOverallWorkflowStatus(job.data);
-  const orchestrationStatus = job.data?.orchestration_status;
-  const usesLegacyWorkflowStatus = orchestrationStatus == null;
-  const strategyReady =
-    orchestrationStatus === "completed" ||
-    (usesLegacyWorkflowStatus && workflowStatus === "success");
-  const strategyRunning =
-    orchestrationStatus === "deep_running" ||
-    orchestrationStatus === "strategies_running" ||
-    (usesLegacyWorkflowStatus &&
-      (workflowStatus === "pending" || workflowStatus === "processing"));
-  const strategyFailed =
-    orchestrationStatus === "error" ||
-    (usesLegacyWorkflowStatus && workflowStatus === "error");
 
   if (job.isLoading) {
     return (
@@ -47,22 +32,16 @@ export function AgentAccessGuard({
     );
   }
 
-  if (job.data && strategyReady) {
+  if (job.data?.job_id) {
     return <>{children}</>;
   }
 
   const title = job.isError
-    ? "We couldn’t check your strategy"
-    : strategyRunning
-      ? "Your strategy is still running"
-      : "Complete your profile to use Massic Agent";
+    ? "We couldn’t check your business profile"
+    : "Create your business profile to use Massic Agent";
   const description = job.isError
     ? "Try checking again. If the issue continues, open your profile and confirm your business details."
-    : strategyRunning
-      ? "Massic Agent will be available after every strategy workflow finishes successfully."
-      : strategyFailed
-        ? "Your strategy did not finish successfully. Review your profile and run the strategy again before using Massic Agent."
-        : "Complete your business profile and run the strategy before using Massic Agent.";
+    : "Set up your business profile before using Massic Agent.";
 
   return (
     <Dialog
@@ -86,7 +65,7 @@ export function AgentAccessGuard({
             </Button>
           )}
           <Button onClick={() => router.push(`/business/${encodeURIComponent(businessId)}/profile`)}>
-            Complete profile &amp; run strategy
+            Create profile
           </Button>
         </DialogFooter>
       </DialogContent>

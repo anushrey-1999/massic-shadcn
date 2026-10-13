@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfileById, useBusinessProfiles } from '@/hooks/use-business-profiles'
+import { useDashboardTags } from '@/hooks/use-dashboard-tags'
+import { useDashboardTagVisibility } from '@/hooks/use-dashboard-tag-visibility'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
@@ -45,6 +47,7 @@ import { Input } from '@/components/ui/input'
 import { normalizeDomainForFavicon } from '@/utils/utils'
 import { useCan } from '@/hooks/use-permissions'
 import { useAppSidebarCollapsed } from './use-app-sidebar-collapsed'
+import { DashboardTagFilterMenu } from '@/components/molecules/home/DashboardTagFilterMenu'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -205,6 +208,15 @@ export default function AppSidebar() {
     sidebarDataLoading,
     expandedBusinessId,
   } = useBusinessProfiles()
+  const dashboardTags = useDashboardTags()
+  const {
+    selectedTagIds,
+    setSelectedTagIds,
+    showHiddenTag,
+    setShowHiddenTag,
+    matchesTagVisibility,
+    hasTagVisibilityFilter,
+  } = useDashboardTagVisibility(dashboardTags)
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
   useEffect(() => {
@@ -259,13 +271,19 @@ export default function AppSidebar() {
   ]
 
   const filteredProfiles = useMemo(() => {
-    if (!searchQuery.trim()) return profiles
+    const query = searchQuery.trim().toLowerCase()
 
-    return profiles.filter(business =>
-      (business.Name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (business.DisplayName?.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
-  }, [profiles, searchQuery])
+    return profiles.filter(business => {
+      if (business.IsActive === false) return false
+      if (!matchesTagVisibility(business.UniqueId)) return false
+      if (!query) return true
+
+      return (
+        business.Name?.toLowerCase().includes(query) ||
+        business.DisplayName?.toLowerCase().includes(query)
+      )
+    })
+  }, [matchesTagVisibility, profiles, searchQuery])
 
   const isBusinessRoute = pathname.startsWith('/business/')
   const pitchBusinessId = useMemo(() => {
@@ -581,6 +599,15 @@ export default function AppSidebar() {
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       )}
+                      <DashboardTagFilterMenu
+                        selectedTagIds={selectedTagIds}
+                        onSelectedTagIdsChange={setSelectedTagIds}
+                        showHiddenTag={showHiddenTag}
+                        onShowHiddenTagChange={setShowHiddenTag}
+                        profiles={profiles}
+                        dashboardTags={dashboardTags}
+                        variant="sidebar"
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
@@ -616,7 +643,11 @@ export default function AppSidebar() {
                     !isCollapsed ? (
                       <SidebarMenuItem>
                         <div className="text-sm text-muted-foreground">
-                          {searchQuery ? 'No matching businesses found' : 'No businesses found'}
+                          {searchQuery
+                            ? 'No matching businesses found'
+                            : hasTagVisibilityFilter
+                              ? 'No businesses match selected tags'
+                              : 'No active businesses found'}
                         </div>
                       </SidebarMenuItem>
                     ) : null
@@ -745,7 +776,7 @@ export default function AppSidebar() {
 
       {isCollapsed && flyoutBusinessId && typeof document !== 'undefined' && createPortal(
         (() => {
-          const business = profiles.find((b) => b.UniqueId === flyoutBusinessId)
+          const business = filteredProfiles.find((b) => b.UniqueId === flyoutBusinessId)
           if (!business) return null
           return (
             <div

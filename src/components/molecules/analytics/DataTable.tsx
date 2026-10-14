@@ -28,6 +28,8 @@ export interface DataTableColumn {
 export interface DataTableMetricCell {
   value: string | number
   change?: number
+  changeUnit?: "%" | "pp"
+  changeLabel?: string
   rawValue?: number
   previousValue?: number
 }
@@ -449,7 +451,7 @@ export function DataTable({
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="inline-flex cursor-default">
-                                        <StatsBadge value={(cellValue as DataTableMetricCell).change as number} className={cn("leading-none flex items-center", styles.badge)} />
+                                        <StatsBadge value={(cellValue as DataTableMetricCell).change as number} unit={(cellValue as DataTableMetricCell).changeUnit} label={(cellValue as DataTableMetricCell).changeLabel} className={cn("leading-none flex items-center", styles.badge)} />
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent className="px-2.5 py-2">
@@ -472,7 +474,7 @@ export function DataTable({
                                     </TooltipContent>
                                   </Tooltip>
                                 ) : (
-                                  <StatsBadge value={(cellValue as DataTableMetricCell).change as number} className={cn("leading-none flex items-center", styles.badge)} />
+                                  <StatsBadge value={(cellValue as DataTableMetricCell).change as number} unit={(cellValue as DataTableMetricCell).changeUnit} label={(cellValue as DataTableMetricCell).changeLabel} className={cn("leading-none flex items-center", styles.badge)} />
                                 )
                               )}
                             </div>
@@ -564,6 +566,7 @@ export function DataTable({
                   variant="secondary"
                   className="rounded-lg cursor-pointer"
                   onClick={onArrowClick}
+                  aria-label={`View all ${title || "data"}`}
                 >
                   <ArrowRight className="h-3 w-3 text-foreground" />
                 </Button>
@@ -583,6 +586,7 @@ export function DataTable({
             variant="secondary"
             className="rounded-lg cursor-pointer"
             onClick={onArrowClick}
+            aria-label={`View all ${title || "data"}`}
           >
             <ArrowRight className="h-3 w-3 text-foreground" />
           </Button>

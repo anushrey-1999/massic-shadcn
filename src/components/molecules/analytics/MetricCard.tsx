@@ -11,6 +11,8 @@ interface MetricCardProps {
   label?: string
   value?: string
   change?: number
+  changeUnit?: "%" | "pp"
+  changeLabel?: string
   sparklineData?: number[]
   isLoading?: boolean
   error?: string | null
@@ -27,6 +29,8 @@ export function MetricCard({
   label,
   value,
   change,
+  changeUnit,
+  changeLabel,
   sparklineData,
   isLoading = false,
   error = null,
@@ -126,7 +130,7 @@ export function MetricCard({
         <div className="flex items-baseline gap-1">
           {value && <span className="text-3xl font-semibold leading-none text-general-unofficial-foreground-alt">{value}</span>}
           {change !== undefined && (
-            <StatsBadge value={change} className="leading-none" valueClassName="text-base" />
+            <StatsBadge value={change} unit={changeUnit} label={changeLabel} className="leading-none" valueClassName="text-base" />
           )}
         </div>
       </div>

@@ -17,9 +17,9 @@ import { type AnalyticsMetricKey } from "@/utils/analytics-metrics";
 const DATA_READY_TOOLTIP = "Available once your data is ready";
 
 const TAB_TRIGGER_CLASS =
-  "text-general-foreground h-auto min-h-8 min-w-8 flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
+  "text-general-foreground h-auto min-h-8 min-w-[72px] flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
 
-export type AnalyticsScope = "all" | "organic";
+export type AnalyticsScope = "all" | "organic" | "ai-traffic";
 
 interface AnalyticsToolbarProps {
   scope: AnalyticsScope;
@@ -49,6 +49,7 @@ interface AnalyticsToolbarProps {
   showKeywordScope?: boolean;
 
   metricKeys: readonly AnalyticsMetricKey[];
+  metricLabels?: Partial<Record<AnalyticsMetricKey, string>>;
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
 
@@ -56,6 +57,7 @@ interface AnalyticsToolbarProps {
   isIngestionActive?: boolean;
   /** GA4 dataset unavailable — blocks chart display controls. */
   isDataBlocked?: boolean;
+  showDisplay?: boolean;
 }
 
 /**
@@ -84,22 +86,27 @@ export function AnalyticsToolbar({
   onKeywordScopeChange,
   showKeywordScope = true,
   metricKeys,
+  metricLabels,
   visibleLines,
   onLineToggle,
   isIngestionActive = false,
   isDataBlocked = false,
+  showDisplay = true,
 }: AnalyticsToolbarProps) {
   return (
     <div className="w-full max-w-[1224px] px-7">
-      <div className="flex items-center justify-between gap-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 py-2.5">
+        <div className="flex flex-wrap min-w-0 items-center gap-4">
           <Tabs className="gap-0" value={scope} onValueChange={onScopeChange}>
-            <TabsList className="h-auto w-[206px] rounded-[12px] bg-general-border p-1">
+            <TabsList className="h-auto rounded-[12px] bg-general-border p-1">
               <TabsTrigger value="all" className={TAB_TRIGGER_CLASS}>
                 All
               </TabsTrigger>
               <TabsTrigger value="organic" className={TAB_TRIGGER_CLASS}>
                 Organic
+              </TabsTrigger>
+              <TabsTrigger value="ai-traffic" className={TAB_TRIGGER_CLASS}>
+                AI
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -178,13 +185,14 @@ export function AnalyticsToolbar({
               disabled={isIngestionActive}
             />
           ) : null}
-          <AnalyticsDisplayMenu
+          {showDisplay && <AnalyticsDisplayMenu
             metricKeys={metricKeys}
+            metricLabels={metricLabels}
             visibleLines={visibleLines}
             onLineToggle={onLineToggle}
             linesLocked={scope === "all"}
             disabled={isDataBlocked}
-          />
+          />}
           <AnalyticsNavigationMenu
             onViewReports={onViewReports}
             onCampaignTracking={onCampaignTracking}

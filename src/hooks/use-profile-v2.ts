@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
 import { api } from "@/hooks/use-api";
 import type {
@@ -10,36 +10,44 @@ import type {
 
 const PROFILE_CATALOG_KEY = "profile-catalog";
 
-export function useIndustries() {
-  return useQuery<string[]>({
+export function industryCatalogQueryOptions() {
+  return queryOptions({
     queryKey: [PROFILE_CATALOG_KEY, "industries"],
     queryFn: async () => {
       const response = await api.get<IndustriesResponse>(
         "/tools/industries",
-        "python"
+        "python",
       );
+      if (
+        !Array.isArray(response.industries) ||
+        !response.industries.every((value) => typeof value === "string")
+      ) {
+        throw new Error(
+          "Primary categories could not be loaded. Please try again.",
+        );
+      }
       return response.industries;
     },
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 24 * 60 * 60 * 1000,
   });
 }
-export function useSpecialties(industry?: string | null) {
+export function useIndustries(enabled = true) {
+  return useQuery({ ...industryCatalogQueryOptions(), enabled });
+}
+export function useSpecialties(industry?: string | null, enabled = true) {
   const normalizedIndustry = String(industry ?? "").trim();
   const query = normalizedIndustry
     ? `?industry=${encodeURIComponent(normalizedIndustry)}`
     : "";
 
   return useQuery<string[]>({
-    queryKey: [
-      PROFILE_CATALOG_KEY,
-      "specialties",
-      normalizedIndustry || "all",
-    ],
+    enabled,
+    queryKey: [PROFILE_CATALOG_KEY, "specialties", normalizedIndustry || "all"],
     queryFn: async () => {
       const response = await api.get<SpecialtiesResponse>(
         `/tools/specialties${query}`,
-        "python"
+        "python",
       );
       return response.specialties;
     },
@@ -47,4 +55,3 @@ export function useSpecialties(industry?: string | null) {
     gcTime: 24 * 60 * 60 * 1000,
   });
 }
-

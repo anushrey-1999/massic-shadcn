@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import {
   updateCreatedBusinessProfileSafely,
@@ -12,6 +12,7 @@ import type { BusinessProfile } from "@/store/business-store";
 import { deriveBusinessNameFromWebsite } from "@/utils/business-name";
 import {
   buildBusinessProfilePayload,
+  selectCombinedBusinessPayload,
 } from "@/utils/profile-form-mappers";
 
 type LocationOption = {
@@ -28,7 +29,7 @@ export class IncompleteBusinessCreationError extends Error {
       cause instanceof Error
         ? cause.message
         : "The business was created, but setup is incomplete.",
-      { cause }
+      { cause },
     );
     this.name = "IncompleteBusinessCreationError";
     this.business = business;
@@ -42,6 +43,7 @@ export function useManualBusinessCreation({
   isPitch: boolean;
   locationOptions: LocationOption[];
 }) {
+  const createdBusinessRef = useRef<BusinessProfile | null>(null);
   const createBusiness = useCreateBusiness();
   const createJob = useCreateJob();
 
@@ -53,20 +55,24 @@ export function useManualBusinessCreation({
           input.businessName.trim() ||
           deriveBusinessNameFromWebsite(input.website),
       };
-      let business: BusinessProfile | null = null;
+      let business: BusinessProfile | null = createdBusinessRef.current;
 
       try {
-        const result = await createBusiness.mutateAsync({
-          website: values.website,
-          businessName: values.businessName,
-          primaryLocation: values.primaryLocation,
-          serveCustomers: "",
-          offerType: "",
-          isPitch,
-          locationOptions,
-          suppressErrorToast: true,
-        });
-        business = result.createdBusiness;
+        if (!business) {
+          const result = await createBusiness.mutateAsync({
+            website: values.website,
+            businessName: values.businessName,
+            primaryLocation: values.primaryLocation,
+            serveCustomers: "",
+            offerType: "",
+            isPitch,
+            locationOptions,
+            suppressErrorToast: true,
+            suppressSuccessToast: true,
+          });
+          business = result.createdBusiness;
+          createdBusinessRef.current = business;
+        }
         if (!business?.UniqueId) {
           throw new Error("The create API did not return a business id.");
         }
@@ -80,8 +86,8 @@ export function useManualBusinessCreation({
         });
         await updateCreatedBusinessProfileSafely(
           business.UniqueId,
-          nodePayload,
-          { expectedWebsite: values.website, expectedIsPitch: isPitch }
+          selectCombinedBusinessPayload(nodePayload),
+          { expectedWebsite: values.website, expectedIsPitch: isPitch },
         );
 
         const job = await createJob.mutateAsync({
@@ -98,16 +104,13 @@ export function useManualBusinessCreation({
         throw error;
       }
     },
-    [
-      createBusiness,
-      createJob,
-      isPitch,
-      locationOptions,
-    ]
+    [createBusiness, createJob, isPitch, locationOptions],
   );
 
   return {
     create,
     isPending: createBusiness.isPending || createJob.isPending,
+    hasCreatedBusiness: Boolean(createdBusinessRef.current),
+    createdBusinessId: createdBusinessRef.current?.UniqueId,
   };
 }

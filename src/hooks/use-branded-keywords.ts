@@ -58,7 +58,7 @@ export function useBrandedKeywords(businessUniqueId: string | null) {
         await updateJobMutation.mutateAsync({
           businessId: businessUniqueId,
           request: {
-            brand_terms: newKeywords.map((term) => ({ term })),
+            brand_terms: newKeywords,
           },
         });
       }

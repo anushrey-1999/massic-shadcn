@@ -23,11 +23,13 @@ export interface SubscribeParams {
 export interface UseSubscriptionParams {
   businessId?: string;
   isWhitelisted?: boolean;
+  throwOnReadError?: boolean;
 }
 
 interface UseSubscriptionResult {
   loading: boolean;
   isFetched: boolean;
+  error: unknown;
   handleCreateAgencySubscription: (params: { business: any; planName: string; returnUrl?: string }) => Promise<void>;
   handleAddBusinessToSubscription: (params: { business: any; planName: string; returnUrl?: string }) => Promise<void>;
   handleChangePlan: (params: { business: any; planName: string; action: string; closeAllModals?: () => void; returnUrl?: string }) => Promise<void>;
@@ -36,7 +38,7 @@ interface UseSubscriptionResult {
   data: any;
 }
 
-export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscriptionParams = {}): UseSubscriptionResult => {
+export const useSubscription = ({ businessId, isWhitelisted = false, throwOnReadError = false }: UseSubscriptionParams = {}): UseSubscriptionResult => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const guardSubscribe = useFeatureActionGuard("billing.subscribe");
@@ -51,6 +53,7 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
     refetch: refetchSubscriptionQuery,
     isFetching: isRefetching,
     isFetched,
+    error: subscriptionError,
   } = useQuery({
     queryKey: ["subscription", businessId, user?.uniqueId],
     queryFn: async () => {
@@ -63,6 +66,18 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
           }
           return null;
         } catch (error) {
+          // Main uses this 404 for an existing business without an active plan.
+          // It is an empty subscription, not a failed billing read.
+          const response = (error as {
+            response?: { status?: number; data?: { message?: string } };
+          }).response;
+          if (
+            response?.status === 404 &&
+            response.data?.message === "No active subscription found"
+          ) {
+            return null;
+          }
+          if (throwOnReadError) throw error;
           console.error("Failed to fetch subscription data", error);
           return null;
         }
@@ -202,6 +217,7 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
 
   const refetchData = async () => {
     const result = await refetchSubscriptionQuery();
+    if (throwOnReadError && result.error) throw result.error;
     // Invalidate business profiles query if it exists
     // Assuming there is a query key for business profiles like 'business-profiles' or similar
     await queryClient.invalidateQueries({ queryKey: ["business-profiles"] });
@@ -233,6 +249,7 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
   return {
     loading: loading || isRefetching,
     isFetched,
+    error: subscriptionError,
     handleCreateAgencySubscription,
     handleAddBusinessToSubscription,
     handleChangePlan,

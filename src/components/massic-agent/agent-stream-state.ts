@@ -1,10 +1,7 @@
 import type { ActivityStep, AgentEvent, AgentMessage, TurnStatus } from "./types";
 import { widgetParts } from "./agent-model";
 
-const labels: Record<string, string> = { search_knowledge: "Searching knowledge", get_business_profile: "Reading business profile", get_strategy_statuses: "Checking strategy", get_pages_details: "Reading web details", get_clusters_details: "Reading social tactics", get_webpage_plan: "Reading web plan", get_social_channels_plan: "Reading social plan", save_webpages_plan: "Saving web plan", save_social_channels_plan: "Saving social plan", activate_plan: "Activating plan", recall_memory: "Recalling context", write_memory: "Saving context", read_doc: "Reading context", apply_edits: "Updating context" };
 const agentLabels: Record<string, string> = { webpages: "Web", social_channels: "Social", doc_writer_memory: "Memory" };
-
-export const toolLabel = (name: string) => labels[name] ?? name.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
 
 const eventPath = (event: AgentEvent) => event.path ?? event.agent ?? "planner";
 
@@ -65,8 +62,8 @@ export function reduceAgentEvent(message: AgentMessage, event: AgentEvent): Agen
     }
     case "tool_call_start":
       activity = settleThoughts(activity, path);
-      return { ...message, activity: [...activity.filter(step => step.id !== event.call_id), { id: event.call_id, kind: "tool", label: toolLabel(event.tool_name), scope: event.agent ?? path, path, depth, status: "running" } satisfies ActivityStep] };
-    case "tool_call_end": return { ...message, activity: activity.map(step => step.id === event.call_id ? { ...step, status: event.success === false ? "error" : "done" } : step) };
+      return { ...message, activity: [...activity.filter(step => step.id !== event.call_id), { id: event.call_id, kind: "tool", label: event.title || "Working", toolName: event.tool_name, scope: event.agent ?? path, path, depth, status: "running" } satisfies ActivityStep] };
+    case "tool_call_end": return { ...message, activity: activity.map(step => step.id === event.call_id ? { ...step, label: event.title || step.label, status: event.success === false ? "error" : "done" } : step) };
     case "citations": return event.document ? { ...message, citations: event.document } : message;
     case "cancelled": return { ...message, status: "cancelled", partial: true, activity: settleRunning(activity, "cancelled") };
     case "error": return { ...message, status: "error", error: event.message, partial: !!message.content, activity: settleRunning(activity, "error") };

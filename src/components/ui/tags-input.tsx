@@ -91,7 +91,7 @@ export function TagsInput({
         <Badge
           key={`${t.toLowerCase()}-${idx}`}
           variant="outline"
-          className="gap-1 rounded-full px-2 py-1 text-xs"
+          className="gap-1 rounded-full bg-white px-2 py-1 text-xs font-normal text-general-foreground"
         >
           <span className="max-w-60 truncate">{t}</span>
           <button

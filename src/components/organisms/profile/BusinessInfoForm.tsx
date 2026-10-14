@@ -20,37 +20,8 @@ import {
   CustomAddRowTable,
   type Column,
 } from "@/components/organisms/CustomAddRowTable";
-
-type BusinessInfoFormData = {
-  website: string;
-  businessName: string;
-  foundingDate?: string;
-  logoUrl?: string;
-  businessDescription: string;
-  primaryLocation: string;
-  businessCategory?: string;
-  serviceAreaType?: string;
-  serviceAreas?: string[];
-  serviceType: "physical" | "online" | "both";
-  lifetimeValue: "" | "high" | "low";
-  b2bB2c?: string;
-  offerings: "products" | "services" | "both";
-  offeringsList?: Array<{
-    name: string;
-    description: string;
-    link: string;
-    pricePositioning?: string;
-  }>;
-  detailedLocations?: Array<Record<string, string>>;
-  licensesCompliance?: string[];
-  awardsCertifications?: string[];
-  colorsFontsCss?: string;
-  imagePhotoLibrary?: Array<string | { alt?: string; url: string }>;
-  socialProfiles?: Array<Record<string, string>>;
-  directoryProfiles?: Array<Record<string, string>>;
-  supportEmail?: string;
-  commsEmail?: string;
-};
+import { ProfileCategoryFields } from "@/components/organisms/profile/ProfileCategoryFields";
+import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 
 const SERVICE_AREA_TYPE_OPTIONS = [
   { value: "international", label: "International" },
@@ -65,7 +36,7 @@ interface BusinessInfoFormProps {
   headerAction?: React.ReactNode;
   embedded?: boolean;
   primaryLocationAction?: React.ReactNode;
-  embeddedVariant?: "full" | "autofillGate";
+  embeddedVariant?: "full" | "initialSetup";
   disabledFields?: Partial<Record<keyof BusinessInfoFormData, boolean>>;
 }
 
@@ -87,6 +58,10 @@ export const BusinessInfoForm = React.memo(({
   const imagePhotoLibraryValue = useStore(form.store, (state: any) => state.values?.imagePhotoLibrary || []);
   const socialProfilesValue = useStore(form.store, (state: any) => state.values?.socialProfiles || []);
   const directoryProfilesValue = useStore(form.store, (state: any) => state.values?.directoryProfiles || []);
+  const additionalPhonesValue = useStore(
+    form.store,
+    (state: any) => state.values?.additionalPhones || []
+  );
   const isWebsiteLocked =
     !disableWebsiteLock && String(websiteValue || "").trim().length > 0;
 
@@ -261,11 +236,15 @@ export const BusinessInfoForm = React.memo(({
                 <GenericInput<BusinessInfoFormData>
                   form={form as any}
                   fieldName="website"
-                  type="url"
+                  type="input"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   inputVariant="noBorder"
                   label="Website"
                   required={true}
-                  placeholder="Provide the official url of your business website"
+                  placeholder="example.com"
                   disabled={isWebsiteLocked}
                 />
               </div>
@@ -288,16 +267,7 @@ export const BusinessInfoForm = React.memo(({
           </Card>
           <Card variant="profileCard">
             <CardContent>
-              <div className="w-1/2">
-                <GenericInput<BusinessInfoFormData>
-                  form={form as any}
-                  fieldName="businessCategory"
-                  type="input"
-                  inputVariant="noBorder"
-                  label="Business Category"
-                  placeholder="E.g. Plumbing Services"
-                />
-              </div>
+              <ProfileCategoryFields form={form} />
             </CardContent>
           </Card>
 
@@ -417,17 +387,21 @@ export const BusinessInfoForm = React.memo(({
         </div>
   );
 
-  if (embedded && embeddedVariant === "autofillGate") {
+  if (embedded && embeddedVariant === "initialSetup") {
     return (
       <div id="business-info" className="flex w-full flex-col gap-6">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
-          type="url"
+          type="input"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           label="Website"
           fieldClassName="gap-0"
           required={true}
-          placeholder="Provide the official url of your business website"
+          placeholder="example.com"
           disabled={isWebsiteLocked || disabledFields?.website}
         />
         <GenericInput<BusinessInfoFormData>
@@ -494,10 +468,14 @@ export const BusinessInfoForm = React.memo(({
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
-          type="url"
+            type="input"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           label="Website"
           required={true}
-          placeholder="Provide the official url of your business website"
+            placeholder="example.com"
           disabled={isWebsiteLocked || disabledFields?.website}
         />
       </div>
@@ -544,16 +522,6 @@ export const BusinessInfoForm = React.memo(({
       <div className="w-1/2">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
-          fieldName="businessCategory"
-          type="input"
-          label="Business Category"
-          placeholder="E.g. Plumbing Services"
-          disabled={disabledFields?.businessCategory}
-        />
-      </div>
-      <div className="w-1/2">
-        <GenericInput<BusinessInfoFormData>
-          form={form as any}
           fieldName="serviceType"
           type="radio-cards"
           label="Market"
@@ -575,21 +543,16 @@ export const BusinessInfoForm = React.memo(({
       </div>
       {detailSection(
         "Classification",
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="b2bB2c"
-            type="select"
-            label="B2B / B2C"
-            placeholder="Select audience"
-            options={[
-              { value: "b2b", label: "B2B" },
-              { value: "b2c", label: "B2C" },
-              { value: "both", label: "Both" },
-            ]}
-            disabled={disabledFields?.b2bB2c}
-          />
-        </div>
+        <ProfileCategoryFields
+          form={form}
+          disabled={
+            disabledFields?.primaryCategory ||
+            disabledFields?.secondaryCategory ||
+            disabledFields?.categoriesTagged ||
+            disabledFields?.customerTypes
+          }
+          className="grid grid-cols-1 gap-7 md:grid-cols-2"
+        />
       )}
       <div className="w-3/4">
         <Typography variant="small" className="mb-2 block text-sm font-medium">
@@ -768,6 +731,31 @@ export const BusinessInfoForm = React.memo(({
             variant="card"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+            <GenericInput<BusinessInfoFormData>
+              form={form as any}
+              fieldName="primaryPhone"
+              type="input"
+              label="Primary Phone"
+              placeholder="+1 555 123 4567"
+              disabled={disabledFields?.primaryPhone}
+            />
+            <div>
+              <Typography variant="small" className="mb-2 block text-sm font-medium">
+                Additional Phones
+              </Typography>
+              <TagsInput
+                value={
+                  Array.isArray(additionalPhonesValue)
+                    ? additionalPhonesValue
+                    : []
+                }
+                onChange={(next) =>
+                  form.setFieldValue("additionalPhones" as any, next as any)
+                }
+                placeholder="Type a phone number and press Enter"
+                disabled={disabledFields?.additionalPhones}
+              />
+            </div>
             <GenericInput<BusinessInfoFormData>
               form={form as any}
               fieldName="supportEmail"

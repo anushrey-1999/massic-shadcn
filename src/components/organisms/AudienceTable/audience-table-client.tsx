@@ -62,7 +62,7 @@ export function AudienceTableClient({
   const offerings = React.useMemo(() => {
     if (!jobDetails || !jobDetails.offerings) return [];
     return jobDetails.offerings
-      .map((o) => o.name || o.offering)
+      .map((o) => o.name)
       .filter(Boolean) as string[];
   }, [jobDetails]);
 

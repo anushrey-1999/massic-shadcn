@@ -41,6 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
+import { ProfileStrategyGate } from "@/components/molecules/ProfileStrategyGate";
+import { getProfileStrategyGate } from "@/utils/profile-strategy-gate";
 
 interface PageProps {
   params: Promise<{
@@ -757,6 +759,7 @@ export default function BusinessStrategyPage({ params, skipEntitlements = false 
   );
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const showMainContent = coreStatus === "success";
+  const profileGate = getProfileStrategyGate(jobDetails);
 
   const businessName =
     profileData?.Name || profileData?.DisplayName || "Business";
@@ -789,7 +792,11 @@ export default function BusinessStrategyPage({ params, skipEntitlements = false 
     );
   }
 
-  const content = !jobDetailsLoading && showMainContent ? (
+  const content = !jobDetailsLoading && profileGate.blocked ? (
+    <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+      <ProfileStrategyGate businessId={businessId} job={jobDetails} />
+    </div>
+  ) : !jobDetailsLoading && showMainContent ? (
     <StrategyEntitledContent businessId={businessId} />
   ) : (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">

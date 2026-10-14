@@ -7,6 +7,8 @@ import BusinessStrategyPage from "@/app/business/[id]/strategy/page";
 import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { getWorkflowStatus } from "@/lib/workflow-status";
+import { ProfileStrategyGate } from "@/components/molecules/ProfileStrategyGate";
+import { getProfileStrategyGate } from "@/utils/profile-strategy-gate";
 
 export default function PitchStrategyPage() {
   const params = useParams();
@@ -15,12 +17,27 @@ export default function PitchStrategyPage() {
 
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const canShowData = coreStatus === "success";
+  const profileGate = getProfileStrategyGate(jobDetails);
 
   const businessParams = React.useMemo(() => {
     return Promise.resolve({ id: businessId || "" });
   }, [businessId]);
 
   if (!businessId) return null;
+
+  if (!isLoading && profileGate.blocked) {
+    return (
+      <div className="flex flex-col h-screen">
+        <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+          <ProfileStrategyGate
+            businessId={businessId}
+            job={jobDetails}
+            profileHref={`/pitches/${businessId}/profile`}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !canShowData) {
     return (

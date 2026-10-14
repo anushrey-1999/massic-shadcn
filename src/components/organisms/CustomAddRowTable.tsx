@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FieldError } from "@/components/ui/field";
@@ -26,6 +27,9 @@ export interface ColumnValidation {
 export interface Column<T = any> {
   key: string;
   label: string;
+  multiline?: boolean;
+  rows?: number;
+  cardClassName?: string;
   render?: (
     value: any,
     row: T,
@@ -53,6 +57,9 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
   onValidationChange?: (hasErrors: boolean) => void;
   showErrorsWithoutTouch?: boolean;
   variant?: "table" | "card";
+  cardLayout?: "inline" | "stacked";
+  cardGridClassName?: string;
+  hideAddButton?: boolean;
   disabled?: boolean;
 }
 
@@ -100,6 +107,9 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   onValidationChange,
   showErrorsWithoutTouch = false,
   variant = "table",
+  cardLayout = "inline",
+  cardGridClassName,
+  hideAddButton = false,
   disabled = false,
 }: CustomAddRowTableProps<T>) {
   // Error state: { rowIndex: { fieldKey: errorMessage } }
@@ -110,6 +120,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
   const prevDataLengthRef = React.useRef(data.length);
   const tableId = React.useId();
+  const displayedData = React.useMemo(
+    () => (data.length > 0 ? data : emptyRowData ? [emptyRowData] : data),
+    [data, emptyRowData]
+  );
 
   // Auto-focus the first field of the newly added row
   React.useEffect(() => {
@@ -150,12 +164,12 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   // This ensures Save button is disabled even if errors aren't displayed
   React.useEffect(() => {
     const allErrors: Record<number, Record<string, string>> = {};
-    data.forEach((row, rowIndex) => {
+    displayedData.forEach((row, rowIndex) => {
       const rowIsCompletelyEmpty = columns.every((column) => {
         const value = row[column.key];
         return !String(value ?? "").trim();
       });
-      if (rowIsCompletelyEmpty) {
+      if (rowIsCompletelyEmpty && !showErrorsWithoutTouch) {
         return;
       }
 
@@ -189,7 +203,12 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         return nextTouched;
       });
     }
-  }, [data, columns, onValidationChange, showErrorsWithoutTouch]);
+  }, [
+    columns,
+    displayedData,
+    onValidationChange,
+    showErrorsWithoutTouch,
+  ]);
 
   // Validate all fields in a row
   const validateRow = (rowIndex: number, row: T) => {
@@ -325,11 +344,13 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   };
 
   if (variant === "card") {
+    const isStacked = cardLayout === "stacked";
+
     return (
       <div className={cn("flex flex-col gap-1.5", className)}>
         <div className="flex flex-col gap-2">
-          {data.length > 0 ? (
-            data.map((row, rowIndex) => (
+          {displayedData.length > 0 ? (
+            displayedData.map((row, rowIndex) => (
               (() => {
                 const rowHasAnyValue = columns.some((c) =>
                   Boolean(String(row[c.key] ?? "").trim())
@@ -342,11 +363,37 @@ export function CustomAddRowTable<T extends Record<string, any>>({
               <div
                 key={rowIndex}
                 id={rowId}
-                className="group flex gap-2 items-start rounded-lg bg-[#f5f5f5] p-1 transition-colors"
+                className={cn(
+                  "group relative transition-colors",
+                  isStacked
+                    ? cn(
+                        "grid grid-cols-1 gap-3 rounded-lg border border-general-border bg-general-primary-foreground p-3 pr-12 sm:grid-cols-2",
+                        cardGridClassName
+                      )
+                    : "flex items-center gap-2"
+                )}
               >
                 {columns.map((column) => {
                   return (
-                  <div key={column.key} className="flex flex-1 min-w-0">
+                  <div
+                    key={column.key}
+                    className={cn(
+                      "flex min-w-0",
+                      isStacked ? "flex-col gap-1.5" : "flex-1",
+                      isStacked && column.cardClassName
+                    )}
+                  >
+                    {isStacked ? (
+                      <label
+                        htmlFor={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                        className="text-xs font-medium text-general-muted-foreground"
+                      >
+                        {column.label}
+                        {column.validation?.required ? (
+                          <span className="ml-0.5 text-destructive">*</span>
+                        ) : null}
+                      </label>
+                    ) : null}
                     {column.render ? (
                       column.render(row[column.key], row, rowIndex, {
                         disabled,
@@ -356,45 +403,89 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                         setFocusedRowIndex,
                       })
                     ) : onRowChange ? (
-                      <div className="flex flex-1 min-w-0 flex-col gap-1">
-                        <Input
-                          id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                          type={column.validation?.url ? "url" : "text"}
-                          variant="default"
-                          value={row[column.key] || ""}
-                          disabled={disabled}
-                          onChange={(e) =>
-                            handleRowChange(rowIndex, column.key, e.target.value)
-                          }
-                          onFocus={() => setFocusedRowIndex(rowIndex)}
-                          onBlur={(e) => {
-                            handleBlur(rowIndex, column.key, e.target.value);
-                            setTimeout(() => {
-                              const container = document.getElementById(rowId);
-                              const active = document.activeElement;
-                              if (!container || !active || !container.contains(active)) {
-                                setFocusedRowIndex((prev) =>
-                                  prev === rowIndex ? null : prev
-                                );
-                              }
-                            }, 0);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              if (!disabled) onAddRow();
+                      <div
+                        className={cn(
+                          "flex min-w-0 flex-col gap-1",
+                          !isStacked && "flex-1"
+                        )}
+                      >
+                        {column.multiline && isStacked ? (
+                          <Textarea
+                            id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                            value={row[column.key] || ""}
+                            rows={column.rows ?? 3}
+                            disabled={disabled}
+                            inputMode={column.validation?.url ? "url" : undefined}
+                            autoCapitalize={column.validation?.url ? "none" : undefined}
+                            autoCorrect={column.validation?.url ? "off" : undefined}
+                            spellCheck={column.validation?.url ? false : undefined}
+                            onChange={(e) =>
+                              handleRowChange(rowIndex, column.key, e.target.value)
                             }
-                          }}
-                          placeholder={column.label || "Enter value"}
-                          className={cn(
-                            "h-10 min-h-9 flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
-                            blendRow
-                              ? "bg-transparent placeholder:text-general-border-four"
-                              : "bg-white placeholder:text-general-border-four",
-                            (errors[rowIndex] || {})[column.key] && touched[rowIndex]?.[column.key] && "aria-invalid border border-destructive"
-                          )}
-                          aria-invalid={touched[rowIndex]?.[column.key] && !!(errors[rowIndex] || {})[column.key]}
-                        />
+                            onFocus={() => setFocusedRowIndex(rowIndex)}
+                            onBlur={(e) => {
+                              handleBlur(rowIndex, column.key, e.target.value);
+                              setFocusedRowIndex((prev) =>
+                                prev === rowIndex ? null : prev
+                              );
+                            }}
+                            placeholder={column.label || "Enter value"}
+                            className="resize-y text-sm leading-5"
+                            aria-invalid={
+                              touched[rowIndex]?.[column.key] &&
+                              !!(errors[rowIndex] || {})[column.key]
+                            }
+                          />
+                        ) : (
+                          <Input
+                            id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                            type="text"
+                            inputMode={column.validation?.url ? "url" : undefined}
+                            autoCapitalize={column.validation?.url ? "none" : undefined}
+                            autoCorrect={column.validation?.url ? "off" : undefined}
+                            spellCheck={column.validation?.url ? false : undefined}
+                            variant="default"
+                            value={row[column.key] || ""}
+                            disabled={disabled}
+                            onChange={(e) =>
+                              handleRowChange(rowIndex, column.key, e.target.value)
+                            }
+                            onFocus={() => setFocusedRowIndex(rowIndex)}
+                            onBlur={(e) => {
+                              handleBlur(rowIndex, column.key, e.target.value);
+                              setTimeout(() => {
+                                const container = document.getElementById(rowId);
+                                const active = document.activeElement;
+                                if (!container || !active || !container.contains(active)) {
+                                  setFocusedRowIndex((prev) =>
+                                    prev === rowIndex ? null : prev
+                                  );
+                                }
+                              }, 0);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (!disabled) onAddRow();
+                              }
+                            }}
+                            placeholder={column.label || "Enter value"}
+                            className={cn(
+                              "h-10 min-h-9 min-w-0 rounded-md px-3 py-2 text-general-foreground text-sm transition-colors",
+                              !isStacked && "flex-1",
+                              "border border-input bg-white shadow-none",
+                              !isStacked &&
+                                "placeholder:text-general-muted-foreground/70",
+                              (errors[rowIndex] || {})[column.key] &&
+                                touched[rowIndex]?.[column.key] &&
+                                "border-destructive"
+                            )}
+                            aria-invalid={
+                              touched[rowIndex]?.[column.key] &&
+                              !!(errors[rowIndex] || {})[column.key]
+                            }
+                          />
+                        )}
                         {touched[rowIndex]?.[column.key] && (errors[rowIndex] || {})[column.key] ? (
                           <FieldError className="text-xs mt-0.5">
                             {(errors[rowIndex] || {})[column.key]}
@@ -412,7 +503,12 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity min-h-9 min-w-9 h-9 w-9 shrink-0 rounded-lg p-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className={cn(
+                      "transition-opacity min-h-9 min-w-9 h-9 w-9 shrink-0 rounded-lg p-2 text-destructive hover:text-destructive hover:bg-destructive/10",
+                      isStacked
+                        ? "absolute right-2 top-9 opacity-70 hover:opacity-100"
+                        : "opacity-70 hover:opacity-100"
+                    )}
                     onClick={() => handleDeleteRow(rowIndex)}
                     title="Delete row"
                     disabled={disabled}
@@ -426,18 +522,20 @@ export function CustomAddRowTable<T extends Record<string, any>>({
             ))
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            if (!disabled) onAddRow();
-          }}
-          className="flex items-center justify-center gap-1.5 h-8 min-h-8 px-3 py-2 rounded-lg text-general-primary hover:text-general-primary hover:bg-general-primary/10 w-fit"
-          disabled={disabled}
-        >
-          <Plus className="h-4 w-4" />
-          {addButtonText}
-        </Button>
+        {!hideAddButton ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              if (!disabled) onAddRow();
+            }}
+            className="flex items-center justify-center gap-1.5 h-8 min-h-8 px-3 py-2 rounded-lg text-general-primary hover:text-general-primary hover:bg-general-primary/10 w-fit"
+            disabled={disabled}
+          >
+            <Plus className="h-4 w-4" />
+            {addButtonText}
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -467,8 +565,8 @@ export function CustomAddRowTable<T extends Record<string, any>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length > 0 ? (
-              data.map((row, rowIndex) => {
+            {displayedData.length > 0 ? (
+              displayedData.map((row, rowIndex) => {
                 const rowErrors = errors[rowIndex] || {};
                 const hasRowErrors = Object.keys(rowErrors).length > 0;
                 const rowTouched = touched[rowIndex] || {};

@@ -15,6 +15,8 @@ import {
   CreateBusinessConflictError,
   parseCreateBusinessConflict,
 } from "@/lib/business-conflict";
+import { fetchBusinessProfiles } from "@/hooks/use-business-profiles";
+import { normalizeDomainForFavicon } from "@/utils/utils";
 
 export { CreateBusinessConflictError } from "@/lib/business-conflict";
 
@@ -157,6 +159,11 @@ interface CreateAgencyBusinessVariables {
   mergeExisting?: boolean;
   mergeTargetUniqueId?: string;
   suppressDuplicateToast?: boolean;
+}
+
+export interface ConnectedBusinessResult {
+  businessId: string;
+  website: string;
 }
 
 export function useFetchBusinesses() {
@@ -309,7 +316,11 @@ export function useCreateAgencyBusiness() {
   const { setBusinessProfiles } = useBusinessStore();
   const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
 
-  return useMutation<void, Error, CreateAgencyBusinessVariables>({
+  return useMutation<
+    ConnectedBusinessResult[],
+    Error,
+    CreateAgencyBusinessVariables
+  >({
     // This POST can create or link records, so it must never be replayed automatically.
     retry: false,
     mutationFn: async ({
@@ -328,7 +339,7 @@ export function useCreateAgencyBusiness() {
 
       if (validBusinesses.length === 0) {
         toast.info("No businesses to link");
-        return;
+        return [];
       }
 
       // Group by authId
@@ -411,6 +422,35 @@ export function useCreateAgencyBusiness() {
           throw error;
         }
       }
+
+      const profiles = await fetchBusinessProfiles(userUniqueId, false, {
+        strict: true,
+      });
+      setBusinessProfiles(profiles);
+
+      return validBusinesses.map((business) => {
+        if (mergeExisting && mergeTargetUniqueId) {
+          return {
+            businessId: mergeTargetUniqueId,
+            website: business.siteUrl,
+          };
+        }
+
+        const domain = normalizeDomainForFavicon(business.siteUrl);
+        const profile = profiles.find(
+          (candidate) =>
+            normalizeDomainForFavicon(candidate.Website ?? "") === domain
+        );
+        if (!profile?.UniqueId) {
+          throw new Error(
+            `Business was connected, but its profile could not be resolved for ${business.siteUrl}.`
+          );
+        }
+        return {
+          businessId: profile.UniqueId,
+          website: business.siteUrl,
+        };
+      });
     },
     onSuccess: () => {
       toast.success("Businesses connected successfully");

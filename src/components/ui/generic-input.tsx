@@ -303,6 +303,7 @@ function GenericInput<
             label={label}
             description={description}
             fieldOrientation={fieldOrientation}
+            fieldClassName={fieldClassName}
             showCharacterCount={showCharacterCount}
             maxLength={maxLength}
             rows={rows}
@@ -431,7 +432,7 @@ function GenericInput<
 
       if (hasInputGroup) {
         return (
-          <InputGroup className="h-10 rounded-lg">
+          <InputGroup className="h-10 rounded-md">
             {addon && addon.position === "inline-start" && (
               <InputGroupAddon align={addon.position}>
                 {typeof addon.content === "string" ? (
@@ -450,7 +451,7 @@ function GenericInput<
                 id={inputId}
                 variant={inputVariant}
                 className={cn(
-                  "flex-1 rounded-lg focus-visible:ring-0 w-full",
+                  "flex-1 rounded-md focus-visible:ring-0 w-full",
                   className
                 )}
                 aria-invalid={isInvalid}

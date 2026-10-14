@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import { getOverallWorkflowStatus } from "@/lib/workflow-status";
 
 export function AgentAccessGuard({
   businessId,
@@ -24,7 +23,6 @@ export function AgentAccessGuard({
 }) {
   const router = useRouter();
   const job = useJobByBusinessId(businessId);
-  const status = getOverallWorkflowStatus(job.data);
 
   if (job.isLoading) {
     return (
@@ -34,28 +32,25 @@ export function AgentAccessGuard({
     );
   }
 
-  if (job.data && status === "success") {
+  if (job.data?.job_id) {
     return <>{children}</>;
   }
 
   const title = job.isError
-    ? "We couldn’t check your strategy"
-    : status === "pending" || status === "processing"
-      ? "Your strategy is still running"
-      : "Complete your profile to use Massic Agent";
+    ? "We couldn’t check your business profile"
+    : "Create your business profile to use Massic Agent";
   const description = job.isError
     ? "Try checking again. If the issue continues, open your profile and confirm your business details."
-    : status === "pending" || status === "processing"
-      ? "Massic Agent will be available after every strategy workflow finishes successfully."
-      : status === "error"
-        ? "Your strategy did not finish successfully. Review your profile and run the strategy again before using Massic Agent."
-        : "Complete your business profile and run the strategy before using Massic Agent.";
+    : "Set up your business profile before using Massic Agent.";
 
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) router.push(`/business/${encodeURIComponent(businessId)}/analytics`);
+        if (!open) {
+          if (window.history.length > 1) router.back();
+          else router.replace(`/business/${encodeURIComponent(businessId)}/analytics`);
+        }
       }}
     >
       <DialogContent>
@@ -70,7 +65,7 @@ export function AgentAccessGuard({
             </Button>
           )}
           <Button onClick={() => router.push(`/business/${encodeURIComponent(businessId)}/profile`)}>
-            Complete profile &amp; run strategy
+            Create profile
           </Button>
         </DialogFooter>
       </DialogContent>

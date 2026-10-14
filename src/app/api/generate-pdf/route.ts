@@ -2952,7 +2952,7 @@ export async function POST(request: NextRequest) {
     await page.emulateMediaType("screen");
 
     await page.setContent(fullHtml, { waitUntil: "load" });
-    await page.waitForNetworkIdle({ idleTime: 500, concurrency: 0 });
+    await page.waitForNetworkIdle({ idleTime: 500, concurrency: 0, timeout: 30_000 });
     await page.evaluateHandle("document.fonts.ready");
 
     const pdf = await page.pdf(

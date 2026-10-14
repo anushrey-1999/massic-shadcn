@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import { CompetitorRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
-import { Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 
 type BusinessInfoFormData = {
   competitors?: Array<{ url: string }>;
@@ -22,15 +23,18 @@ type BusinessInfoFormData = {
 interface CompetitorsFormProps {
   form: any; // TanStack Form instance
   embedded?: boolean;
+  required?: boolean;
 }
 
 export const CompetitorsForm = ({
   form,
   embedded = false,
+  required = false,
 }: CompetitorsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
   const competitorsData = useStore(form.store, (state: any) => (state.values?.competitors || []) as CompetitorRow[]);
+  const emptyCompetitorRow = useMemo<CompetitorRow>(() => ({ url: "" }), []);
 
   const [hasCompetitorErrors, setHasCompetitorErrors] = React.useState(false);
 
@@ -42,9 +46,17 @@ export const CompetitorsForm = ({
   }, [hasCompetitorErrors, form]);
 
   // Own column definitions
-  const competitorsColumns: Column<CompetitorRow>[] = useMemo(() => [
-    { key: "url", label: "URL of competitor website", validation: { required: false, url: true } },
-  ], []);
+  const competitorsColumns: Column<CompetitorRow>[] = useMemo(
+    () => [
+      {
+        key: "url",
+        label: "Competitor website",
+        validation: { required, url: true },
+        cardClassName: "sm:col-span-2",
+      },
+    ],
+    [required]
+  );
 
   // Own handlers - encapsulated logic
   const {
@@ -61,15 +73,18 @@ export const CompetitorsForm = ({
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
   const innerContent = (
     <Card variant={cardVariant}>
-      <CardHeader className="">
-        <CardTitle>
-          <FieldLabel className="gap-0">
+      <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
+        <CardTitle className="text-sm font-medium leading-normal">
+          <FieldLabel className="gap-0 text-sm font-medium leading-normal">
+            {required ? (
+              <span className="mr-0.5 text-destructive">*</span>
+            ) : null}
             Websites of businesses that have similar offerings
           </FieldLabel>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="w-full md:w-3/4">
+      <CardContent className={embedded ? "p-0" : undefined}>
+        <div className="w-full">
 <CustomAddRowTable
               columns={competitorsColumns}
               data={competitorsData}
@@ -79,7 +94,10 @@ export const CompetitorsForm = ({
               addButtonText="Add URL"
               onValidationChange={setHasCompetitorErrors}
               showErrorsWithoutTouch={hasCompetitorErrors}
+              emptyRowData={required ? emptyCompetitorRow : undefined}
               variant="card"
+              cardLayout="inline"
+              hideAddButton={embedded}
             />
         </div>
       </CardContent>
@@ -87,7 +105,26 @@ export const CompetitorsForm = ({
   );
 
   if (embedded) {
-    return <div id="competitors">{innerContent}</div>;
+    return (
+      <div id="competitors" tabIndex={-1} className="space-y-3 outline-none">
+        <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
+          <h2 className="text-base font-semibold text-general-foreground">
+            Competitors
+          </h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddRow}
+            className="h-8 shrink-0 gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add competitor
+          </Button>
+        </div>
+        {innerContent}
+      </div>
+    );
   }
 
   return (

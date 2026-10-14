@@ -7,7 +7,7 @@ import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { cn } from "@/lib/utils";
 import { AgentConversationMenu } from "./agent-conversation-menu";
 import type { AgentConversation } from "./types";
-export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean }) {
+export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading, showPlans = true }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean; showPlans?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useInfiniteScroll({ enabled: hasMore && !error, loading: loading || loadingMore, onLoadMore: onMore, rootRef: scrollRef });
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
@@ -21,7 +21,7 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
     <nav className="space-y-1 px-2 pb-3">
       {[
         { label: "New chat", Icon: Plus, click: onNewChat, active: false },
-        { label: "Plans", Icon: ClipboardList, click: onPlans, active: activeView === "plans" },
+        ...(showPlans ? [{ label: "Plans", Icon: ClipboardList, click: onPlans, active: activeView === "plans" }] : []),
         { label: "Chats", Icon: MessageSquare, click: onChats, active: activeView === "chats" },
       ].map(({ label, Icon, click, active }) => <button key={label} aria-label={label} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} onClick={click} className={cn("flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-sm transition-[background-color,box-shadow,color] hover:bg-general-primary/10 hover:text-general-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring", active && "bg-general-primary/10 text-general-primary shadow-sm")}><Icon className="h-4 w-4 shrink-0" />{!collapsed && label}</button>)}
     </nav>

@@ -4,11 +4,7 @@ import * as React from "react";
 import { ChevronDown, Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-} from "@/components/ui/command";
+import { Command, CommandInput, CommandList } from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +30,9 @@ type SearchableSelectProps = {
   onRetry?: () => void;
   disabled?: boolean;
   className?: string;
+  id?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 };
 
 export function SearchableSelect({
@@ -48,18 +47,21 @@ export function SearchableSelect({
   onRetry,
   disabled = false,
   className,
+  id,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const deferredSearchValue = React.useDeferredValue(searchValue);
   const optionByValue = React.useMemo(
     () => new Map(options.map((option) => [option.value, option])),
-    [options]
+    [options],
   );
   const selected = optionByValue.get(value);
   const selectedValues = React.useMemo(
     () => new Set(value ? [value] : []),
-    [value]
+    [value],
   );
   const filteredOptions = React.useMemo(() => {
     const query = deferredSearchValue.trim().toLowerCase();
@@ -67,7 +69,7 @@ export function SearchableSelect({
     return options.filter(
       (option) =>
         option.label.toLowerCase().includes(query) ||
-        option.value.toLowerCase().includes(query)
+        option.value.toLowerCase().includes(query),
     );
   }, [deferredSearchValue, options]);
 
@@ -88,12 +90,17 @@ export function SearchableSelect({
           type="button"
           variant="outline"
           role="combobox"
+          id={id}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           aria-expanded={open}
           disabled={disabled}
           className={cn(
             "h-10 w-full justify-between rounded-md border-input bg-white px-3 text-sm font-normal text-general-foreground shadow-none disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100",
             !selected && "text-xs text-general-muted-foreground/70",
-            className
+            ariaInvalid &&
+              "border-destructive focus-visible:ring-destructive/30",
+            className,
           )}
         >
           <span className="truncate">

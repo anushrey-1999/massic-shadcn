@@ -1,4 +1,5 @@
 import Cookies from "js-cookie";
+import { apiErrorMessage } from "@/lib/api-error";
 import { api, getBaseURLByPlatform } from "@/hooks/use-api";
 import { isTokenExpired } from "@/utils/jwt";
 import { useSessionStore } from "@/store/session-store";
@@ -42,10 +43,7 @@ export function errorMessage(error: unknown): string {
   if (response?.status === 503)
     return "The agent service is temporarily unavailable. Please try again.";
   return (
-    response?.data?.message ??
-    (error instanceof Error
-      ? error.message
-      : "Something went wrong. Please try again.")
+    apiErrorMessage(error)
   );
 }
 export function streamErrorMessage(code: string, fallback: string): string {
@@ -301,8 +299,7 @@ export async function startChatStream(
     let detail = "";
     try {
       const body = await response.json();
-      detail =
-        typeof body.detail === "string" ? body.detail : (body.message ?? "");
+      detail = apiErrorMessage({ response: { status: response.status, data: body } });
     } catch {
       /* HTTP fallback below */
     }

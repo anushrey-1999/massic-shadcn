@@ -1,10 +1,15 @@
 /** Matches backend subscriptionAccess.util activeStatuses */
-export const SUBSCRIPTION_ACCESS_STATUSES = ["active", "trialing", "past_due"] as const;
+export const SUBSCRIPTION_ACCESS_STATUSES = [
+  "active",
+  "trialing",
+  "past_due",
+] as const;
 
-export type SubscriptionAccessStatus = (typeof SUBSCRIPTION_ACCESS_STATUSES)[number];
+export type SubscriptionAccessStatus =
+  (typeof SUBSCRIPTION_ACCESS_STATUSES)[number];
 
 export function isSubscriptionAccessStatus(
-  status?: string | null
+  status?: string | null,
 ): status is SubscriptionAccessStatus {
   if (!status) return false;
   return (SUBSCRIPTION_ACCESS_STATUSES as readonly string[]).includes(status);
@@ -15,18 +20,48 @@ export function isPastDueSubscription(status?: string | null): boolean {
 }
 
 export function hasBusinessPlanAccess(
-  subscription?: { status?: string | null; plan_type?: string | null } | null
+  subscription?: { status?: string | null; plan_type?: string | null } | null,
 ): boolean {
   if (!subscription?.plan_type) return false;
   if (subscription.status === "cancelled") return false;
   return isSubscriptionAccessStatus(subscription.status);
 }
 
+type BusinessSubscription = {
+  status?: string | null;
+  plan_type?: string | null;
+  planType?: string | null;
+  plan?: string | null;
+  whitelisted?: boolean;
+};
+
+/** Billing supplies live status; the business profile supplies the plan name. */
+export function resolveBusinessSubscription(
+  billing: BusinessSubscription | null | undefined,
+  business: BusinessSubscription | null | undefined,
+): BusinessSubscription | null | undefined {
+  if (billing === null) return null;
+  if (billing === undefined) return business;
+  return {
+    ...billing,
+    plan_type:
+      billing.plan_type ??
+      billing.planType ??
+      billing.plan ??
+      business?.plan_type,
+  };
+}
+
 export function hasActiveCoreOrGrowthPlan(
-  subscription?: { status?: string | null; plan_type?: string | null } | null,
-  isWhitelisted = false
+  subscription?: BusinessSubscription | null,
+  isWhitelisted = false,
 ): boolean {
-  if (isWhitelisted) return true;
+  if (
+    isWhitelisted ||
+    subscription?.whitelisted === true ||
+    subscription?.status === "whitelisted"
+  )
+    return true;
   if (!hasBusinessPlanAccess(subscription)) return false;
 
   const planType = subscription?.plan_type?.trim().toLowerCase();
@@ -34,7 +69,11 @@ export function hasActiveCoreOrGrowthPlan(
 }
 
 export function hasMassicOpportunitiesAccess(
-  status?: { has_subscription?: boolean; status?: string; whitelisted?: boolean } | null
+  status?: {
+    has_subscription?: boolean;
+    status?: string;
+    whitelisted?: boolean;
+  } | null,
 ): boolean {
   if (!status?.has_subscription) return false;
   return isSubscriptionAccessStatus(status.status);
@@ -46,7 +85,7 @@ export function getMassicOpportunitiesLinkLabel(
     status?: string;
     cancel_at_period_end?: boolean;
     current_period_end?: Date | string;
-  } | null
+  } | null,
 ): string {
   if (!hasMassicOpportunitiesAccess(status)) return "Inactive";
 

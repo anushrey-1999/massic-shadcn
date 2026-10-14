@@ -1,15 +1,23 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useForm } from "@tanstack/react-form";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileEditorTemplate } from "@/components/templates/ProfileEditorTemplate";
+import { ProfileEditorTemplate } from "./ProfileEditorTemplate";
 import { Button } from "@/components/ui/button";
-import { LoaderOverlay } from "@/components/ui/loader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   useBusinessProfileById,
   useUpdateBusinessProfile,
@@ -21,52 +29,100 @@ import {
   useUpdateJob,
 } from "@/hooks/use-jobs";
 import { useLocations } from "@/hooks/use-locations";
-import { useFormDirtyState } from "@/hooks/use-form-dirty-state";
+import { useProfileFormSync } from "@/hooks/use-profile-form-sync";
+import { useProfileValidation } from "@/hooks/use-profile-validation";
+import { ProfileLoadingBoundary } from "@/components/organisms/profile/ProfileLoadingBoundary";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import {
-  businessInfoSchema,
-  type BusinessInfoFormData,
-} from "@/schemas/ProfileFormSchema";
+import { businessInfoSchema } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import {
-  applyFormValues,
   buildBusinessProfilePayload,
   mapProfileDataToFormValues,
-  profileFormDefaults,
+  selectCombinedBusinessPayload,
 } from "@/utils/profile-form-mappers";
-import {
-  mergeJobAndNodeFormValues,
-  mapJobToFormValues,
-} from "@/utils/profile-v2-mappers";
+import { mergeJobAndNodeFormValues } from "@/utils/profile-v2-mappers";
+import { type ProfileValidationIssue } from "@/utils/profile-form-fields";
+import { isOrchestrationActive } from "@/lib/workflow-status";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export function PitchProfileTemplate() {
   const params = useParams();
   const router = useRouter();
   const businessId = params?.id as string;
-  const { locationOptions, isLoading: locationsLoading } = useLocations("us");
-  const { profileData, profileDataLoading, refetchProfile } =
-    useBusinessProfileById(businessId || null);
-  const updateNodeProfile = useUpdateBusinessProfile(businessId || null);
+  const {
+    locationOptions,
+    isLoading: locationsLoading,
+    isFetching: locationsFetching,
+  } = useLocations("us");
+  const {
+    profileData,
+    profileDataLoading,
+    profileDataFetching,
+    profileDataError,
+    refetchProfile,
+  } = useBusinessProfileById(businessId || null);
   const jobQuery = useJobByBusinessId(businessId || null);
+  const updateNode = useUpdateBusinessProfile(businessId || null, {
+    silent: true,
+  });
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
-  const convertPitch = useConvertPitchToBusiness();
-  const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
-  const [hydrated, setHydrated] = useState(false);
-  const [convertOpen, setConvertOpen] = useState(false);
-  const {
-    setLocationOptions,
-    setLocationsLoading,
-  } = useBusinessStore();
-
+  const convert = useConvertPitchToBusiness();
+  const guardSave = useFeatureActionGuard("profile.save");
+  const guardConvert = useFeatureActionGuard("business.convertPitch");
+  const [converting, setConverting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [issues, setIssues] = useState<ProfileValidationIssue[]>([]);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const operationRef = useRef(false);
+  const lastError = useRef("");
+  const setLocationOptions = useBusinessStore(
+    (state) => state.setLocationOptions,
+  );
+  const setLocationsLoading = useBusinessStore(
+    (state) => state.setLocationsLoading,
+  );
+  const serverValues = useMemo(() => {
+    const node = mapProfileDataToFormValues(
+      profileData ?? null,
+      null,
+      locationOptions,
+    );
+    return jobQuery.data?.job_id
+      ? mergeJobAndNodeFormValues(jobQuery.data, node)
+      : node;
+  }, [jobQuery.data, locationOptions, profileData]);
+  const initialValues = useRef(serverValues);
   const form = useForm({
-    defaultValues: profileFormDefaults,
-    validators: { onChange: businessInfoSchema as never },
+    defaultValues: initialValues.current,
+    validators: { onBlur: businessInfoSchema as never },
   });
-  const {
-    isDirty: hasChanges,
-    resetBaseline,
-  } = useFormDirtyState({ form });
+  const values = useStore(form.store, (state) => state.values);
+  const validation = useProfileValidation(
+    values,
+    serverValues.primaryCategory,
+    "minimal",
+  );
+  const { isDirty, isHydrated, markSaved, markSaveFailed } = useProfileFormSync(
+    {
+      form,
+      serverValues,
+      loading: profileDataLoading || jobQuery.isLoading || locationsLoading,
+      saving,
+    },
+  );
+  const { allowNavigation } = useUnsavedChangesGuard({ isDirty });
+  const processing =
+    jobQuery.data?.profile_status === "processing" ||
+    isOrchestrationActive(jobQuery.data);
+  const loading = profileDataLoading || jobQuery.isLoading || locationsLoading;
+  const locked =
+    Boolean(jobQuery.error ?? profileDataError) ||
+    loading ||
+    processing ||
+    saving ||
+    convert.isPending;
 
   useEffect(() => {
     setLocationOptions(locationOptions);
@@ -77,212 +133,234 @@ export function PitchProfileTemplate() {
     setLocationOptions,
     setLocationsLoading,
   ]);
-
   useEffect(() => {
-    if (
-      hydrated ||
-      profileDataLoading ||
-      locationsLoading ||
-      !jobQuery.isFetched ||
-      !profileData
-    ) {
+    if (!jobQuery.error && !profileDataError) {
+      lastError.current = "";
       return;
     }
-    const nodeValues = mapProfileDataToFormValues(
-      profileData,
-      null,
-      locationOptions
-    );
-    const values = jobQuery.data?.job_id
-      ? mergeJobAndNodeFormValues(jobQuery.data, nodeValues)
-      : nodeValues;
-    applyFormValues(form, values);
-    resetBaseline();
-    setHydrated(true);
-  }, [
-    form,
-    hydrated,
-    jobQuery.data,
-    jobQuery.isFetched,
-    locationOptions,
-    locationsLoading,
-    profileData,
-    profileDataLoading,
-    resetBaseline,
-  ]);
+    const message = apiErrorMessage(jobQuery.error ?? profileDataError);
+    if (message !== lastError.current) {
+      toast.error("Couldn't refresh the pitch profile", {
+        description: message,
+      });
+      lastError.current = message;
+    }
+  }, [jobQuery.error, profileDataError]);
 
-  const save = useCallback(async () => {
-    if (!jobQuery.isFetched || jobQuery.isError) {
-      toast.error("Wait for the pitch profile to load before saving.");
-      return;
-    }
-    if (!hydrated || !hasChanges) return;
-    const values = form.state.values as BusinessInfoFormData;
+  const save = async () => {
     if (
-      !values.businessName.trim() ||
-      !values.website.trim() ||
-      !values.primaryLocation.trim() ||
-      !values.serviceAreaType
-    ) {
-      toast.error(
-        "Add the business name, website, primary location, and service-area type."
-      );
+      !guardSave() ||
+      locked ||
+      operationRef.current ||
+      (jobQuery.data?.job_id && !isDirty)
+    )
       return;
-    }
-
+    const values = form.state.values;
+    operationRef.current = true;
+    setSaving(true);
     try {
-      let canonicalJob = jobQuery.data;
-      if (jobQuery.data?.job_id) {
-        canonicalJob = await updateJob.mutateAsync({
-          businessId,
-          values,
-          locationOptions,
-        });
-      } else {
-        canonicalJob = await createJob.mutateAsync({
-          businessId,
-          values,
-          locationOptions,
-        });
+      const nextIssues = await validation.validate(values, "save");
+      setIssues(nextIssues);
+      if (nextIssues.length) {
+        setFocusRequest((value) => value + 1);
+        toast.error(nextIssues[0].message);
+        return;
       }
-
-      const canonicalValues = canonicalJob
-        ? {
-            ...mapJobToFormValues(canonicalJob),
-            website: values.website,
-            primaryLocation: values.primaryLocation,
-            serviceAreaType: values.serviceAreaType,
-            calendarEvents: values.calendarEvents,
-          }
-        : values;
-      const nodePayload = buildBusinessProfilePayload(canonicalValues, {
-        existingProfile: profileData,
+      const nodePrimaryCategory = mapProfileDataToFormValues(
+        profileData ?? null,
+        null,
         locationOptions,
-        preserveExistingProfile: true,
-      });
-      nodePayload.ProfileId =
-        canonicalJob?.profile_id ??
-        (String((profileData as any)?.ProfileId ?? "") || null);
-      await updateNodeProfile.mutateAsync(nodePayload);
-      await Promise.all([jobQuery.refetch(), refetchProfile()]);
-      resetBaseline(form.state.values);
-      toast.success("Profile updated");
+      ).primaryCategory;
+      const includePrimaryCategory =
+        values.primaryCategory !== serverValues.primaryCategory ||
+        (Boolean(nodePrimaryCategory) &&
+          values.primaryCategory !== nodePrimaryCategory);
+      const job = jobQuery.data?.job_id
+        ? await updateJob.mutateAsync({
+            businessId,
+            values,
+            locationOptions,
+            mode: "minimal",
+            includePrimaryCategory,
+          })
+        : await createJob.mutateAsync({ businessId, values, locationOptions });
+      const payload = selectCombinedBusinessPayload(
+        buildBusinessProfilePayload(values, {
+          existingProfile: profileData,
+          locationOptions,
+          preserveExistingProfile: true,
+        }),
+        { includePrimaryCategory },
+      );
+      payload.ProfileId = job.profile_id ?? (profileData as any)?.ProfileId;
+      await updateNode.mutateAsync(payload);
+      await Promise.all([
+        jobQuery.refetch({ throwOnError: true }),
+        refetchProfile({ throwOnError: true }),
+      ]);
+      markSaved(values);
+      toast.success("Pitch profile saved");
     } catch (error) {
+      markSaveFailed();
       toast.error("Couldn't save pitch profile", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
+        description: apiErrorMessage(error),
       });
+    } finally {
+      operationRef.current = false;
+      setSaving(false);
     }
-  }, [
-    businessId,
-    createJob,
-    form,
-    hasChanges,
-    hydrated,
-    jobQuery,
-    locationOptions,
-    profileData,
-    refetchProfile,
-    resetBaseline,
-    updateJob,
-    updateNodeProfile,
-  ]);
-
-  const processing =
-    createJob.isPending ||
-    updateJob.isPending ||
-    updateNodeProfile.isPending ||
-    jobQuery.data?.profile_status === "processing";
+  };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <LoaderOverlay
-        isLoading={
-          profileDataLoading ||
-          jobQuery.isLoading ||
-          locationsLoading ||
-          !hydrated ||
-          processing
-        }
-        message={
-          updateJob.isPending
-            ? "Updating profile..."
-            : !hydrated
-              ? "Loading profile..."
-              : undefined
-        }
-      >
-        <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Pitches", href: "/pitches" },
-            { label: profileData?.Name || "Business" },
-            { label: "Profile" },
-          ]}
-          showAskMassic={false}
-        />
-        <div className="flex min-h-0 flex-1 p-5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Pitches", href: "/pitches" },
+          { label: profileData?.Name ?? "Pitch" },
+          { label: "Profile" },
+        ]}
+        showAskMassic={false}
+      />
+      <div className="flex min-h-0 min-w-0 w-full max-w-[1224px] flex-1 p-5">
+        <ProfileLoadingBoundary
+          key={businessId}
+          loading={
+            loading ||
+            profileDataFetching ||
+            jobQuery.isFetching ||
+            locationsFetching ||
+            validation.catalogLoading ||
+            !isHydrated
+          }
+          error={jobQuery.error ?? profileDataError ?? validation.catalogError}
+          onRetry={() =>
+            Promise.allSettled([
+              jobQuery.refetch({ throwOnError: true }),
+              refetchProfile({ throwOnError: true }),
+              validation.refetchCatalogs(),
+            ])
+          }
+        >
           <ProfileEditorTemplate
             form={form}
             mode="minimal"
-            leftTitle="Pitch Profile"
+            extractionStatus={jobQuery.data?.offering_extraction}
+            leftTitle="Pitch profile"
             onSaveChanges={() => void save()}
-            onRunStrategy={() => undefined}
-            showUnlinkBusiness={false}
+            onAnalyzeBusiness={() => undefined}
             showDefaultActions={false}
-            isWorkflowProcessing={processing}
+            isWorkflowProcessing={locked}
             initialFieldsLocked={Boolean(jobQuery.data?.job_id)}
+            submissionIssues={validation.displayIssues(issues)}
+            showPrimaryCategoryRepair={validation.repairPrimaryCategory}
+            validationFocusRequest={focusRequest}
+            notice={
+              <>
+                {processing ? (
+                  <div
+                    role="status"
+                    className="flex items-center gap-3 border-b px-4 py-3 text-sm"
+                  >
+                    <Loader2 className="size-5 animate-spin" />
+                    Processing your pitch profile. Editing will be available
+                    when it finishes.
+                  </div>
+                ) : null}
+                {(jobQuery.error ?? profileDataError) ? (
+                  <div
+                    role="alert"
+                    className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 text-sm text-destructive"
+                  >
+                    <p>{apiErrorMessage(jobQuery.error ?? profileDataError)}</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        void jobQuery.refetch();
+                        void refetchProfile();
+                      }}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            }
             customHeaderActions={
               <>
                 <Button
-                  disabled={processing || !hydrated || !hasChanges}
+                  disabled={
+                    locked || (Boolean(jobQuery.data?.job_id) && !isDirty)
+                  }
                   onClick={() => void save()}
                 >
-                  {processing ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : null}
-                  Save Changes
+                  {saving && <Loader2 className="size-4 animate-spin" />}
+                  {saving ? "Saving…" : "Save changes"}
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={processing}
+                  disabled={locked}
                   onClick={() => {
-                    if (guardConvertPitch()) setConvertOpen(true);
+                    if (!guardConvert()) return;
+                    if (isDirty) {
+                      toast.error(
+                        "Save your changes before converting the pitch.",
+                      );
+                      return;
+                    }
+                    if (!jobQuery.data?.job_id) {
+                      toast.error(
+                        "Save the pitch profile before converting it.",
+                      );
+                      return;
+                    }
+                    setConverting(true);
                   }}
                 >
-                  Convert to Business
+                  Convert to business
                 </Button>
               </>
             }
           />
-        </div>
-      </LoaderOverlay>
-
-      {convertOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-sm">
-            <h2 className="text-lg font-medium">Convert to Business?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              This pitch will be moved to Businesses.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConvertOpen(false)}>
-                Cancel
-              </Button>
+        </ProfileLoadingBoundary>
+      </div>
+      <AlertDialog open={converting} onOpenChange={setConverting}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Convert to business?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This pitch will move to Businesses. Its profile and reports will
+              be retained.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={convert.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
               <Button
-                disabled={convertPitch.isPending}
-                onClick={() =>
-                  void convertPitch
-                    .mutateAsync({ businessId })
-                    .then(() => router.push(`/business/${businessId}/profile`))
-                }
+                disabled={locked}
+                onClick={async () => {
+                  if (!guardConvert() || locked || operationRef.current) return;
+                  operationRef.current = true;
+                  try {
+                    await convert.mutateAsync({ businessId });
+                    allowNavigation(() =>
+                      router.push(`/business/${businessId}/profile`),
+                    );
+                  } catch {
+                    /* Mutation owns the error toast. */
+                  } finally {
+                    operationRef.current = false;
+                  }
+                }}
               >
-                {convertPitch.isPending ? "Converting..." : "Convert"}
+                Convert
               </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

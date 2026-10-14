@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CircleAlert, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 
+import { useProfileEditingDisabled } from "./profile-editing-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,7 +52,7 @@ export function useProfileItemEditor() {
   const openAdd = useCallback(() => setState({ mode: "add" }), []);
   const openEdit = useCallback(
     (index: number) => setState({ mode: "edit", index }),
-    []
+    [],
   );
   const close = useCallback(() => setState(null), []);
   return { state, openAdd, openEdit, close };
@@ -53,7 +60,10 @@ export function useProfileItemEditor() {
 
 export type ProfileItemEditor = ReturnType<typeof useProfileItemEditor>;
 
-const FIELD_SPAN_CLASS: Record<NonNullable<ProfileListField<unknown>["span"]>, string> = {
+const FIELD_SPAN_CLASS: Record<
+  NonNullable<ProfileListField<unknown>["span"]>,
+  string
+> = {
   2: "sm:col-span-2",
   3: "sm:col-span-3",
   6: "sm:col-span-6",
@@ -66,14 +76,14 @@ function fieldText(item: Record<string, any>, key: string): string {
 
 function isBlankItem<T extends Record<string, any>>(
   item: T,
-  fields: ProfileListField<T>[]
+  fields: ProfileListField<T>[],
 ): boolean {
   return fields.every((field) => !fieldText(item, field.key).trim());
 }
 
 function validateItem<T extends Record<string, any>>(
   item: T,
-  fields: ProfileListField<T>[]
+  fields: ProfileListField<T>[],
 ): Partial<Record<string, string>> {
   const errors: Partial<Record<string, string>> = {};
   for (const field of fields) {
@@ -107,7 +117,7 @@ export function ProfileItemLink({
       rel="noopener noreferrer"
       className={cn(
         "inline-flex min-w-0 max-w-full items-center gap-1 text-sm text-general-muted-foreground hover:text-general-foreground hover:underline",
-        className
+        className,
       )}
     >
       <span className="truncate">{display}</span>
@@ -123,7 +133,7 @@ type ProfileItemDialogProps<T extends Record<string, any>> = {
   itemLabel: string;
   emptyItem: () => T;
   disabled?: boolean;
-  onCommit: (item: T, index: number | null) => void;
+  onCommit: (item: T, index: number | null, initial: T | null) => void;
 };
 
 function ProfileItemDialog<T extends Record<string, any>>({
@@ -140,13 +150,16 @@ function ProfileItemDialog<T extends Record<string, any>>({
   const [draft, setDraft] = useState<T>(emptyItem);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+  const initialItem = useRef<T | null>(null);
 
   useEffect(() => {
     if (!state) return;
+    initialItem.current =
+      editIndex !== null && items[editIndex] ? { ...items[editIndex] } : null;
     setDraft(
       editIndex !== null && items[editIndex]
         ? { ...items[editIndex] }
-        : emptyItem()
+        : emptyItem(),
     );
     setTouched({});
     setSubmitted(false);
@@ -173,7 +186,7 @@ function ProfileItemDialog<T extends Record<string, any>>({
     if (disabled) return;
     setSubmitted(true);
     if (Object.keys(errors).length > 0) return;
-    onCommit(draft, editIndex);
+    onCommit(draft, editIndex, initialItem.current);
     close();
   };
 
@@ -209,7 +222,7 @@ function ProfileItemDialog<T extends Record<string, any>>({
                     const inputId = `profile-item-${field.key}`;
                     const error = errors[field.key];
                     const showError = Boolean(
-                      error && (submitted || touched[field.key])
+                      error && (submitted || touched[field.key]),
                     );
                     const sharedProps = {
                       id: inputId,
@@ -220,7 +233,7 @@ function ProfileItemDialog<T extends Record<string, any>>({
                       onChange: (
                         event: React.ChangeEvent<
                           HTMLInputElement | HTMLTextAreaElement
-                        >
+                        >,
                       ) =>
                         setDraft((prev) => ({
                           ...prev,
@@ -237,7 +250,7 @@ function ProfileItemDialog<T extends Record<string, any>>({
                         key={field.key}
                         className={cn(
                           "flex min-w-0 flex-col gap-1.5",
-                          FIELD_SPAN_CLASS[field.span ?? 6]
+                          FIELD_SPAN_CLASS[field.span ?? 6],
                         )}
                       >
                         <label
@@ -309,6 +322,8 @@ type ProfileListEditorProps<T extends Record<string, any>> = {
   onValidationChange?: (hasErrors: boolean) => void;
   disabled?: boolean;
   className?: string;
+  getItemKey?: (item: T, index: number) => string | number;
+  commitDraft?: (items: T[], draft: T, initial: T | null) => T[];
 };
 
 /**
@@ -331,13 +346,17 @@ export function ProfileListEditor<T extends Record<string, any>>({
   onValidationChange,
   disabled = false,
   className,
+  getItemKey,
+  commitDraft,
 }: ProfileListEditorProps<T>) {
+  const profileDisabled = useProfileEditingDisabled();
+  disabled = disabled || profileDisabled;
   const visible = useMemo(
     () =>
       items
         .map((item, index) => ({ item, index }))
         .filter(({ item }) => !isBlankItem(item, fields)),
-    [items, fields]
+    [items, fields],
   );
 
   const errorsByIndex = useMemo(() => {
@@ -359,12 +378,14 @@ export function ProfileListEditor<T extends Record<string, any>>({
 
   const withoutBlanks = useCallback(
     (list: T[]) => list.filter((item) => !isBlankItem(item, fields)),
-    [fields]
+    [fields],
   );
 
-  const handleCommit = (item: T, index: number | null) => {
-    const next =
-      index === null
+  const handleCommit = (item: T, index: number | null, initial: T | null) => {
+    if (disabled) return;
+    const next = commitDraft
+      ? commitDraft(items, item, initial)
+      : index === null
         ? [...items, item]
         : items.map((existing, i) => (i === index ? item : existing));
     onChange(withoutBlanks(next));
@@ -384,17 +405,20 @@ export function ProfileListEditor<T extends Record<string, any>>({
             const error = errorsByIndex.get(index);
             return (
               <li
-                key={index}
+                key={getItemKey?.(item, index) ?? index}
                 className={cn(
                   "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-general-primary-foreground",
-                  error && "bg-destructive/5 hover:bg-destructive/5"
+                  error && "bg-destructive/5 hover:bg-destructive/5",
                 )}
               >
                 <div className="min-w-0 flex-1 break-words">
                   {renderItem(item)}
                   {error ? (
                     <p className="mt-1.5 flex items-center gap-1 text-xs text-destructive">
-                      <CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+                      <CircleAlert
+                        className="size-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
                       {error}
                     </p>
                   ) : null}
@@ -433,7 +457,8 @@ export function ProfileListEditor<T extends Record<string, any>>({
         <div
           className={cn(
             "rounded-lg border border-dashed border-general-border px-4 py-6 text-center text-sm text-general-muted-foreground",
-            showEmptyError && "border-destructive/40 bg-destructive/5 text-destructive"
+            showEmptyError &&
+              "border-destructive/40 bg-destructive/5 text-destructive",
           )}
         >
           {emptyMessage}

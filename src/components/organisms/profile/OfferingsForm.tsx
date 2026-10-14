@@ -1,17 +1,11 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useStore } from "@tanstack/react-form";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { OfferingRow } from "@/store/business-store";
 import {
   ProfileItemLink,
@@ -19,7 +13,12 @@ import {
   useProfileItemEditor,
   type ProfileListField,
 } from "@/components/organisms/profile/ProfileListEditor";
-import { PackageSearch, Plus } from "lucide-react";
+import { Loader2, PackageSearch, Plus } from "lucide-react";
+import type { OfferingExtractionStatus } from "@/types/profile-v2";
+import {
+  commitOfferingDraft,
+  newOfferingClientId,
+} from "@/utils/profile-form-reconciliation";
 
 interface OfferingsFormProps {
   form: any; // TanStack Form instance
@@ -27,6 +26,8 @@ interface OfferingsFormProps {
   disabled?: boolean;
   validationMessage?: string;
   required?: boolean;
+  extractionStatus?: OfferingExtractionStatus;
+  onEditorOpenChange?: (open: boolean) => void;
 }
 
 const OFFERING_FIELDS: ProfileListField<OfferingRow>[] = [
@@ -37,9 +38,9 @@ const OFFERING_FIELDS: ProfileListField<OfferingRow>[] = [
     validation: { required: true },
   },
   {
-    key: "pricePositioning",
-    label: "Price positioning",
-    placeholder: "E.g. Premium, Mid-range, Budget",
+    key: "offeringType",
+    label: "Category",
+    placeholder: "E.g. Plumbing services",
   },
   {
     key: "description",
@@ -58,10 +59,11 @@ const OFFERING_FIELDS: ProfileListField<OfferingRow>[] = [
 ];
 
 const emptyOffering = (): OfferingRow => ({
+  clientId: newOfferingClientId(),
   name: "",
   description: "",
   link: "",
-  pricePositioning: "",
+  offeringType: "",
 });
 
 function OfferingSummary({ offering }: { offering: OfferingRow }) {
@@ -71,9 +73,6 @@ function OfferingSummary({ offering }: { offering: OfferingRow }) {
         <p className="text-sm font-medium text-general-foreground">
           {offering.name}
         </p>
-        {offering.pricePositioning?.trim() ? (
-          <Badge variant="outline">{offering.pricePositioning}</Badge>
-        ) : null}
       </div>
       {offering.description?.trim() ? (
         <p className="whitespace-pre-line text-sm leading-6 text-general-muted-foreground">
@@ -91,12 +90,17 @@ export const OfferingsForm = ({
   disabled = false,
   validationMessage,
   required = true,
+  extractionStatus,
+  onEditorOpenChange,
 }: OfferingsFormProps) => {
   const offeringsData = useStore(
     form.store,
-    (state: any) => (state.values?.offeringsList || []) as OfferingRow[]
+    (state: any) => (state.values?.offeringsList || []) as OfferingRow[],
   );
   const editor = useProfileItemEditor();
+  useEffect(() => {
+    onEditorOpenChange?.(editor.state !== null);
+  }, [editor.state, onEditorOpenChange]);
 
   const handleValidationChange = useCallback(
     (hasErrors: boolean) => {
@@ -105,11 +109,28 @@ export const OfferingsForm = ({
         hasValidationErrors: hasErrors,
       }));
     },
-    [form]
+    [form],
   );
 
   const innerContent = (
     <div id="offeringsList" tabIndex={-1} className="space-y-3 outline-none">
+      {extractionStatus === "processing" ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 text-xs text-general-muted-foreground"
+        >
+          <Loader2
+            className="size-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
+          <span>Fetching offerings for this business…</span>
+        </div>
+      ) : extractionStatus === "error" ? (
+        <p role="alert" className="text-xs text-general-muted-foreground">
+          We couldn’t fetch offerings automatically. You can add them manually.
+        </p>
+      ) : null}
       <Card variant="noBorderShadowCard">
         <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
           <div className="flex items-center">
@@ -138,6 +159,8 @@ export const OfferingsForm = ({
             showEmptyError={Boolean(validationMessage)}
             onValidationChange={handleValidationChange}
             disabled={disabled}
+            getItemKey={(item, index) => item.clientId ?? index}
+            commitDraft={commitOfferingDraft}
           />
         </CardContent>
       </Card>
@@ -148,7 +171,7 @@ export const OfferingsForm = ({
     return (
       <div id="offerings-section" className="space-y-3">
         <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
-          <h2 className="text-base font-semibold text-general-foreground">
+          <h2 className="text-base font-medium text-general-foreground">
             Offerings
           </h2>
           <Button
@@ -176,20 +199,27 @@ export const OfferingsForm = ({
     >
       <CardHeader className="pb-4">
         <div className="flex items-center gap-2">
-          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <PackageSearch
+            className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]"
+            strokeWidth={1}
+          />
           <div className="space-y-0">
             <CardTitle>
-              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
+              <Typography variant="h4" className="text-2xl!">
+                Offerings
+              </Typography>
             </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Defines what you actually sell so recommendations focus on revenue-driving products and services.
+            <Typography
+              variant="muted"
+              className="text-xs text-general-muted-foreground"
+            >
+              Defines what you actually sell so recommendations focus on
+              revenue-driving products and services.
             </Typography>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-7">
-        {innerContent}
-      </CardContent>
+      <CardContent className="space-y-7">{innerContent}</CardContent>
     </Card>
   );
 };

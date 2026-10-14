@@ -1,5 +1,6 @@
 "use client";
 
+import { useProfileEditingDisabled } from "@/components/organisms/profile/profile-editing-context";
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ export function TagsInput({
   className,
   maxItems,
 }: TagsInputProps) {
+  const profileDisabled = useProfileEditingDisabled();
+  disabled = disabled || profileDisabled;
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 

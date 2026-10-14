@@ -3,18 +3,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
+import { CreateBusinessTemplate } from "./CreateBusinessTemplate";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   ProfileActionConfirmDialog,
   type ProfileConfirmAction,
 } from "@/components/organisms/profile/ProfileActionConfirmDialog";
-import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
-import { Button } from "@/components/ui/button";
-import { LoaderOverlay } from "@/components/ui/loader";
 import { usePitchBusinesses } from "@/hooks/use-business-profiles";
 import {
   IncompleteBusinessCreationError,
@@ -25,21 +21,17 @@ import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { businessInfoSchema } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import { profileFormDefaults } from "@/utils/profile-form-mappers";
-import { validateInitialProfileFields } from "@/utils/profile-form-fields";
-import {
-  cleanWebsiteUrl,
-  isValidWebsiteUrl,
-  normalizeDomainForFavicon,
-} from "@/utils/utils";
+import { validateProfileForm } from "@/utils/profile-form-fields";
+import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 
 export function CreatePitchTemplate() {
   const router = useRouter();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const setLocationOptions = useBusinessStore(
-    (state) => state.setLocationOptions
+    (state) => state.setLocationOptions,
   );
   const setLocationsLoading = useBusinessStore(
-    (state) => state.setLocationsLoading
+    (state) => state.setLocationsLoading,
   );
   const manualCreation = useManualBusinessCreation({
     isPitch: true,
@@ -57,7 +49,7 @@ export function CreatePitchTemplate() {
   });
   const values = useStore(
     form.store,
-    (state: { values: BusinessInfoFormData }) => state.values
+    (state: { values: BusinessInfoFormData }) => state.values,
   );
 
   useEffect(() => {
@@ -73,15 +65,18 @@ export function CreatePitchTemplate() {
   const createPitch = useCallback(async () => {
     if (creationInFlight.current) return;
     const domain = normalizeDomainForFavicon(
-      cleanWebsiteUrl(values.website)
+      cleanWebsiteUrl(values.website),
     ).toLowerCase();
     const duplicate = pitchBusinesses.find(
       (pitch) =>
         normalizeDomainForFavicon(
-          cleanWebsiteUrl(pitch.Website ?? "")
-        ).toLowerCase() === domain
+          cleanWebsiteUrl(pitch.Website ?? ""),
+        ).toLowerCase() === domain,
     );
-    if (duplicate?.UniqueId) {
+    if (
+      duplicate?.UniqueId &&
+      duplicate.UniqueId !== manualCreation.createdBusinessId
+    ) {
       toast.error("A pitch already exists for this website.", {
         action: {
           label: "Open",
@@ -92,16 +87,22 @@ export function CreatePitchTemplate() {
     }
 
     try {
-      const issues = validateInitialProfileFields(values);
+      const issues = validateProfileForm(values, {
+        sectionMode: "minimal",
+        visibleSections: ["identity", "offerings", "competitors"],
+      });
       if (issues.length > 0) {
         toast.error("Complete the required pitch details.", {
-          description: issues.map((issue) => issue.label).join(", "),
+          description: issues
+            .map((issue) => `${issue.label}: ${issue.message}`)
+            .join("\n"),
         });
         return;
       }
       creationInFlight.current = true;
       setIsCreating(true);
       const result = await manualCreation.create(values);
+      toast.success("Pitch created");
       router.replace(`/pitches/${result.business.UniqueId}/profile`);
     } catch (error) {
       const incompletePitch =
@@ -113,90 +114,27 @@ export function CreatePitchTemplate() {
           ? "Pitch created, but setup is incomplete."
           : "Failed to create pitch",
         {
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        }
+          description: apiErrorMessage(error),
+        },
       );
-      if (incompletePitch?.UniqueId) {
-        router.replace(`/pitches/${incompletePitch.UniqueId}/profile`);
-        return;
-      }
       creationInFlight.current = false;
       setIsCreating(false);
     }
   }, [manualCreation, pitchBusinesses, router, values]);
 
   const creationPending = isCreating || manualCreation.isPending;
-  const isCreateDisabled =
-    creationPending ||
-    locationsLoading ||
-    !isValidWebsiteUrl(values.website) ||
-    !values.primaryLocation.trim() ||
-    !values.serviceAreaType;
 
   return (
     <>
-      <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-        <LoaderOverlay
-          isLoading={creationPending}
-          message={creationPending ? "Preparing your pitch profile..." : undefined}
-        >
-          <div className="flex min-h-0 flex-1 flex-col">
-            <PageHeader
-              breadcrumbs={[
-                { label: "Home", href: "/" },
-                { label: "Pitches", href: "/pitches" },
-                { label: "Create Pitch" },
-              ]}
-              showAskMassic={false}
-            />
-            <div className="flex min-h-0 flex-1 items-center justify-center p-5">
-              <form
-                className="w-full max-w-[490px]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setPendingConfirmAction("create-pitch");
-                }}
-              >
-                <ProfileGateCard
-                  title="Add a pitch"
-                  description="Add the website and service location. You can complete the pitch profile after creation."
-                >
-                  <BusinessInfoForm
-                    form={form}
-                    embedded
-                    embeddedVariant="initialSetup"
-                    disableWebsiteLock
-                  />
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      disabled={creationPending}
-                      onClick={() => router.push("/pitches")}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1 gap-2"
-                      disabled={isCreateDisabled}
-                    >
-                      {creationPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="size-4" />
-                      )}
-                      {creationPending ? "Creating..." : "Create Pitch"}
-                    </Button>
-                  </div>
-                </ProfileGateCard>
-              </form>
-            </div>
-          </div>
-        </LoaderOverlay>
-      </div>
+      <CreateBusinessTemplate
+        form={form}
+        isPitch
+        initialFieldsLocked={manualCreation.hasCreatedBusiness}
+        locationsLoading={locationsLoading}
+        isSubmitting={creationPending}
+        onSubmitCreate={() => setPendingConfirmAction("create-pitch")}
+        onCancel={() => router.push("/pitches")}
+      />
       <ProfileActionConfirmDialog
         action={pendingConfirmAction}
         onCancel={() => setPendingConfirmAction(null)}

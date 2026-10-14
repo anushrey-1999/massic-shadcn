@@ -64,14 +64,13 @@ export interface BusinessProfile {
 
 // Profile form table row types
 export type OfferingRow = {
+  /** Stable identity within the form only; job payloads omit it. */
+  clientId?: string;
   name: string;
   description: string;
   link: string;
-  pricePositioning?: string;
   offeringType?: string;
-  priceRange?: string;
-  duration?: string;
-  inclusions?: string[] | string;
+  existingUrls?: string[];
 };
 
 export type CTARow = {
@@ -82,7 +81,7 @@ export type CTARow = {
 export type StakeholderRow = {
   name: string;
   title: string;
-  bio?: string;
+  role?: string;
 };
 
 export type LocationRow = {

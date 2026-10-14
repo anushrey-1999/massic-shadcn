@@ -1,13 +1,10 @@
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import type {
   CreateJobRequest,
-  JobBrandAssets,
-  JobDifferentiator,
   JobLocation,
   JobOffering,
   JobResponse,
   JobServiceArea,
-  JobValueItem,
   JobWriteFields,
   ProfileReadOnlyDetails,
   RequiredJobFieldState,
@@ -24,6 +21,7 @@ import {
   isValidWebsiteUrl,
   normalizeWebsiteUrl,
 } from "@/utils/utils";
+import { normalizeJobServiceAreas } from "@/utils/profile-service-areas";
 
 type LocationOption = {
   value: string;
@@ -33,7 +31,7 @@ type LocationOption = {
 
 function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined)
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as Partial<T>;
 }
 
@@ -56,107 +54,36 @@ function normalizeExistingUrl(value: unknown): string {
   return `https://${url}`;
 }
 
-function sourcedValues(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-      if (!item || typeof item !== "object") return "";
-      const record = item as Record<string, unknown>;
-      return stringValue(record.value ?? record.term);
-    })
-    .filter(Boolean);
-}
-
-type SourcedMetadata = {
-  status?: JobValueItem["status"];
-  sourceRefs?: string[];
-};
-
-function sourcedMetadata(
+function mapOfferingsFromApi(
   value: unknown,
-  key: "value" | "term"
-): Record<string, SourcedMetadata> {
-  if (!Array.isArray(value)) return {};
-  return Object.fromEntries(
-    value.flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      const record = item as Record<string, unknown>;
-      const text = stringValue(record[key]);
-      if (!text) return [];
-      const status = stringValue(record.status) as SourcedMetadata["status"];
-      return [[
-        text,
-        compact({
-          status: status || undefined,
-          sourceRefs: stringArray(record.source_refs),
-        }),
-      ]];
-    })
-  );
-}
-
-function mapOfferingsFromApi(value: unknown): BusinessInfoFormData["offeringsList"] {
+): BusinessInfoFormData["offeringsList"] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      const offering = item as Record<string, unknown>;
-      const name = stringValue(offering.name);
-      if (!name) return [];
-      const urls = stringArray(offering.existing_urls);
-      return [{
+    if (!item || typeof item !== "object") return [];
+    const offering = item as Record<string, unknown>;
+    const name = stringValue(offering.name);
+    if (!name) return [];
+    const urls = stringArray(offering.existing_urls);
+    return [
+      {
         name,
         description: stringValue(offering.description),
         link: urls[0] ?? "",
         offeringType: stringValue(offering.category),
-        pricePositioning: "",
-        priceRange: "",
-        duration: "",
-        inclusions: [],
         existingUrls: urls,
-        sourceStatus:
-          (stringValue(offering.status) as JobOffering["status"]) || undefined,
-        sourceRefs: stringArray(offering.source_refs),
-      }];
-    });
-}
-
-function mapDifferentiatorsToText(value: unknown): string {
-  if (!Array.isArray(value)) return "";
-  return value
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-      if (!item || typeof item !== "object") return "";
-      return stringValue(
-        (item as Record<string, unknown>).differentiator
-      );
-    })
-    .filter(Boolean)
-    .join(", ");
-}
-
-function mapDifferentiatorsFromApi(
-  value: unknown
-): NonNullable<BusinessInfoFormData["differentiators"]> {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const record = item as Record<string, unknown>;
-    const differentiator = stringValue(record.differentiator);
-    if (!differentiator) return [];
-    return [{
-      differentiator,
-      whyItMatters: stringValue(record.why_it_matters),
-      proof: Array.isArray(record.proof) ? record.proof : [],
-      sourceStatus:
-        (stringValue(record.status) as JobDifferentiator["status"]) || undefined,
-      sourceRefs: stringArray(record.source_refs),
-    }];
+      },
+    ];
   });
 }
 
+function mapDifferentiatorsFromApi(
+  value: unknown,
+): NonNullable<BusinessInfoFormData["differentiators"]> {
+  return stringArray(value).map((differentiator) => ({ differentiator }));
+}
+
 function serviceAreaKind(
-  serviceAreaType: ServiceAreaType | null | undefined
+  serviceAreaType: ServiceAreaType | null | undefined,
 ): JobServiceArea["kind"] {
   if (serviceAreaType === "city_local") return "city";
   if (serviceAreaType === "state_regional") return "state";
@@ -164,7 +91,7 @@ function serviceAreaKind(
 }
 
 function mapOfferingsForWrite(
-  offerings: BusinessInfoFormData["offeringsList"]
+  offerings: BusinessInfoFormData["offeringsList"],
 ): JobOffering[] {
   if (!Array.isArray(offerings)) return [];
   return offerings
@@ -176,67 +103,32 @@ function mapOfferingsForWrite(
       const urls = Array.from(
         new Set([
           ...(link ? [normalizeExistingUrl(link)] : []),
-          ...existingUrls.map(normalizeExistingUrl),
-        ])
+          ...existingUrls.slice(1).map(normalizeExistingUrl),
+        ]),
       );
       return compact({
         name,
         description: stringValue(offering?.description) || undefined,
         category: stringValue(offering?.offeringType) || undefined,
         existing_urls: urls,
-        status: offering?.sourceStatus,
-        source_refs: stringArray(offering?.sourceRefs),
       }) as JobOffering;
     })
     .filter((offering): offering is JobOffering => Boolean(offering));
 }
 
-function mapDifferentiatorsForWrite(value: string | undefined): JobDifferentiator[] {
-  return String(value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((differentiator) => ({
-      differentiator,
-      why_it_matters: "",
-      proof: [],
-    }));
-}
-
-function mapStructuredDifferentiatorsForWrite(
-  values: BusinessInfoFormData
-): JobDifferentiator[] {
-  if (!Array.isArray(values.differentiators)) {
-    return mapDifferentiatorsForWrite(values.usps);
-  }
-  return values.differentiators
-    .map((item) => compact({
-      differentiator: stringValue(item.differentiator),
-      why_it_matters: stringValue(item.whyItMatters),
-      proof: Array.isArray(item.proof) ? item.proof : [],
-      status: item.sourceStatus,
-      source_refs: stringArray(item.sourceRefs),
-    }) as JobDifferentiator)
-    .filter((item) => Boolean(item.differentiator));
-}
-
-function mapValueItems(
-  value: string[] | undefined,
-  metadata?: Record<string, SourcedMetadata>
-): JobValueItem[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map(stringValue)
-    .filter(Boolean)
-    .map((item) => compact({
-      value: item,
-      status: metadata?.[item]?.status,
-      source_refs: metadata?.[item]?.sourceRefs,
-    }) as JobValueItem);
+function mapDifferentiatorsForWrite(values: BusinessInfoFormData): string[] {
+  return Array.isArray(values.differentiators)
+    ? values.differentiators
+        .map((item) => stringValue(item.differentiator))
+        .filter(Boolean)
+    : String(values.usps ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
 }
 
 function mapLocationsForWrite(
-  value: BusinessInfoFormData["detailedLocations"]
+  value: BusinessInfoFormData["detailedLocations"],
 ): JobLocation[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -249,7 +141,7 @@ function mapLocationsForWrite(
         streetAddress ||
         `Location ${index + 1}`;
       const hasContent = Object.values(location).some((entry) =>
-        Boolean(stringValue(entry))
+        Boolean(stringValue(entry)),
       );
       if (!hasContent) return null;
 
@@ -268,7 +160,13 @@ function mapLocationsForWrite(
           if (!raw) return undefined;
           try {
             const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : undefined;
+            return Array.isArray(parsed)
+              ? parsed.map((hour) => ({
+                  dayOfWeek: String(hour.dayOfWeek ?? ""),
+                  opens: String(hour.opens ?? ""),
+                  closes: String(hour.closes ?? ""),
+                }))
+              : undefined;
           } catch {
             return undefined;
           }
@@ -281,36 +179,13 @@ function mapLocationsForWrite(
     .filter((location): location is JobLocation => Boolean(location));
 }
 
-function mapBrandAssetsForWrite(values: BusinessInfoFormData): JobBrandAssets | null {
-  const stylesheets = String(values.colorsFontsCss ?? "")
-    .split(/\n+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const imageLibrary = (values.imagePhotoLibrary ?? [])
-    .map((item) => {
-      if (typeof item === "string") {
-        const url = item.trim();
-        return url ? { url } : null;
-      }
-      const url = stringValue(item?.url);
-      return url ? { url, alt: stringValue(item.alt) || undefined } : null;
-    })
-    .filter((item): item is { url: string; alt?: string } => Boolean(item));
-
-  if (stylesheets.length === 0 && imageLibrary.length === 0) return null;
-  return compact({
-    stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
-    image_library: imageLibrary.length > 0 ? imageLibrary : undefined,
-  }) as JobBrandAssets;
-}
-
 export function buildJobWriteFields(
   values: BusinessInfoFormData,
-  locationOptions: LocationOption[] = []
+  locationOptions: LocationOption[] = [],
 ): JobWriteFields {
   const primaryLocation = parsePrimaryLocationForPayload(
     values.primaryLocation,
-    locationOptions
+    locationOptions,
   );
   const country = normalizeProfileCountry(primaryLocation.Country);
   const serviceAreaType = values.serviceAreaType as ServiceAreaType | undefined;
@@ -319,7 +194,7 @@ export function buildJobWriteFields(
     (values.serviceAreaDetails ?? []).map((item) => [
       item.name.trim().toLowerCase(),
       item,
-    ])
+    ]),
   );
   const averageOrderValue =
     values.averageOrderValue === "" ||
@@ -340,7 +215,7 @@ export function buildJobWriteFields(
     secondary_category: stringValue(values.secondaryCategory) || null,
     categories_tagged: stringArray(values.categoriesTagged),
     offerings: mapOfferingsForWrite(values.offeringsList),
-    differentiators: mapStructuredDifferentiatorsForWrite(values),
+    differentiators: mapDifferentiatorsForWrite(values),
     customer_types: stringArray(values.customerTypes),
     ctas: (values.ctas ?? [])
       .map((cta) => ({
@@ -348,11 +223,7 @@ export function buildJobWriteFields(
         url: stringValue(cta.url),
       }))
       .filter((cta) => Boolean(cta.text)),
-    brand_terms: stringArray(values.brandTerms).map((term) => compact({
-      term,
-      status: values.brandTermMetadata?.[term]?.status,
-      source_refs: values.brandTermMetadata?.[term]?.sourceRefs,
-    })),
+    brand_terms: stringArray(values.brandTerms),
     web_brand_voice: stringArray(values.brandToneWeb),
     social_brand_voice: stringArray(values.brandToneSocial),
     recurring_flag: stringValue(values.recurringFlag) || null,
@@ -382,40 +253,62 @@ export function buildJobWriteFields(
     directory_profiles: (values.directoryProfiles ?? [])
       .map((item) => stringValue(item.url))
       .filter(Boolean),
-    licenses: mapValueItems(values.licensesCompliance, values.licenseMetadata),
-    awards: mapValueItems(values.awardsCertifications, values.awardMetadata),
+    licenses: stringArray(values.licensesCompliance),
+    awards: stringArray(values.awardsCertifications),
     key_people: (values.stakeholders ?? [])
       .map((person) => ({
         name: stringValue(person.name),
-        role: stringValue(person.title),
+        role: stringValue(person.role) || undefined,
+        title: stringValue(person.title) || undefined,
       }))
       .filter((person) => Boolean(person.name)),
-    brand_assets: mapBrandAssetsForWrite(values),
   }) as JobWriteFields;
+}
+
+export function selectCombinedJobFields(
+  fields: JobWriteFields,
+): JobWriteFields {
+  const {
+    business_name,
+    business_url,
+    country,
+    location,
+    service_area_type,
+    offerings,
+    competitors,
+  } = fields;
+  return {
+    business_name,
+    business_url,
+    country,
+    location,
+    service_area_type,
+    offerings,
+    competitors,
+  };
 }
 
 export function buildCreateJobRequest(
   businessId: string,
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = [],
-  isBusinessPurchased = false
 ): CreateJobRequest {
   return {
-    ...buildJobWriteFields(values, locationOptions),
+    ...selectCombinedJobFields(buildJobWriteFields(values, locationOptions)),
     business_id: businessId,
-    is_business_purchased: isBusinessPurchased,
   };
 }
 
 export function buildUpdateJobRequest(
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = [],
-  isBusinessPurchased = false
+  mode: "minimal" | "full" = "full",
+  options: { includePrimaryCategory?: boolean } = {},
 ): UpdateJobRequest {
-  const request: UpdateJobRequest = {
-    ...buildJobWriteFields(values, locationOptions),
-    is_business_purchased: isBusinessPurchased,
-  };
+  const fields = buildJobWriteFields(values, locationOptions);
+  const request = mode === "minimal" ? selectCombinedJobFields(fields) : fields;
+  if (options.includePrimaryCategory)
+    request.primary_category = fields.primary_category;
   delete request.business_url;
   delete request.location;
   delete request.country;
@@ -426,7 +319,10 @@ export function buildUpdateJobRequest(
 export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
   const serve = job.serve;
   const sell = job.sell;
-  const brandAssets = job.brand_assets;
+  const serviceAreas = normalizeJobServiceAreas(
+    job.service_areas,
+    job.service_area_type,
+  );
 
   return {
     website: cleanWebsiteUrl(job.business_url ?? ""),
@@ -442,8 +338,8 @@ export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
     businessDescription: job.user_defined_business_description ?? "",
     primaryLocation: job.location ?? "",
     serviceAreaType: job.service_area_type ?? "city_local",
-    serviceAreas: (job.service_areas ?? []).map((item) => item.name),
-    serviceAreaDetails: job.service_areas ?? [],
+    serviceAreas: serviceAreas.map((item) => item.name),
+    serviceAreaDetails: serviceAreas,
     serviceType:
       serve === "local"
         ? "physical"
@@ -452,29 +348,26 @@ export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
           : serve === "online"
             ? "online"
             : "",
-    lifetimeValue:
-      job.ltv === "high" || job.ltv === "low" ? job.ltv : "",
-    averageOrderValue:
-      job.aov === null || job.aov === undefined ? "" : job.aov,
+    lifetimeValue: job.ltv === "high" || job.ltv === "low" ? job.ltv : "",
+    averageOrderValue: job.aov === null || job.aov === undefined ? "" : job.aov,
     recurringFlag: job.recurring_flag ?? "",
     customerTypes: (job.customer_types ?? []).filter(
-      (value): value is "b2b" | "b2c" => value === "b2b" || value === "b2c"
+      (value): value is "b2b" | "b2c" => value === "b2b" || value === "b2c",
     ),
     offerings:
       sell === "products" || sell === "services" || sell === "both" ? sell : "",
     offeringsList: mapOfferingsFromApi(job.offerings),
-    usps: mapDifferentiatorsToText(job.differentiators),
+    usps: stringArray(job.differentiators).join(", "),
     differentiators: mapDifferentiatorsFromApi(job.differentiators),
     ctas: (job.ctas ?? []).map((cta) => ({
       buttonText: cta.text,
       url: cta.url,
     })),
-    brandTerms: sourcedValues(job.brand_terms),
-    brandTermMetadata: sourcedMetadata(job.brand_terms, "term"),
+    brandTerms: stringArray(job.brand_terms),
     stakeholders: (job.key_people ?? []).map((person) => ({
       name: person.name,
-      title: person.role ?? "",
-      bio: person.bio ?? "",
+      role: person.role ?? "",
+      title: person.title ?? "",
     })),
     locations: (job.locations ?? []).map((location) => ({
       name: location.name,
@@ -497,14 +390,10 @@ export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
     keyPeople: (job.key_people ?? []).map((person) => ({
       name: person.name,
       role: person.role ?? "",
-      bio: person.bio ?? "",
+      title: person.title ?? "",
     })),
-    licensesCompliance: sourcedValues(job.licenses),
-    awardsCertifications: sourcedValues(job.awards),
-    licenseMetadata: sourcedMetadata(job.licenses, "value"),
-    awardMetadata: sourcedMetadata(job.awards, "value"),
-    colorsFontsCss: brandAssets?.stylesheets?.join("\n") ?? "",
-    imagePhotoLibrary: brandAssets?.image_library ?? [],
+    licensesCompliance: stringArray(job.licenses),
+    awardsCertifications: stringArray(job.awards),
     socialProfiles: (job.social_profiles ?? []).map((url) => ({ url })),
     directoryProfiles: (job.directory_profiles ?? []).map((url) => ({ url })),
     supportEmail: job.support_email ?? "",
@@ -519,29 +408,27 @@ export function mapJobToFormValues(job: JobResponse): BusinessInfoFormData {
 
 export function mergeJobAndNodeFormValues(
   job: JobResponse,
-  nodeValues: BusinessInfoFormData
+  nodeValues: BusinessInfoFormData,
 ): BusinessInfoFormData {
   const jobValues = mapJobToFormValues(job);
 
   return {
     ...jobValues,
-    businessName:
-      stringValue(job.business_name) || nodeValues.businessName,
-    website:
-      stringValue(job.business_url) ? jobValues.website : nodeValues.website,
-    primaryLocation:
-      stringValue(job.location)
-        ? jobValues.primaryLocation
-        : nodeValues.primaryLocation,
-    serviceAreaType:
-      stringValue(job.service_area_type)
-        ? jobValues.serviceAreaType
-        : nodeValues.serviceAreaType,
+    businessName: stringValue(job.business_name) || nodeValues.businessName,
+    website: stringValue(job.business_url)
+      ? jobValues.website
+      : nodeValues.website,
+    primaryLocation: stringValue(job.location)
+      ? jobValues.primaryLocation
+      : nodeValues.primaryLocation,
+    serviceAreaType: stringValue(job.service_area_type)
+      ? jobValues.serviceAreaType
+      : nodeValues.serviceAreaType,
   };
 }
 
 export function mapJobToReadOnlyDetails(
-  job: JobResponse | null | undefined
+  job: JobResponse | null | undefined,
 ): ProfileReadOnlyDetails {
   return {
     market: job?.serve ?? null,
@@ -549,7 +436,7 @@ export function mapJobToReadOnlyDetails(
     segment: job?.segment ?? null,
     generatedDescription: stringValue(job?.business_description),
     generatedDetailedDescription: stringValue(
-      job?.business_detailed_description
+      job?.business_detailed_description,
     ),
     naicsContext: stringValue(job?.naics_embedded_text),
   };
@@ -558,26 +445,24 @@ export function mapJobToReadOnlyDetails(
 export function mergeJobAndFormForNodeProfile(
   job: JobResponse,
   submittedValues: BusinessInfoFormData,
-  existingNodeValues: BusinessInfoFormData
+  existingNodeValues: BusinessInfoFormData,
 ): BusinessInfoFormData {
   return {
     ...mapJobToFormValues(job),
     ...submittedValues,
-    serviceType:
-      submittedValues.serviceType || existingNodeValues.serviceType,
-    offerings:
-      submittedValues.offerings || existingNodeValues.offerings,
+    serviceType: submittedValues.serviceType || existingNodeValues.serviceType,
+    offerings: submittedValues.offerings || existingNodeValues.offerings,
   };
 }
 
 export function getRequiredJobFieldState(
-  job: JobResponse | null | undefined
+  job: JobResponse | null | undefined,
 ): RequiredJobFieldState {
   return {
     businessName: Boolean(stringValue(job?.business_name)),
     website: isValidWebsiteUrl(stringValue(job?.business_url)),
     offerings: Boolean(
-      job?.offerings?.some((offering) => Boolean(stringValue(offering.name)))
+      job?.offerings?.some((offering) => Boolean(stringValue(offering.name))),
     ),
     country: Boolean(stringValue(job?.country)),
     location: Boolean(stringValue(job?.location)),
@@ -587,7 +472,6 @@ export function getRequiredJobFieldState(
 
 export function isJobIncomplete(job: JobResponse | null | undefined): boolean {
   return Object.values(getRequiredJobFieldState(job)).some(
-    (isPresent) => !isPresent
+    (isPresent) => !isPresent,
   );
 }
-

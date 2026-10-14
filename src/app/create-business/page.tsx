@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 
 import { DuplicateBusinessConflictDialog } from "@/components/create-business/DuplicateBusinessConflictDialog";
 import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTemplate";
@@ -28,7 +29,7 @@ import {
 } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import { profileFormDefaults } from "@/utils/profile-form-mappers";
-import { validateInitialProfileFields } from "@/utils/profile-form-fields";
+import { validateProfileForm } from "@/utils/profile-form-fields";
 
 export default function CreateBusinessPage() {
   const allowed = useRoleGuard({
@@ -38,10 +39,10 @@ export default function CreateBusinessPage() {
   const router = useRouter();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const setLocationOptions = useBusinessStore(
-    (state) => state.setLocationOptions
+    (state) => state.setLocationOptions,
   );
   const setLocationsLoading = useBusinessStore(
-    (state) => state.setLocationsLoading
+    (state) => state.setLocationsLoading,
   );
   const manualCreation = useManualBusinessCreation({
     isPitch: false,
@@ -72,10 +73,15 @@ export default function CreateBusinessPage() {
   const handleSubmitCreate = useCallback(async () => {
     if (creationInFlight.current) return;
     const values = form.state.values as BusinessInfoFormData;
-    const issues = validateInitialProfileFields(values);
+    const issues = validateProfileForm(values, {
+      sectionMode: "minimal",
+      visibleSections: ["identity"],
+    });
     if (issues.length > 0) {
       toast.error("Complete the required business details.", {
-        description: issues.map((issue) => issue.label).join(", "),
+        description: issues
+          .map((issue) => `${issue.label}: ${issue.message}`)
+          .join("\n"),
       });
       return;
     }
@@ -84,6 +90,7 @@ export default function CreateBusinessPage() {
     setIsCreating(true);
     try {
       const result = await manualCreation.create(values);
+      toast.success("Business created");
       router.replace(`/business/${result.business.UniqueId}/profile`);
     } catch (error) {
       if (error instanceof CreateBusinessConflictError) {
@@ -101,29 +108,20 @@ export default function CreateBusinessPage() {
           ? "Business created, but setup is incomplete."
           : "Failed to create business",
         {
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        }
+          description: apiErrorMessage(error),
+        },
       );
-      if (incompleteBusiness?.UniqueId) {
-        router.replace(`/business/${incompleteBusiness.UniqueId}/profile`);
-        return;
-      }
       creationInFlight.current = false;
       setIsCreating(false);
     }
-  }, [
-    form,
-    manualCreation,
-    router,
-  ]);
+  }, [form, manualCreation, router]);
 
   const handleOpenExisting = useCallback(() => {
     if (!conflictingBusiness?.UniqueId) return;
     router.push(
       conflictingBusiness.IsPitch
         ? `/pitches/${conflictingBusiness.UniqueId}/profile`
-        : `/business/${conflictingBusiness.UniqueId}/profile`
+        : `/business/${conflictingBusiness.UniqueId}/profile`,
     );
   }, [conflictingBusiness, router]);
 
@@ -149,6 +147,7 @@ export default function CreateBusinessPage() {
   return (
     <>
       <CreateBusinessTemplate
+        initialFieldsLocked={manualCreation.hasCreatedBusiness}
         form={form}
         locationsLoading={locationsLoading}
         isSubmitting={isCreating || manualCreation.isPending}

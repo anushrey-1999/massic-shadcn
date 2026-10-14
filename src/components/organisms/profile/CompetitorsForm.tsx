@@ -108,7 +108,7 @@ export const CompetitorsForm = ({
     return (
       <div id="competitors" tabIndex={-1} className="space-y-3 outline-none">
         <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
-          <h2 className="text-base font-semibold text-general-foreground">
+          <h2 className="text-base font-medium text-general-foreground">
             Competitors
           </h2>
           <Button

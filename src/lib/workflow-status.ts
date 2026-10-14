@@ -66,7 +66,7 @@ export function isOrchestrationActive(
   jobDetails: JobDetails | null | undefined
 ): boolean {
   const status = jobDetails?.orchestration_status;
-  return status === "deep_running" || status === "strategies_running";
+  return status === "build_running" || status === "strategies_running";
 }
 
 export function isWorkflowSuccess(

@@ -1,8 +1,13 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
-import { useBusinessStore, BusinessProfile, type LocationOption } from "@/store/business-store";
+import {
+  useBusinessStore,
+  BusinessProfile,
+  type LocationOption,
+} from "@/store/business-store";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 import {
@@ -20,7 +25,7 @@ const BUSINESS_PROFILES_KEY = "businessProfiles";
 export async function fetchBusinessProfiles(
   userUniqueId: string | undefined,
   isPitch?: boolean,
-  options?: { strict?: boolean }
+  options?: { strict?: boolean },
 ): Promise<BusinessProfile[]> {
   const strict = options?.strict === true;
 
@@ -34,14 +39,20 @@ export async function fetchBusinessProfiles(
     url += `&isPitch=${isPitch}`;
   }
 
-  const response = await api.get<{ err: boolean; data: string; message?: string }>(
-    url,
-    "node"
-  );
+  const response = await api.get<{
+    err: boolean;
+    data: string;
+    message?: string;
+  }>(url, "node");
 
   if (response.err === true || response.data == null) {
     if (strict) {
-      throw new Error(response.message || "Failed to load existing businesses");
+      throw new Error(
+        apiErrorMessage(
+          { response: { data: response } },
+          "Failed to load existing businesses",
+        ),
+      );
     }
     return [];
   }
@@ -61,17 +72,16 @@ export async function fetchBusinessProfiles(
   }
 }
 
-export async function fetchPitchBusinessProfiles(userUniqueId: string | undefined): Promise<BusinessProfile[]> {
+export async function fetchPitchBusinessProfiles(
+  userUniqueId: string | undefined,
+): Promise<BusinessProfile[]> {
   return fetchBusinessProfiles(userUniqueId, true);
 }
 
 export function useBusinessProfiles() {
   const { user, isAuthenticated } = useAuthStore();
-  const {
-    expandedBusinessId,
-    setBusinessProfiles,
-    setError,
-  } = useBusinessStore();
+  const { expandedBusinessId, setBusinessProfiles, setError } =
+    useBusinessStore();
 
   const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
 
@@ -84,7 +94,10 @@ export function useBusinessProfiles() {
     queryKey: [BUSINESS_PROFILES_KEY, userUniqueId],
     queryFn: async () => {
       if (!userUniqueId) {
-        console.warn("[useBusinessProfiles] No userUniqueId found. User object:", user);
+        console.warn(
+          "[useBusinessProfiles] No userUniqueId found. User object:",
+          user,
+        );
         return [];
       }
 
@@ -145,12 +158,14 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
   // Selector rather than a destructured store read: this hook is called from
   // every gated analytics hook, so it must not re-render on unrelated store writes.
   const setProfileDataByUniqueID = useBusinessStore(
-    (state) => state.setProfileDataByUniqueID
+    (state) => state.setProfileDataByUniqueID,
   );
 
   const {
     data: profileData,
     isLoading: profileDataLoading,
+    isFetching: profileDataFetching,
+    error: profileDataError,
     refetch,
   } = useQuery<BusinessProfile | null>({
     queryKey: [BUSINESS_PROFILES_KEY, "detail", businessUniqueId],
@@ -159,10 +174,11 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
         return null;
       }
 
-      const response = await api.get<{ err: boolean; data: string; message?: string }>(
-        `/profile/get-business-profile/?uniqueId=${businessUniqueId}`,
-        "node"
-      );
+      const response = await api.get<{
+        err: boolean;
+        data: string;
+        message?: string;
+      }>(`/profile/get-business-profile/?uniqueId=${businessUniqueId}`, "node");
 
       if (!response.err && response.data) {
         const parsedProfile: BusinessProfile = JSON.parse(response.data);
@@ -170,6 +186,13 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
         return parsedProfile;
       }
 
+      if (response.err)
+        throw new Error(
+          apiErrorMessage(
+            { response: { data: response } },
+            "Couldn’t load the business profile.",
+          ),
+        );
       setProfileDataByUniqueID(null);
       return null;
     },
@@ -185,6 +208,8 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
   return {
     profileData,
     profileDataLoading,
+    profileDataFetching,
+    profileDataError,
     refetchProfile: refetch,
   };
 }
@@ -200,7 +225,7 @@ const websiteKey = (url: string | null | undefined) =>
  * whatever comes back — this is a shortcut, not a source of trust.
  */
 function extractCreatedBusinessFromResponse(
-  response: any
+  response: any,
 ): Partial<BusinessProfile> | null {
   const seen = new Set<any>();
 
@@ -271,7 +296,7 @@ export interface CreatedBusinessExpectation {
  */
 export function describeCreatedBusinessMismatch(
   candidate: Partial<BusinessProfile> | null | undefined,
-  expectation: CreatedBusinessExpectation
+  expectation: CreatedBusinessExpectation,
 ): string | null {
   const id = String(candidate?.UniqueId || "").trim();
   if (!candidate || !id) return "no business id";
@@ -316,20 +341,26 @@ export function describeCreatedBusinessMismatch(
  */
 export async function assertSafeCreatedBusinessTarget(
   businessUniqueId: string,
-  expectation: CreatedBusinessExpectation
+  expectation: CreatedBusinessExpectation,
 ): Promise<void> {
   const id = String(businessUniqueId || "").trim();
   if (!id) {
     throw new Error("Missing business id");
   }
 
-  const response = await api.get<{ err: boolean; data: string; message?: string }>(
-    `/profile/get-business-profile/?uniqueId=${id}`,
-    "node"
-  );
+  const response = await api.get<{
+    err: boolean;
+    data: string;
+    message?: string;
+  }>(`/profile/get-business-profile/?uniqueId=${id}`, "node");
 
   if (response.err === true || !response.data) {
-    throw new Error(response.message || "Couldn't verify the business before saving");
+    throw new Error(
+      apiErrorMessage(
+        { response: { data: response } },
+        "Couldn't verify the business before saving",
+      ),
+    );
   }
 
   let profile: BusinessProfile;
@@ -341,15 +372,19 @@ export async function assertSafeCreatedBusinessTarget(
 
   const profileId = String(profile?.UniqueId || "").trim();
   if (profileId && profileId !== id) {
-    throw new Error("Refusing to save: the server returned a different business");
+    throw new Error(
+      "Refusing to save: the server returned a different business",
+    );
   }
 
   const mismatch = describeCreatedBusinessMismatch(
     { ...profile, UniqueId: profileId || id },
-    expectation
+    expectation,
   );
   if (mismatch) {
-    throw new Error(`Refusing to save into an unrelated business (${mismatch})`);
+    throw new Error(
+      `Refusing to save into an unrelated business (${mismatch})`,
+    );
   }
 }
 
@@ -360,22 +395,30 @@ export async function assertSafeCreatedBusinessTarget(
 export async function updateCreatedBusinessProfileSafely(
   businessUniqueId: string,
   payload: Record<string, any>,
-  expectation: CreatedBusinessExpectation
+  expectation: CreatedBusinessExpectation,
 ): Promise<void> {
   await assertSafeCreatedBusinessTarget(businessUniqueId, expectation);
 
-  const response = await api.post<{ err?: boolean; status?: number; message?: string }>(
-    "/profile/update-business-profile",
-    "node",
-    { ...payload, UniqueId: businessUniqueId }
-  );
+  const response = await api.post<{
+    err?: boolean;
+    status?: number;
+    message?: string;
+  }>("/profile/update-business-profile", "node", {
+    ...payload,
+    UniqueId: businessUniqueId,
+  });
 
   const hasError =
     response?.err === true ||
     (response?.status !== undefined && response.status !== 200);
 
   if (hasError) {
-    throw new Error(response?.message || "Failed to update business profile");
+    throw new Error(
+      apiErrorMessage(
+        { response: { data: response } },
+        "Failed to update business profile",
+      ),
+    );
   }
 }
 
@@ -388,6 +431,7 @@ interface CreateBusinessPayload {
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
   suppressErrorToast?: boolean;
+  suppressSuccessToast?: boolean;
 }
 
 interface CreateBusinessResponse {
@@ -404,7 +448,10 @@ export function useCreateBusiness() {
   const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
 
   return useMutation<
-    { formData: CreateBusinessPayload; createdBusiness: BusinessProfile | null },
+    {
+      formData: CreateBusinessPayload;
+      createdBusiness: BusinessProfile | null;
+    },
     Error,
     CreateBusinessPayload
   >({
@@ -424,21 +471,23 @@ export function useCreateBusiness() {
       let beforeAll: BusinessProfile[];
       let beforePitch: BusinessProfile[] | null = null;
       try {
-        beforeAll = await fetchBusinessProfiles(userUniqueId, undefined, { strict: true });
+        beforeAll = await fetchBusinessProfiles(userUniqueId, undefined, {
+          strict: true,
+        });
         if (formData.isPitch === true) {
-          beforePitch = await fetchBusinessProfiles(userUniqueId, true, { strict: true });
+          beforePitch = await fetchBusinessProfiles(userUniqueId, true, {
+            strict: true,
+          });
         }
       } catch {
         throw new Error(
-          "Couldn't load your existing businesses, so creation was cancelled. Please retry."
+          "Couldn't load your existing businesses, so creation was cancelled. Please retry.",
         );
       }
 
       const toIdSet = (profiles: BusinessProfile[]) =>
         new Set(
-          profiles
-            .map((p) => String(p?.UniqueId || "").trim())
-            .filter(Boolean)
+          profiles.map((p) => String(p?.UniqueId || "").trim()).filter(Boolean),
         );
 
       const beforeAllIds = toIdSet(beforeAll);
@@ -454,10 +503,11 @@ export function useCreateBusiness() {
         formData.locationOptions ??
         useBusinessStore.getState().profileForm.locationOptions;
 
-      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
-        formData.primaryLocation,
-        locationOptions
-      );
+      const { Location: location, Country: country } =
+        parsePrimaryLocationForPayload(
+          formData.primaryLocation,
+          locationOptions,
+        );
 
       // Map form data to API payload structure
       const payload = {
@@ -496,14 +546,19 @@ export function useCreateBusiness() {
         response = await api.post<any>(
           "/profile/create-agency-businesses",
           "node",
-          payload
+          payload,
         );
 
         // Check if the API returned an error in the response body
         if (response.err === true || response.success === false) {
           const conflictError = parseCreateBusinessConflict(response);
           if (conflictError) throw conflictError;
-          throw new Error(response.message || "Failed to create business");
+          throw new Error(
+            apiErrorMessage(
+              { response: { data: response } },
+              "Failed to create business",
+            ),
+          );
         }
       } catch (error: any) {
         if (error instanceof CreateBusinessConflictError) {
@@ -514,12 +569,13 @@ export function useCreateBusiness() {
           const errorData = error.response.data;
           const conflictError = parseCreateBusinessConflict(errorData);
           if (conflictError) throw conflictError;
-          throw new Error(errorData.message || errorData.error || "Failed to create business");
+          throw new Error(apiErrorMessage(error, "Failed to create business"));
         }
         throw error;
       }
 
-      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      const sleep = (ms: number) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
 
       const websiteInput = websiteKey(formData.website);
 
@@ -531,7 +587,7 @@ export function useCreateBusiness() {
 
       // Any candidate, from any source, must clear the same guard.
       const acceptCandidate = (
-        candidate: Partial<BusinessProfile> | null | undefined
+        candidate: Partial<BusinessProfile> | null | undefined,
       ): BusinessProfile | null =>
         describeCreatedBusinessMismatch(candidate, expectation) === null
           ? (candidate as BusinessProfile)
@@ -539,7 +595,7 @@ export function useCreateBusiness() {
 
       // Best case: the server tells us what it created. Still guarded, never trusted blindly.
       const createdFromResponse = acceptCandidate(
-        extractCreatedBusinessFromResponse(response)
+        extractCreatedBusinessFromResponse(response),
       );
 
       // The response id is sufficient after it clears the identity guard. Poll
@@ -561,7 +617,10 @@ export function useCreateBusiness() {
         if (formData.isPitch === true) {
           updatedPitchProfiles = [];
           for (let attempt = 0; attempt < 4; attempt++) {
-            updatedPitchProfiles = await fetchBusinessProfiles(userUniqueId, true);
+            updatedPitchProfiles = await fetchBusinessProfiles(
+              userUniqueId,
+              true,
+            );
             const beforeIds = beforePitchIds ?? new Set<string>();
             const hasNew = updatedPitchProfiles.some((p) => {
               const id = String(p?.UniqueId || "").trim();
@@ -575,7 +634,7 @@ export function useCreateBusiness() {
 
       const pickCreatedFromLists = (
         after: BusinessProfile[] | null | undefined,
-        beforeIds: Set<string> | null
+        beforeIds: Set<string> | null,
       ): BusinessProfile | null => {
         if (!after || !Array.isArray(after) || after.length === 0) return null;
         if (!beforeIds) return null;
@@ -591,7 +650,9 @@ export function useCreateBusiness() {
         // If multiple new candidates exist, only proceed if we can uniquely disambiguate.
         if (!websiteInput) return null;
 
-        const matches = candidates.filter((p) => websiteKey(p?.Website) === websiteInput);
+        const matches = candidates.filter(
+          (p) => websiteKey(p?.Website) === websiteInput,
+        );
         return matches.length === 1 ? acceptCandidate(matches[0]) : null;
       };
 
@@ -606,13 +667,13 @@ export function useCreateBusiness() {
       if (!createdBusiness?.UniqueId) {
         // Fail safe: returning the wrong business here can overwrite a real profile.
         throw new Error(
-          "Business was created, but the app couldn't reliably identify it. Please refresh and open it from the list before editing."
+          "Business was created, but the app couldn't reliably identify it. Please refresh and open it from the list before editing.",
         );
       }
 
       const includeCreated = (
         profiles: BusinessProfile[],
-        created: BusinessProfile
+        created: BusinessProfile,
       ): BusinessProfile[] =>
         profiles.some((profile) => profile.UniqueId === created.UniqueId)
           ? profiles
@@ -623,24 +684,24 @@ export function useCreateBusiness() {
       setBusinessProfiles(nextProfiles);
       queryClient.setQueryData(
         [BUSINESS_PROFILES_KEY, userUniqueId],
-        nextProfiles
+        nextProfiles,
       );
 
       if (formData.isPitch === true) {
         const nextPitchProfiles = includeCreated(
           updatedPitchProfiles ?? [],
-          createdBusiness
+          createdBusiness,
         );
         queryClient.setQueryData(
           ["pitchBusinesses", userUniqueId],
-          nextPitchProfiles
+          nextPitchProfiles,
         );
       }
 
       return { formData, createdBusiness };
     },
-    onSuccess: () => {
-      toast.success("Business is created");
+    onSuccess: (_, variables) => {
+      if (!variables.suppressSuccessToast) toast.success("Business is created");
     },
     onError: (error: Error, variables: CreateBusinessPayload) => {
       if (
@@ -650,7 +711,7 @@ export function useCreateBusiness() {
         return;
       }
       toast.error("Failed to create business", {
-        description: error.message || "Please try again later.",
+        description: apiErrorMessage(error),
       });
     },
   });
@@ -665,17 +726,19 @@ interface UpdateBusinessProfilePayload {
  * single `Locations` column, so sending these would imply a second, competing
  * source of truth for the same addresses.
  */
-const JOB_ONLY_PAYLOAD_KEYS = ["DetailedLocations", "StructuredLocations"] as const;
+const JOB_ONLY_PAYLOAD_KEYS = [
+  "DetailedLocations",
+  "StructuredLocations",
+] as const;
 
-export function useUpdateBusinessProfile(businessUniqueId: string | null) {
+export function useUpdateBusinessProfile(
+  businessUniqueId: string | null,
+  options: { silent?: boolean } = {},
+) {
   const queryClient = useQueryClient();
   const { setProfileDataByUniqueID } = useBusinessStore();
 
-  return useMutation<
-    BusinessProfile,
-    Error,
-    UpdateBusinessProfilePayload
-  >({
+  return useMutation<BusinessProfile, Error, UpdateBusinessProfilePayload>({
     mutationFn: async (payload: UpdateBusinessProfilePayload) => {
       if (!businessUniqueId) {
         throw new Error("Business ID is required");
@@ -699,30 +762,35 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
             message?: string;
           };
         };
-      }>(
-        `/profile/update-business-profile`,
-        "node",
-        payloadWithId
-      );
+      }>(`/profile/update-business-profile`, "node", payloadWithId);
 
       // Check for errors - API might return status 200 with err: true, or status !== 200
-      const hasError = response.err === true ||
+      const hasError =
+        response.err === true ||
         (response.status !== undefined && response.status !== 200);
 
       if (hasError) {
-        const errorMessage =
-          response.message ||
-          response.response?.data?.message ||
-          "Failed to update business profile";
+        const errorMessage = apiErrorMessage(
+          { response: { data: response } },
+          "Failed to update business profile",
+        );
         throw new Error(errorMessage);
       }
 
-      const updatedProfile = payloadWithId as BusinessProfile;
+      const existingProfile = queryClient.getQueryData<BusinessProfile>([
+        BUSINESS_PROFILES_KEY,
+        "detail",
+        businessUniqueId,
+      ]);
+      const updatedProfile = {
+        ...existingProfile,
+        ...payloadWithId,
+      } as BusinessProfile;
 
       // Optimistic update: Update React Query cache immediately
       queryClient.setQueryData<BusinessProfile>(
         [BUSINESS_PROFILES_KEY, "detail", businessUniqueId],
-        updatedProfile
+        updatedProfile,
       );
 
       // Update the store with the payload data immediately
@@ -737,9 +805,9 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
           (oldProfiles) => {
             if (!oldProfiles) return oldProfiles;
             return oldProfiles.map((profile) =>
-              profile.UniqueId === businessUniqueId ? updatedProfile : profile
+              profile.UniqueId === businessUniqueId ? updatedProfile : profile,
             );
-          }
+          },
         );
       }
 
@@ -760,13 +828,14 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
       return updatedProfile;
     },
     onSuccess: () => {
-      toast.success("Business profile updated successfully");
+      if (!options.silent)
+        toast.success("Business profile updated successfully");
     },
     onError: (error: Error) => {
-      toast.error("Failed to update business profile", {
-        description: error.message || "Please try again later.",
-      });
+      if (!options.silent)
+        toast.error("Failed to update business profile", {
+          description: apiErrorMessage(error),
+        });
     },
   });
 }
-

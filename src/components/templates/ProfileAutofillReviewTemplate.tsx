@@ -609,6 +609,9 @@ export function ProfileEditorTemplate({
                                     );
                                     field.handleChange(next);
                                     e.currentTarget.value = "";
+                                  } else if (e.key === "Enter") {
+                                    // Prevent an empty Enter from bubbling up and submitting the parent form.
+                                    e.preventDefault();
                                   }
                                 }
                                 if (e.key === "Backspace" && !e.currentTarget.value && serviceAreasValue.length > 0) {
@@ -762,6 +765,9 @@ export function ProfileEditorTemplate({
                                   e.preventDefault();
                                   field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
                                   e.currentTarget.value = "";
+                                } else if (e.key === "Enter") {
+                                  // Prevent an empty Enter from submitting the parent form.
+                                  e.preventDefault();
                                 }
                               }
                               if (e.key === "Backspace" && !e.currentTarget.value && value.length > 0) {
@@ -816,6 +822,9 @@ export function ProfileEditorTemplate({
                                   e.preventDefault();
                                   field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
                                   e.currentTarget.value = "";
+                                } else if (e.key === "Enter") {
+                                  // Prevent an empty Enter from submitting the parent form.
+                                  e.preventDefault();
                                 }
                               }
                               if (e.key === "Backspace" && !e.currentTarget.value && value.length > 0) {

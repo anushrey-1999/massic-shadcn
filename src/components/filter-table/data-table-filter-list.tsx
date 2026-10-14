@@ -89,7 +89,8 @@ export function DataTableFilterList<TData>({
     return table
       .getAllColumns()
       .filter((column) => column.columnDef.enableColumnFilter);
-  }, [table]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, table.options.columns]);
 
   const filterFieldMapper = React.useMemo(() => {
     const idToQueryField = new Map<string, string>();
@@ -669,7 +670,7 @@ function DataTableFilterItem<TData>({
             aria-controls={fieldListboxId}
             variant="outline"
             size="sm"
-            className="h-8 w-32 justify-between rounded font-normal"
+            className="h-8 w-32 shrink-0 justify-between rounded font-normal self-start"
           >
             <span className="truncate">
               {columns.find((column) => column.id === filter.field)?.columnDef
@@ -757,7 +758,7 @@ function DataTableFilterItem<TData>({
         <SelectTrigger
           aria-controls={operatorListboxId}
           size="sm"
-          className="w-32 rounded lowercase"
+          className="w-32 shrink-0 rounded lowercase self-start"
         >
           <div className="truncate">
             <SelectValue placeholder={filter.operator} />
@@ -873,19 +874,34 @@ function onFilterInputRender<TData>({
 
       const isNumber =
         columnMeta?.variant === "number" || columnMeta?.variant === "range";
+      // Free-form fields (e.g. volume with K/M notation) use text input even if numeric variant
+      const isFreeForm = Boolean(columnMeta?.placeholder) && columnMeta?.variant === "range";
 
-      return (
+      const unit = columnMeta?.unit;
+
+      const singleInput = (
         <Input
           id={inputId}
-          type={isNumber ? "number" : "text"}
+          type={isNumber && !isFreeForm ? "number" : "text"}
           aria-label={`${columnMeta?.label} filter value`}
           aria-describedby={`${inputId}-description`}
-          inputMode={isNumber ? "numeric" : undefined}
+          inputMode={isNumber && !isFreeForm ? "numeric" : undefined}
           placeholder={columnMeta?.placeholder ?? "Enter a value..."}
-          className="h-8! w-full rounded"
+          className={cn("h-8! w-full rounded", unit && "pr-7")}
           value={localTextValue}
           onChange={(event) => handleTextInputChange(event.target.value)}
         />
+      );
+
+      if (!unit) return singleInput;
+
+      return (
+        <div className="relative w-full">
+          {singleInput}
+          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {unit}
+          </span>
+        </div>
       );
     }
 
@@ -937,14 +953,13 @@ function onFilterInputRender<TData>({
 
       return (
         <Faceted
-          open={showValueSelector}
-          onOpenChange={setShowValueSelector}
+          {...(multiple ? {} : { open: showValueSelector, onOpenChange: setShowValueSelector })}
           value={selectedValues || []}
           onValueChange={(value) => {
             onFilterUpdate(filter.field, {
               value: value || [],
             });
-            if (columnMeta?.closeOnSelect) {
+            if (!multiple || columnMeta?.closeOnSelect) {
               setShowValueSelector(false);
             }
           }}

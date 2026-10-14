@@ -112,6 +112,10 @@ export function PitchProfileTemplate() {
   ]);
 
   const save = useCallback(async () => {
+    if (!jobQuery.isFetched || jobQuery.isError) {
+      toast.error("Wait for the pitch profile to load before saving.");
+      return;
+    }
     if (!hydrated || !hasChanges) return;
     const values = form.state.values as BusinessInfoFormData;
     if (
@@ -148,6 +152,7 @@ export function PitchProfileTemplate() {
             website: values.website,
             primaryLocation: values.primaryLocation,
             serviceAreaType: values.serviceAreaType,
+            calendarEvents: values.calendarEvents,
           }
         : values;
       const nodePayload = buildBusinessProfilePayload(canonicalValues, {

@@ -49,7 +49,7 @@ export function CreateBusinessTemplate({
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden p-5">
             <form

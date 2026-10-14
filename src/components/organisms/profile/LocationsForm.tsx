@@ -1,13 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { useStore } from "@tanstack/react-form";
-import { MapPin, Plus } from "lucide-react";
+import { Mail, MapPin, Phone, Plus } from "lucide-react";
 
-import {
-  CustomAddRowTable,
-  type Column,
-} from "@/components/organisms/CustomAddRowTable";
 import {
   Card,
   CardContent,
@@ -17,7 +13,12 @@ import {
 import { FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
-import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import {
+  ProfileItemLink,
+  ProfileListEditor,
+  useProfileItemEditor,
+  type ProfileListField,
+} from "@/components/organisms/profile/ProfileListEditor";
 
 type StructuredLocationRow = {
   name?: string;
@@ -38,6 +39,130 @@ type LocationsFormProps = {
   embedded?: boolean;
 };
 
+const LOCATION_FIELDS: ProfileListField<StructuredLocationRow>[] = [
+  {
+    key: "name",
+    label: "Location name",
+    placeholder: "E.g. Downtown office",
+  },
+  {
+    key: "streetAddress",
+    label: "Street address",
+    placeholder: "123 Main St, Suite 200",
+    group: "Address",
+  },
+  { key: "city", label: "City", span: 2, group: "Address" },
+  { key: "state", label: "State / region", span: 2, group: "Address" },
+  { key: "zip", label: "Postal code", span: 2, group: "Address" },
+  { key: "country", label: "Country", span: 3, group: "Address" },
+  {
+    key: "phone",
+    label: "Phone",
+    placeholder: "+1 555 123 4567",
+    inputMode: "tel",
+    span: 3,
+    group: "Contact",
+  },
+  {
+    key: "email",
+    label: "Email",
+    placeholder: "hello@example.com",
+    inputMode: "email",
+    span: 3,
+    group: "Contact",
+  },
+  {
+    key: "mapLink",
+    label: "Map URL",
+    placeholder: "https://maps.google.com/...",
+    inputMode: "url",
+    validation: { url: true },
+    group: "Contact",
+  },
+];
+
+const emptyLocation = (): StructuredLocationRow => ({
+  name: "",
+  streetAddress: "",
+  city: "",
+  state: "",
+  zip: "",
+  country: "",
+  phone: "",
+  email: "",
+  mapLink: "",
+});
+
+const clean = (value?: string) => (value ?? "").trim();
+
+function formatAddress(location: StructuredLocationRow): string {
+  const stateZip = [clean(location.state), clean(location.zip)]
+    .filter(Boolean)
+    .join(" ");
+  return [
+    clean(location.streetAddress),
+    clean(location.city),
+    stateZip,
+    clean(location.country),
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function locationTitle(location: StructuredLocationRow): string {
+  return (
+    clean(location.name) ||
+    clean(location.city) ||
+    clean(location.streetAddress) ||
+    "Unnamed location"
+  );
+}
+
+function LocationSummary({ location }: { location: StructuredLocationRow }) {
+  const address = formatAddress(location);
+  const title = locationTitle(location);
+  const phone = clean(location.phone);
+  const email = clean(location.email);
+  const mapLink = clean(location.mapLink);
+  const hasContact = Boolean(phone || email || mapLink);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-sm font-medium text-general-foreground">{title}</p>
+      {address && address !== title ? (
+        <p className="text-sm leading-6 text-general-muted-foreground">
+          {address}
+        </p>
+      ) : null}
+      {hasContact ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {phone ? (
+            <a
+              href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+              className="inline-flex items-center gap-1 text-sm text-general-muted-foreground hover:text-general-foreground hover:underline"
+            >
+              <Phone className="size-3.5 shrink-0" aria-hidden="true" />
+              {phone}
+            </a>
+          ) : null}
+          {email ? (
+            <a
+              href={`mailto:${email}`}
+              className="inline-flex min-w-0 items-center gap-1 text-sm text-general-muted-foreground hover:text-general-foreground hover:underline"
+            >
+              <Mail className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{email}</span>
+            </a>
+          ) : null}
+          {mapLink ? (
+            <ProfileItemLink href={mapLink} label="View on map" />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export const LocationsForm = ({
   form,
   embedded = false,
@@ -47,46 +172,7 @@ export const LocationsForm = ({
     (state: any) =>
       (state.values?.detailedLocations || []) as StructuredLocationRow[]
   );
-
-  const columns = useMemo<Column<StructuredLocationRow>[]>(
-    () => [
-      { key: "name", label: "Name", validation: { required: false } },
-      {
-        key: "streetAddress",
-        label: "Street address",
-        validation: { required: false },
-      },
-      { key: "city", label: "City", validation: { required: false } },
-      { key: "state", label: "State", validation: { required: false } },
-      { key: "zip", label: "Postal code", validation: { required: false } },
-      { key: "country", label: "Country", validation: { required: false } },
-      { key: "phone", label: "Phone", validation: { required: false } },
-      { key: "email", label: "Email", validation: { required: false } },
-      {
-        key: "mapLink",
-        label: "Map URL",
-        validation: { required: false, url: true },
-      },
-    ],
-    []
-  );
-
-  const { handleAddRow, handleRowChange, handleDeleteRow } =
-    useAddRowTableState<StructuredLocationRow>({
-      data: locations,
-      formFieldName: "detailedLocations",
-      setFormFieldValue: (name, value) => form.setFieldValue(name, value),
-      getCurrentData: () =>
-        (form.state.values.detailedLocations || []) as StructuredLocationRow[],
-      emptyRowFactory: () => ({
-        name: "",
-        streetAddress: "",
-        city: "",
-        state: "",
-        zip: "",
-        country: "",
-      }),
-    });
+  const editor = useProfileItemEditor();
 
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
   const content = (
@@ -99,20 +185,18 @@ export const LocationsForm = ({
         </CardTitle>
       </CardHeader>
       <CardContent className={embedded ? "p-0" : undefined}>
-        <div className="w-full">
-          <CustomAddRowTable
-            columns={columns}
-            data={locations}
-            onAddRow={handleAddRow}
-            onRowChange={handleRowChange}
-            onDeleteRow={handleDeleteRow}
-            addButtonText="Add Location"
-            variant="card"
-            cardLayout="stacked"
-            cardGridClassName="sm:grid-cols-2 lg:grid-cols-3"
-            hideAddButton={embedded}
-          />
-        </div>
+        <ProfileListEditor
+          editor={editor}
+          items={locations}
+          fields={LOCATION_FIELDS}
+          itemLabel="location"
+          emptyItem={emptyLocation}
+          onChange={(next) => form.setFieldValue("detailedLocations", next)}
+          renderItem={(location) => <LocationSummary location={location} />}
+          getItemTitle={locationTitle}
+          emptyMessage="No locations yet. Add the addresses your business operates from."
+          showAddButton={!embedded}
+        />
       </CardContent>
     </Card>
   );
@@ -128,7 +212,7 @@ export const LocationsForm = ({
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleAddRow}
+            onClick={editor.openAdd}
             className="h-8 shrink-0 gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ import {
 } from "@/hooks/use-business-previews";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import { useDashboardTags } from "@/hooks/use-dashboard-tags";
+import { useDashboardTagVisibility } from "@/hooks/use-dashboard-tag-visibility";
 import {
   useHealthStatusBatch,
   type HealthStatusRow,
@@ -28,10 +29,6 @@ import type { PreviewGraph } from "@/components/molecules/home/MiniAreaChart";
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
-import {
-  readUncheckedHomeTagIds,
-  writeUncheckedHomeTagIds,
-} from "@/utils/home-tag-visibility-storage";
 import {
   HOME_PERIODS,
   HOME_SIGNAL_FILTERS,
@@ -138,8 +135,6 @@ export function HomeTemplate() {
   const [selectedSignals, setSelectedSignals] = useState<
     HomeSignalFilterValue[]
   >([]);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [showHiddenTag, setShowHiddenTag] = useState(false);
   // Default to nothing selected on first render to avoid briefly showing the wrong
   // selection before localStorage is read.
   const [showActive, setShowActive] = useState(false);
@@ -175,77 +170,14 @@ export function HomeTemplate() {
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
   const dashboardTags = useDashboardTags();
-  const accountId = String(
-    user?.accountUniqueId ||
-      user?.uniqueId ||
-      user?.UniqueId ||
-      user?.id ||
-      ""
-  );
-  const [tagSelectionAccountId, setTagSelectionAccountId] = useState<
-    string | null
-  >(null);
-  const knownRegularTagIdsRef = useRef<Set<string>>(new Set());
-  const [tagSelectionReady, setTagSelectionReady] = useState(false);
-
-  // Persist exclusions instead of selections so newly created tags default to visible.
-  useEffect(() => {
-    if (!accountId || dashboardTags.isLoading || dashboardTags.isError) return;
-
-    const regularTags = dashboardTags.tags.filter(tag => !tag.systemKey);
-    const regularTagIds = regularTags.map(tag => tag.id);
-    const nextKnownTagIds = new Set(regularTagIds);
-
-    if (tagSelectionAccountId !== accountId) {
-      const uncheckedTagIds = new Set(readUncheckedHomeTagIds(accountId));
-      setTagSelectionAccountId(accountId);
-      setSelectedTagIds(
-        regularTagIds.filter(tagId => !uncheckedTagIds.has(tagId))
-      );
-      setShowHiddenTag(false);
-      setTagSelectionReady(true);
-    } else {
-      setSelectedTagIds(current => {
-        const stillValid = current.filter(tagId => nextKnownTagIds.has(tagId));
-        const newTagIds = regularTagIds.filter(
-          tagId => !knownRegularTagIdsRef.current.has(tagId)
-        );
-        return [...stillValid, ...newTagIds];
-      });
-    }
-
-    knownRegularTagIdsRef.current = nextKnownTagIds;
-  }, [
-    accountId,
-    dashboardTags.isError,
-    dashboardTags.isLoading,
-    dashboardTags.tags,
-    tagSelectionAccountId,
-  ]);
-
-  useEffect(() => {
-    if (
-      !tagSelectionReady ||
-      !accountId ||
-      tagSelectionAccountId !== accountId
-    ) {
-      return;
-    }
-
-    const selectedIds = new Set(selectedTagIds);
-    writeUncheckedHomeTagIds(
-      accountId,
-      dashboardTags.tags
-        .filter(tag => !tag.systemKey && !selectedIds.has(tag.id))
-        .map(tag => tag.id)
-    );
-  }, [
-    accountId,
-    dashboardTags.tags,
+  const {
     selectedTagIds,
-    tagSelectionAccountId,
-    tagSelectionReady,
-  ]);
+    setSelectedTagIds,
+    showHiddenTag,
+    setShowHiddenTag,
+    matchesTagVisibility,
+    hasTagVisibilityFilter,
+  } = useDashboardTagVisibility(dashboardTags);
 
   const joined = useMemo(() => {
     const profileByUniqueId = new Map<
@@ -277,55 +209,11 @@ export function HomeTemplate() {
     });
   }, [previews, profiles]);
 
-  const hiddenTag = useMemo(
-    () => dashboardTags.tags.find(tag => tag.systemKey === "hidden") || null,
-    [dashboardTags.tags]
-  );
-  const selectedRegularTags = useMemo(
-    () =>
-      dashboardTags.tags.filter(
-        tag => !tag.systemKey && selectedTagIds.includes(tag.id)
-      ),
-    [dashboardTags.tags, selectedTagIds]
-  );
-  const selectedBusinessIds = useMemo(
-    () =>
-      selectedRegularTags.length > 0
-        ? new Set(selectedRegularTags.flatMap(tag => tag.businessIds))
-        : null,
-    [selectedRegularTags]
-  );
-  const hiddenBusinessIds = useMemo(
-    () => new Set(hiddenTag?.businessIds || []),
-    [hiddenTag?.businessIds]
-  );
-  const tagFilterReady =
-    tagSelectionReady && tagSelectionAccountId === accountId;
-  const hasTagVisibilityFilter =
-    tagFilterReady &&
-    (selectedRegularTags.length > 0 ||
-      selectedTagIds.length <
-        dashboardTags.tags.filter(tag => !tag.systemKey).length ||
-      (!showHiddenTag && hiddenBusinessIds.size > 0));
-
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return joined.filter(item => {
-      if (tagFilterReady) {
-        const isHidden = item.uniqueId
-          ? hiddenBusinessIds.has(item.uniqueId)
-          : false;
-
-        if (isHidden) {
-          if (!showHiddenTag) return false;
-        } else if (
-          selectedBusinessIds &&
-          (!item.uniqueId || !selectedBusinessIds.has(item.uniqueId))
-        ) {
-          return false;
-        }
-      }
+      if (!matchesTagVisibility(item.uniqueId)) return false;
 
       if (!query) return true;
       return (
@@ -333,12 +221,9 @@ export function HomeTemplate() {
       );
     });
   }, [
-    hiddenBusinessIds,
     joined,
+    matchesTagVisibility,
     search,
-    selectedBusinessIds,
-    showHiddenTag,
-    tagFilterReady,
   ]);
 
   const onboardingCandidates = useMemo(() => {

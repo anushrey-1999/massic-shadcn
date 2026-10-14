@@ -1,13 +1,10 @@
 "use client";
 
-import { forwardRef, useId, useState } from "react";
-import type { ButtonHTMLAttributes } from "react";
+import { useId } from "react";
 import {
   Check,
   ChevronDown,
   History,
-  Pencil,
-  Tag,
   X,
 } from "lucide-react";
 
@@ -20,13 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { DashboardTagsSheet } from "@/components/molecules/home/DashboardTagsSheet";
+import { DashboardTagFilterMenu } from "@/components/molecules/home/DashboardTagFilterMenu";
 import type { useDashboardTags } from "@/hooks/use-dashboard-tags";
 import type { BusinessProfile } from "@/store/business-store";
 import { cn } from "@/lib/utils";
@@ -119,12 +110,6 @@ type HomeFilterBarProps = {
  */
 const CONTROL_BASE_CLASS =
   "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md px-4 py-[7.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] whitespace-nowrap transition-colors";
-
-const ICON_TRIGGER_CLASS = cn(
-  "relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-white transition-colors",
-  "hover:bg-secondary focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-  "disabled:cursor-not-allowed disabled:opacity-50"
-);
 
 const MENU_CONTENT_CLASS =
   "border-general-border min-w-[220px] rounded-md bg-white p-1 shadow-lg";
@@ -224,62 +209,6 @@ export function HomePeriodSelector({
   );
 }
 
-function MenuCheckbox({ checked }: { checked: boolean }) {
-  return (
-    <span
-      className={cn(
-        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
-        checked
-          ? "border-general-primary bg-general-primary text-white"
-          : "border-general-border-three bg-white"
-      )}
-      aria-hidden
-    >
-      {checked ? <Check className="size-3" strokeWidth={2.5} /> : null}
-    </span>
-  );
-}
-
-function toggleValue<T>(values: T[], value: T): T[] {
-  return values.includes(value)
-    ? values.filter((item) => item !== value)
-    : [...values, value];
-}
-
-type TagIconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  selected?: boolean;
-  count?: number;
-};
-
-const TagIconButton = forwardRef<HTMLButtonElement, TagIconButtonProps>(
-  function TagIconButton(
-    { selected = false, count = 0, className, ...props },
-    ref
-  ) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={cn(
-          ICON_TRIGGER_CLASS,
-          selected
-            ? "border-general-border-four shadow-sm"
-            : "border-general-border-three shadow-xs",
-          className
-        )}
-        {...props}
-      >
-        <Tag className={ICON_CLASS} strokeWidth={1.5} aria-hidden />
-        {count > 0 ? (
-          <span className="bg-general-foreground absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium text-white">
-            {count}
-          </span>
-        ) : null}
-      </button>
-    );
-  }
-);
-
 export function HomeFilterBar({
   selectedSignals,
   onSelectedSignalsChange,
@@ -297,32 +226,21 @@ export function HomeFilterBar({
 }: HomeFilterBarProps) {
   const showActiveId = useId();
   const showOnboardingId = useId();
-  const [tagSheetOpen, setTagSheetOpen] = useState(false);
-  const [tagSheetMode, setTagSheetMode] = useState<"list" | "create">("list");
-
-  const { tags, isLoading: tagsLoading, isError: tagsError } = dashboardTags;
+  const { tags } = dashboardTags;
 
   const isAllSignals = selectedSignals.length === 0;
   const selectedSignal =
     selectedSignals.length === 1 ? selectedSignals[0] : null;
   const signalCount = isAllSignals ? 0 : selectedSignals.length;
 
-  const hiddenTag = tags.find(tag => tag.systemKey === "hidden") || null;
   const regularTags = tags.filter(tag => !tag.systemKey);
   const selectedTagSet = new Set(selectedTagIds);
   const tagCount = regularTags.filter((tag) =>
     selectedTagSet.has(tag.id)
   ).length;
-  const uncheckedRegularTagCount = regularTags.length - tagCount;
-  const areAllRegularTagsVisible = uncheckedRegularTagCount === 0;
   const activeTagFilterCount = tagCount + (showHiddenTag ? 1 : 0);
 
   const hasActiveFilters = signalCount > 0 || activeTagFilterCount > 0;
-
-  const openTagSheet = (mode: "list" | "create") => {
-    setTagSheetMode(mode);
-    setTagSheetOpen(true);
-  };
 
   const clearFilters = () => {
     onSelectedSignalsChange([]);
@@ -333,17 +251,6 @@ export function HomeFilterBar({
   const selectSignal = (value: HomeSignalFilterValue | "all") => {
     onSelectedSignalsChange(value === "all" ? [] : [value]);
   };
-
-  const tagsLabel =
-    tags.length === 0
-      ? "Create a tag"
-      : tagCount === 0 && !showHiddenTag
-        ? "All non-Hidden businesses shown"
-        : areAllRegularTagsVisible && !showHiddenTag
-          ? "All tagged businesses shown"
-          : `${tagCount} regular ${
-              tagCount === 1 ? "tag" : "tags"
-            } selected${showHiddenTag ? ", Hidden shown" : ""}`;
 
   return (
     <>
@@ -420,139 +327,14 @@ export function HomeFilterBar({
           while Active/Onboarding remain a view switch rather than a filter.
         */}
         <div className="ml-auto flex shrink-0 items-center gap-3">
-          {tagsLoading ? (
-            <Skeleton className="size-9 rounded-md" />
-          ) : tagsError ? (
-            <div className="text-general-muted-foreground flex min-h-9 items-center gap-2 text-sm">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <TagIconButton
-                    aria-label="Retry loading tags"
-                    onClick={() => void dashboardTags.refetch()}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>Retry loading tags</TooltipContent>
-              </Tooltip>
-              <button
-                type="button"
-                onClick={() => void dashboardTags.refetch()}
-                className="text-general-foreground cursor-pointer font-medium underline-offset-4 hover:underline"
-              >
-                Retry
-              </button>
-            </div>
-          ) : tags.length === 0 ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TagIconButton
-                  aria-label={tagsLabel}
-                  onClick={() => openTagSheet("create")}
-                />
-              </TooltipTrigger>
-              <TooltipContent>{tagsLabel}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <DropdownMenuTrigger asChild>
-                      <TagIconButton
-                        aria-label={tagsLabel}
-                        selected={activeTagFilterCount > 0}
-                        count={activeTagFilterCount}
-                      />
-                    </DropdownMenuTrigger>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{tagsLabel}</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent
-                align="end"
-                sideOffset={6}
-                className={MENU_CONTENT_CLASS}
-              >
-                <DropdownMenuItem
-                  role="menuitemcheckbox"
-                  aria-checked={areAllRegularTagsVisible}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    onSelectedTagIdsChange(
-                      areAllRegularTagsVisible
-                        ? []
-                        : regularTags.map(tag => tag.id)
-                    );
-                  }}
-                  className={MENU_ITEM_CLASS}
-                >
-                  <MenuCheckbox checked={areAllRegularTagsVisible} />
-                  <span className="truncate">All tags</span>
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator className="bg-general-border" />
-
-                {regularTags.map((tag) => {
-                  const checked = selectedTagSet.has(tag.id);
-                  return (
-                    <DropdownMenuItem
-                      key={tag.id}
-                      role="menuitemcheckbox"
-                      aria-checked={checked}
-                      // Keep the menu open so several tags can be picked in one pass.
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        onSelectedTagIdsChange(
-                          toggleValue(selectedTagIds, tag.id)
-                        );
-                      }}
-                      className={MENU_ITEM_CLASS}
-                    >
-                      <MenuCheckbox checked={checked} />
-                      <span className="truncate">{tag.name}</span>
-                      <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
-                        {tag.businessCount}
-                      </span>
-                    </DropdownMenuItem>
-                  );
-                })}
-
-                {hiddenTag ? (
-                  <>
-                    <DropdownMenuSeparator className="bg-general-border" />
-                    <DropdownMenuItem
-                      role="menuitemcheckbox"
-                      aria-checked={showHiddenTag}
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        onShowHiddenTagChange(!showHiddenTag);
-                      }}
-                      className={MENU_ITEM_CLASS}
-                    >
-                      <MenuCheckbox checked={showHiddenTag} />
-                      <span className="truncate">{hiddenTag.name}</span>
-                      <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
-                        {hiddenTag.businessCount}
-                      </span>
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-
-                <DropdownMenuSeparator className="bg-general-border" />
-
-                <DropdownMenuItem
-                  onSelect={() => openTagSheet("list")}
-                  className={MENU_ITEM_CLASS}
-                >
-                  <Pencil
-                    className="size-4 shrink-0"
-                    strokeWidth={1.5}
-                    aria-hidden
-                  />
-                  <span>Manage tags</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <DashboardTagFilterMenu
+            selectedTagIds={selectedTagIds}
+            onSelectedTagIdsChange={onSelectedTagIdsChange}
+            showHiddenTag={showHiddenTag}
+            onShowHiddenTagChange={onShowHiddenTagChange}
+            profiles={profiles}
+            dashboardTags={dashboardTags}
+          />
 
           <div
             className={cn(
@@ -594,21 +376,6 @@ export function HomeFilterBar({
         </div>
       </div>
 
-      <DashboardTagsSheet
-        open={tagSheetOpen}
-        onOpenChange={setTagSheetOpen}
-        initialMode={tagSheetMode}
-        tags={tags}
-        profiles={profiles}
-        selectedTagIds={selectedTagIds}
-        onSelectedTagIdsChange={onSelectedTagIdsChange}
-        createTag={dashboardTags.createTag}
-        updateTag={dashboardTags.updateTag}
-        deleteTag={dashboardTags.deleteTag}
-        isCreating={dashboardTags.isCreating}
-        isUpdating={dashboardTags.isUpdating}
-        isDeleting={dashboardTags.isDeleting}
-      />
     </>
   );
 }

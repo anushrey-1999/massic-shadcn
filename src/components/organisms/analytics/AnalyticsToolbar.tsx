@@ -17,7 +17,7 @@ import { type AnalyticsMetricKey } from "@/utils/analytics-metrics";
 const DATA_READY_TOOLTIP = "Available once your data is ready";
 
 const TAB_TRIGGER_CLASS =
-  "text-general-foreground h-auto min-h-8 min-w-8 flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
+  "text-general-foreground h-auto min-h-8 min-w-[72px] flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
 
 export type AnalyticsScope = "all" | "organic" | "ai-traffic";
 
@@ -102,7 +102,7 @@ export function AnalyticsToolbar({
                 Organic
               </TabsTrigger>
               <TabsTrigger value="ai-traffic" className={TAB_TRIGGER_CLASS}>
-                AI Traffic
+                AI
               </TabsTrigger>
             </TabsList>
           </Tabs>

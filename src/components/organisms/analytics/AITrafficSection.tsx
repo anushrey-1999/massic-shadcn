@@ -4,16 +4,23 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   Bot,
+  ChartSpline,
   FileText,
   Info,
   Search,
   Loader2,
   Target,
 } from "lucide-react";
-import { useAITraffic, type AITrafficMeta } from "@/hooks/use-ai-traffic";
+import {
+  useAITraffic,
+  type AILandingPageSort,
+  type AILandingPageSortKey,
+  type AITrafficMeta,
+} from "@/hooks/use-ai-traffic";
 import type { TimePeriodValue } from "@/utils/analytics-period";
 import {
   groupAnalyticsChartData,
+  calculateTrailingMovingAverage,
   getAvailableAnalyticsGroupings,
   type AnalyticsGroupBy,
 } from "@/utils/analytics-chart-grouping";
@@ -30,7 +37,7 @@ import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
-import { Typography } from "@/components/ui/typography";
+import { ChartOverlayToggle } from "@/components/molecules/analytics/ChartOverlayToggle";
 import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,11 +46,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 
 const percent = (value: number | null) =>
   value === null
@@ -70,26 +72,20 @@ const SOURCE_COLUMNS: DataTableColumn[] = [
 ];
 const PAGE_COLUMNS: DataTableColumn[] = [
   { key: "key", label: "Landing page", width: "w-[40%]" },
-  { key: "sessions", label: "Sessions", width: "w-[20%]" },
-  { key: "goals", label: "Goals", width: "w-[20%]" },
+  { key: "sessions", label: "Sessions", width: "w-[20%]", sortable: true },
+  { key: "goals", label: "Goals", width: "w-[20%]", sortable: true },
   {
     key: "goalRate",
     label: "Session goal rate",
     width: "w-[20%]",
+    sortable: true,
     tooltipLabel: "Percentage of sessions with at least one GA4 key event",
   },
 ];
+const PAGE_SORT_KEYS = new Set<string>(["sessions", "goals", "goalRate"]);
 const GOAL_COLUMNS: DataTableColumn[] = [
   { key: "key", label: "Goal event" },
   { key: "goals", label: "Events" },
-];
-const AUDIT_COLUMNS: DataTableColumn[] = [
-  { key: "key", label: "Source" },
-  { key: "medium", label: "Medium" },
-  { key: "channel", label: "Channel" },
-  { key: "campaign", label: "Campaign" },
-  { key: "sessions", label: "Sessions", width: "w-[20%]" },
-  { key: "goals", label: "Goals", width: "w-[20%]" },
 ];
 
 const SESSION_COLORS = {
@@ -185,6 +181,7 @@ function ReportTable({
   renderSource = false,
   sortConfig,
   onSort,
+  fixedLayout = false,
 }: {
   title: string;
   icon: ReactNode;
@@ -201,6 +198,8 @@ function ReportTable({
   renderSource?: boolean;
   sortConfig?: SortConfig;
   onSort?: (column: string) => void;
+  /** Fixed column widths so long first-column values truncate instead of pushing metrics off-screen. */
+  fixedLayout?: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -241,6 +240,7 @@ function ReportTable({
           }
           sortConfig={sortConfig}
           onSort={onSort}
+          dynamicFirstColumn={fixedLayout}
         />
       )}
       <QualityNotice meta={query.data?.meta} />
@@ -266,16 +266,34 @@ export function AITrafficSection({
   visibleLines,
 }: AITrafficSectionProps) {
   const [expanded, setExpanded] = useState<
-    "sources" | "pages" | "goals" | "audit" | null
+    "sources" | "pages" | "goals" | null
   >(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [auditOpen, setAuditOpen] = useState(false);
+  const [movingAverageOn, setMovingAverageOn] = useState(true);
+  const showMovingAverage = movingAverageOn && groupBy === "day";
   const [sourceSort, setSourceSort] = useState<SortConfig>({ column: "sessions", direction: "desc" });
   const sortSources = (column: string) => setSourceSort((current) => ({
     column,
     direction: current.column === column && current.direction === "desc" ? "asc" : "desc",
   }));
+  const [pageSort, setPageSort] = useState<AILandingPageSort>({
+    sortBy: "sessions",
+    sortDirection: "desc",
+  });
+  const sortPages = (column: string) => {
+    if (!PAGE_SORT_KEYS.has(column)) return;
+    setPage(0);
+    setPageSort((current) => ({
+      sortBy: column as AILandingPageSortKey,
+      sortDirection:
+        current.sortBy === column && current.sortDirection === "desc" ? "asc" : "desc",
+    }));
+  };
+  const pageSortConfig: SortConfig = {
+    column: pageSort.sortBy,
+    direction: pageSort.sortDirection,
+  };
   const lines = {
     aiSessions: visibleLines.clicks,
     organicSessions: visibleLines.sessions,
@@ -288,6 +306,7 @@ export function AITrafficSection({
     page,
     pageSize,
     expanded === "pages",
+    pageSort,
   );
   const { overview, sources, landingPages, expandedPages, goals, gate } =
     reports;
@@ -309,28 +328,29 @@ export function AITrafficSection({
 
   const chartData = useMemo(() => {
     if (!data) return [];
-    const grouped = (metric: "aiSessions" | "organicSessions") =>
-      groupAnalyticsChartData(
-        data.daily.map((point) => ({
-          date: point.date,
-          dateKey: point.date,
-          impressions: 0,
-          clicks: 0,
-          sessions: point[metric],
-        })),
-        groupBy,
-        data.ranges.currentStart,
-        data.ranges.currentEnd,
-      );
-    const organic = grouped("organicSessions");
-    return grouped("aiSessions").map((point, i) => ({
+    const daily = data.daily.map((point) => ({
+      date: point.date,
+      dateKey: point.date,
+      impressions: 0,
+      clicks: point.aiSessions,
+      sessions: point.organicSessions,
+    }));
+    const points = showMovingAverage
+      ? calculateTrailingMovingAverage(daily, 7)
+      : daily;
+    return groupAnalyticsChartData(
+      points,
+      groupBy,
+      data.ranges.currentStart,
+      data.ranges.currentEnd,
+    ).map((point) => ({
       date: point.date,
       rangeLabel: point.rangeLabel,
       rangeContextLabel: point.rangeContextLabel,
-      aiSessions: point.sessions,
-      organicSessions: organic[i]?.sessions || 0,
+      aiSessions: point.clicks,
+      organicSessions: point.sessions,
     }));
-  }, [data, groupBy]);
+  }, [data, groupBy, showMovingAverage]);
 
   const sourceRows = [...(sources.data?.data.rows || [])].sort((a, b) => {
     const key = sourceSort.column === "goals" ? "goals" : "sessions";
@@ -356,14 +376,6 @@ export function AITrafficSection({
   const goalRows = (goals.data?.data.rows || []).map((row) => ({
     key: row.event,
     goals: count(row.goals),
-  }));
-  const auditRows = (sources.data?.data.audit || []).map((row) => ({
-    key: row.source,
-    medium: row.medium,
-    channel: row.channel,
-    campaign: row.campaign,
-    sessions: metricCell(row.current.sessions, row.previous.sessions),
-    goals: metricCell(row.current.goals, row.previous.goals),
   }));
   const comparisonRows = data
     ? (["ai", "organic"] as const).map((channel) => ({
@@ -445,9 +457,7 @@ export function AITrafficSection({
       ? "Assistant sources"
       : expanded === "pages"
         ? "AI landing pages"
-        : expanded === "goals"
-          ? "AI goal events"
-          : "Assistant source audit";
+        : "AI goal events";
   const modalQuery =
     expanded === "pages"
       ? expandedPages
@@ -460,34 +470,6 @@ export function AITrafficSection({
       className="flex min-w-0 flex-col gap-3 p-7 pb-10"
       aria-label="AI Traffic"
     >
-      <div className="space-y-2 pb-6">
-        <div className="flex items-center gap-2">
-          <Bot className="size-8 text-general-foreground" />
-          <Typography variant="h2">AI Traffic</Typography>
-        </div>
-        <p className="text-sm text-general-muted-foreground">
-          Visits from AI assistants, compared with Organic Search. Google AI
-          Overviews and AI Mode remain within Organic Search and cannot be
-          separated here.
-        </p>
-        {overview.data && (
-          <p className="text-xs text-general-muted-foreground">
-            {data?.ranges.currentStart} – {data?.ranges.currentEnd} · Compared
-            with {data?.ranges.previousStart} – {data?.ranges.previousEnd}
-            {overview.data.meta.timeZone
-              ? ` · ${overview.data.meta.timeZone}`
-              : ""}
-            {overview.data.meta.pagePathScope
-              ? ` · Landing pages under ${overview.data.meta.pagePathScope}`
-              : ""}{" "}
-            · Updated{" "}
-            {new Date(overview.data.meta.fetchedAt).toLocaleTimeString(
-              undefined,
-              { hour: "2-digit", minute: "2-digit" },
-            )}
-          </p>
-        )}
-      </div>
       {overview.isError && (
         <ReportError
           retry={() => {
@@ -536,8 +518,7 @@ export function AITrafficSection({
               <Alert>
                 <Info className="size-4" />
                 <AlertDescription>
-                  No AI Assistant sessions reported for this period. Check the
-                  source audit for recognized assistants classified elsewhere.
+                  No AI Assistant sessions reported for this period.
                 </AlertDescription>
               </Alert>
             )}
@@ -575,19 +556,37 @@ export function AITrafficSection({
                     })
                     .filter((item) => item.checked)}
                 />
+                <ChartOverlayToggle
+                  icon={ChartSpline}
+                  label="7-day moving average"
+                  active={showMovingAverage}
+                  disabled={groupBy !== "day"}
+                  disabledReason="The 7-day moving average is available in Day view"
+                  onToggle={setMovingAverageOn}
+                  activeIconClassName="text-primary"
+                />
               </div>
               <AreaChartCard
-                key={`${period}:${groupBy}`}
+                key={`${period}:${groupBy}:${showMovingAverage}`}
                 data={chartData}
                 height={242}
                 variant="analytics"
+                tooltipBadges={showMovingAverage && (
+                  <span className="shrink-0 rounded-sm bg-general-secondary px-2 py-0.5 text-[10px] font-medium leading-4 text-general-muted-foreground">
+                    7-day average
+                  </span>
+                )}
                 config={{
                   aiSessions: {
-                    label: "AI Assistant sessions",
+                    label: showMovingAverage
+                      ? "AI Assistant sessions (7-day average)"
+                      : "AI Assistant sessions",
                     color: SESSION_COLORS.aiSessions,
                   },
                   organicSessions: {
-                    label: "Organic Search sessions",
+                    label: showMovingAverage
+                      ? "Organic Search sessions (7-day average)"
+                      : "Organic Search sessions",
                     color: SESSION_COLORS.organicSessions,
                   },
                 }}
@@ -598,6 +597,7 @@ export function AITrafficSection({
                     stroke: SESSION_COLORS[key],
                     fillColor: SESSION_COLORS[key],
                     fillId: `${id}-${key}`,
+                    dot: showMovingAverage && chartData.length === 1,
                   }))}
               />
               <QualityNotice meta={overview.data?.meta} />
@@ -631,6 +631,7 @@ export function AITrafficSection({
           renderSource
           sortConfig={sourceSort}
           onSort={sortSources}
+          fixedLayout
         />
       </div>
       <div className="grid grid-cols-1 gap-3">
@@ -644,6 +645,9 @@ export function AITrafficSection({
             setPage(0);
             setExpanded("pages");
           }}
+          sortConfig={pageSortConfig}
+          onSort={sortPages}
+          fixedLayout
         />
         <ReportTable
           title="AI goal events"
@@ -652,61 +656,43 @@ export function AITrafficSection({
           rows={goalRows}
           query={goals}
           onExpand={() => setExpanded("goals")}
+          fixedLayout
         />
       </div>
-      <Collapsible
-        open={auditOpen}
-        onOpenChange={setAuditOpen}
-        className="space-y-3"
-      >
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" aria-expanded={auditOpen}>
-            {auditOpen ? "Hide" : "Show"} assistant source audit
-            {sources.data ? ` (${auditRows.length})` : ""}
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3">
-          <p className="text-sm text-general-muted-foreground">
-            Recognized assistant sources outside GA4’s AI Assistant channel.
-            These visits are excluded from AI totals and can already be included
-            in Organic Search.
-          </p>
-          <ReportTable
-            title="Assistant source audit"
-            icon={<Info className="size-5" />}
-            columns={AUDIT_COLUMNS}
-            rows={auditRows}
-            query={sources}
-            onExpand={() => setExpanded("audit")}
-          />
-        </CollapsibleContent>
-      </Collapsible>
       <DataTableModal
         open={expanded !== null}
         onOpenChange={(open) => {
           if (!open) setExpanded(null);
         }}
-        responsive
         title={modalTitle}
-        sortConfig={expanded === "sources" ? sourceSort : undefined}
-        onSort={expanded === "sources" ? sortSources : undefined}
+        sortConfig={
+          expanded === "sources"
+            ? sourceSort
+            : expanded === "pages"
+              ? pageSortConfig
+              : undefined
+        }
+        onSort={
+          expanded === "sources"
+            ? sortSources
+            : expanded === "pages"
+              ? sortPages
+              : undefined
+        }
+        dynamicFirstColumn
         columns={
           expanded === "sources"
             ? SOURCE_COLUMNS
             : expanded === "pages"
               ? PAGE_COLUMNS
-              : expanded === "goals"
-                ? GOAL_COLUMNS
-                : AUDIT_COLUMNS
+              : GOAL_COLUMNS
         }
         data={
           expanded === "sources"
             ? sourceRows
             : expanded === "pages"
               ? expandedPageRows
-              : expanded === "goals"
-                ? goalRows
-                : auditRows
+              : goalRows
         }
         isLoading={modalQuery.isFetching}
         errorState={

@@ -19,6 +19,7 @@ interface AreaConfig {
   stroke: string
   fillId: string
   fillColor: string
+  dot?: boolean
 }
 
 interface LegendItem {
@@ -37,6 +38,7 @@ interface AreaChartCardProps {
   showYAxis?: boolean
   variant?: "default" | "analytics"
   className?: string
+  tooltipBadges?: ReactNode
 }
 
 export function AreaChartCard({
@@ -48,6 +50,7 @@ export function AreaChartCard({
   showYAxis = false,
   variant = "default",
   className,
+  tooltipBadges,
 }: AreaChartCardProps) {
   const isAnalytics = variant === "analytics"
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -125,7 +128,7 @@ export function AreaChartCard({
                 if (!active || !payload?.length) return null
                 const point = payload[0]?.payload
                 return (
-                  <AnalyticsChartTooltip label={point?.rangeLabel || label} context={point?.rangeContextLabel}>
+                  <AnalyticsChartTooltip label={point?.rangeLabel || label} context={point?.rangeContextLabel} badges={tooltipBadges}>
                     {payload.map((entry) => (
                       <div key={String(entry.dataKey)} className="flex items-center justify-between gap-4">
                         <p className="flex items-center gap-2" style={{ color: entry.color }}>
@@ -146,6 +149,7 @@ export function AreaChartCard({
                   stroke={area.stroke}
                   fill={`url(#${area.fillId})`}
                   strokeWidth={isAnalytics ? ANALYTICS_CHART_STYLE.strokeWidth : 2}
+                  dot={area.dot}
                 />
               ))}
             </AreaChart>

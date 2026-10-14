@@ -233,7 +233,7 @@ export function AnalyticsTemplate() {
       ? { impressions: false, clicks: false, sessions: true, goals: true }
       : visibleLines;
 
-  const [aiVisibleLines, setAiVisibleLines] = useState<Record<string, boolean>>({ clicks: true, sessions: true });
+  const [aiVisibleLines, setAiVisibleLines] = useState<Record<string, boolean>>({ clicks: true, sessions: false });
   const handleAILineToggle = useCallback((key: string, checked: boolean) => {
     setAiVisibleLines((current) => {
       if (!checked && Object.values(current).filter(Boolean).length <= 1) return current;

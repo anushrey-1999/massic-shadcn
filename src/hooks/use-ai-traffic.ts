@@ -75,13 +75,19 @@ interface AIResponse<T> {
   error?: string;
 }
 
+export type AILandingPageSortKey = "sessions" | "goals" | "goalRate";
+export interface AILandingPageSort {
+  sortBy: AILandingPageSortKey;
+  sortDirection: "asc" | "desc";
+}
+
 function useAIReport<S extends keyof AIReports>(
   section: S,
   businessUniqueId: string | null,
   period: TimePeriodValue,
   scopeRevision: number,
   enabled: boolean,
-  pagination?: { offset: number; limit: number },
+  pagination?: { offset: number; limit: number } & Partial<AILandingPageSort>,
 ) {
   return useQuery<AIResponse<AIReports[S]>, Error>({
     queryKey: [
@@ -120,6 +126,7 @@ export function useAITraffic(
   page: number,
   pageSize: number,
   pagesOpen: boolean,
+  pageSort: AILandingPageSort,
 ) {
   const gate = useGoogleDataGate(businessUniqueId, "ga4");
   const overview = useAIReport(
@@ -142,7 +149,7 @@ export function useAITraffic(
     period,
     scopeRevision,
     gate.enabled,
-    { offset: 0, limit: 10 },
+    { offset: 0, limit: 10, ...pageSort },
   );
   const expandedPages = useAIReport(
     "landing_pages",
@@ -150,7 +157,7 @@ export function useAITraffic(
     period,
     scopeRevision,
     gate.enabled && pagesOpen,
-    { offset: page * pageSize, limit: pageSize },
+    { offset: page * pageSize, limit: pageSize, ...pageSort },
   );
   const goals = useAIReport(
     "goals",

@@ -89,7 +89,7 @@ export function CreatePitchTemplate() {
     try {
       const issues = validateProfileForm(values, {
         sectionMode: "minimal",
-        visibleSections: ["identity", "offerings", "competitors"],
+        visibleSections: ["identity"],
       });
       if (issues.length > 0) {
         toast.error("Complete the required pitch details.", {

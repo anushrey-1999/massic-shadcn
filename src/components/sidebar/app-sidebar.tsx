@@ -209,14 +209,12 @@ export default function AppSidebar() {
     expandedBusinessId,
   } = useBusinessProfiles()
   const dashboardTags = useDashboardTags()
+  const tagVisibility = useDashboardTagVisibility(dashboardTags, profiles, sidebarDataLoading)
   const {
-    selectedTagIds,
-    setSelectedTagIds,
-    showHiddenTag,
-    setShowHiddenTag,
     matchesTagVisibility,
     hasTagVisibilityFilter,
-  } = useDashboardTagVisibility(dashboardTags)
+    isTagVisibilityLoading,
+  } = tagVisibility
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
   useEffect(() => {
@@ -600,10 +598,7 @@ export default function AppSidebar() {
                         </Button>
                       )}
                       <DashboardTagFilterMenu
-                        selectedTagIds={selectedTagIds}
-                        onSelectedTagIdsChange={setSelectedTagIds}
-                        showHiddenTag={showHiddenTag}
-                        onShowHiddenTagChange={setShowHiddenTag}
+                        tagVisibility={tagVisibility}
                         profiles={profiles}
                         dashboardTags={dashboardTags}
                         variant="sidebar"
@@ -628,7 +623,7 @@ export default function AppSidebar() {
                 onScroll={handleScroll}
               >
                 <SidebarMenu className={cn('gap-1 pb-3', isCollapsed ? 'px-1' : 'px-4')}>
-                  {sidebarDataLoading ? (
+                  {sidebarDataLoading || isTagVisibilityLoading ? (
                     <>
                       {[1, 2, 3].map((i) => (
                         <SidebarMenuItem key={i}>

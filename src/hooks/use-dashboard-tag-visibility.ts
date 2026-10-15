@@ -5,74 +5,72 @@ import { create } from "zustand";
 
 import type { DashboardTag } from "@/hooks/use-dashboard-tags";
 import { useAuthStore } from "@/store/auth-store";
+import type { BusinessProfile } from "@/store/business-store";
 import {
-  readUncheckedHomeTagIds,
-  writeUncheckedHomeTagIds,
+  defaultDashboardTagSelection,
+  getDashboardTagBusinessSets,
+  matchesDashboardTagSelection,
+  normalizeDashboardTagSelection,
+  updateDashboardTagSelection,
+  type DashboardTagSelection,
+} from "@/utils/dashboard-tag-visibility";
+import {
+  readHomeTagSelection,
+  writeHomeTagSelection,
 } from "@/utils/home-tag-visibility-storage";
 
 type TagVisibilityState = {
   accountId: string | null;
-  knownRegularTagIds: string[];
-  selectedTagIds: string[];
-  showHiddenTag: boolean;
+  selection: DashboardTagSelection;
   ready: boolean;
   synchronize: (accountId: string, regularTagIds: string[]) => void;
   setSelectedTagIds: (selectedTagIds: string[]) => void;
-  setShowHiddenTag: (showHiddenTag: boolean) => void;
+  setShowAllBusinesses: (checked: boolean) => void;
+  setShowUntagged: (checked: boolean) => void;
+  setShowHiddenTag: (checked: boolean) => void;
+  resetTagVisibility: () => void;
 };
 
-const useTagVisibilityStore = create<TagVisibilityState>((set, get) => ({
-  accountId: null,
-  knownRegularTagIds: [],
-  selectedTagIds: [],
-  showHiddenTag: false,
-  ready: false,
-  synchronize: (accountId, regularTagIds) => {
+const useTagVisibilityStore = create<TagVisibilityState>((set, get) => {
+  const updateSelection = (
+    action: Parameters<typeof updateDashboardTagSelection>[1]
+  ) => {
     const current = get();
+    if (!current.ready || !current.accountId) return;
+    const selection = updateDashboardTagSelection(current.selection, action);
+    writeHomeTagSelection(current.accountId, selection);
+    set({ selection });
+  };
 
-    if (current.accountId !== accountId) {
-      const uncheckedTagIds = new Set(readUncheckedHomeTagIds(accountId));
-      set({
-        accountId,
-        knownRegularTagIds: regularTagIds,
-        selectedTagIds: regularTagIds.filter(
-          tagId => !uncheckedTagIds.has(tagId)
-        ),
-        showHiddenTag: false,
-        ready: true,
-      });
-      return;
-    }
+  return {
+    accountId: null,
+    selection: defaultDashboardTagSelection(),
+    ready: false,
+    synchronize: (accountId, regularTagIds) => {
+      const current = get();
+      const selection =
+        current.accountId !== accountId
+          ? readHomeTagSelection(accountId, regularTagIds)
+          : normalizeDashboardTagSelection(current.selection, regularTagIds);
 
-    const nextKnownTagIds = new Set(regularTagIds);
-    const previousKnownTagIds = new Set(current.knownRegularTagIds);
-    const selectedTagIds = [
-      ...current.selectedTagIds.filter(tagId => nextKnownTagIds.has(tagId)),
-      ...regularTagIds.filter(tagId => !previousKnownTagIds.has(tagId)),
-    ];
+      if (
+        current.accountId !== accountId ||
+        !current.ready ||
+        JSON.stringify(selection) !== JSON.stringify(current.selection)
+      ) {
+        writeHomeTagSelection(accountId, selection);
+        set({ accountId, selection, ready: true });
+      }
+    },
+    setSelectedTagIds: ids => updateSelection({ type: "tags", ids }),
+    setShowAllBusinesses: checked => updateSelection({ type: "all", checked }),
+    setShowUntagged: checked => updateSelection({ type: "untagged", checked }),
+    setShowHiddenTag: checked => updateSelection({ type: "hidden", checked }),
+    resetTagVisibility: () => updateSelection({ type: "reset" }),
+  };
+});
 
-    const selectionChanged =
-      selectedTagIds.length !== current.selectedTagIds.length ||
-      selectedTagIds.some(
-        (tagId, index) => tagId !== current.selectedTagIds[index]
-      );
-    const knownTagsChanged =
-      regularTagIds.length !== current.knownRegularTagIds.length ||
-      regularTagIds.some(
-        (tagId, index) => tagId !== current.knownRegularTagIds[index]
-      );
-
-    if (selectionChanged || knownTagsChanged || !current.ready) {
-      set({
-        knownRegularTagIds: regularTagIds,
-        selectedTagIds,
-        ready: true,
-      });
-    }
-  },
-  setSelectedTagIds: selectedTagIds => set({ selectedTagIds }),
-  setShowHiddenTag: showHiddenTag => set({ showHiddenTag }),
-}));
+const DEFAULT_SELECTION = defaultDashboardTagSelection();
 
 type UseDashboardTagVisibilityOptions = {
   tags: DashboardTag[];
@@ -80,27 +78,21 @@ type UseDashboardTagVisibilityOptions = {
   isError: boolean;
 };
 
-export function useDashboardTagVisibility({
-  tags,
-  isLoading,
-  isError,
-}: UseDashboardTagVisibilityOptions) {
+export function useDashboardTagVisibility(
+  { tags, isLoading, isError }: UseDashboardTagVisibilityOptions,
+  profiles: BusinessProfile[],
+  profilesLoading: boolean
+) {
   const { user } = useAuthStore();
   const accountId = String(
-    user?.accountUniqueId ||
-      user?.uniqueId ||
-      user?.UniqueId ||
-      user?.id ||
-      ""
+    user?.accountUniqueId || user?.uniqueId || user?.UniqueId || user?.id || ""
   );
   const {
     accountId: selectionAccountId,
-    selectedTagIds,
-    showHiddenTag,
+    selection: storedSelection,
     ready,
     synchronize,
-    setSelectedTagIds,
-    setShowHiddenTag,
+    ...actions
   } = useTagVisibilityStore();
 
   const regularTagIds = useMemo(
@@ -114,73 +106,56 @@ export function useDashboardTagVisibility({
   }, [accountId, isError, isLoading, regularTagIds, synchronize]);
 
   const tagFilterReady = ready && selectionAccountId === accountId;
-
-  useEffect(() => {
-    if (!tagFilterReady || !accountId) return;
-
-    const selectedIds = new Set(selectedTagIds);
-    writeUncheckedHomeTagIds(
-      accountId,
-      regularTagIds.filter(tagId => !selectedIds.has(tagId))
-    );
-  }, [accountId, regularTagIds, selectedTagIds, tagFilterReady]);
-
-  const hiddenTag = useMemo(
-    () => tags.find(tag => tag.systemKey === "hidden") || null,
-    [tags]
-  );
-  const selectedRegularTags = useMemo(
-    () =>
-      tags.filter(
-        tag => !tag.systemKey && selectedTagIds.includes(tag.id)
-      ),
-    [selectedTagIds, tags]
+  const selection = tagFilterReady ? storedSelection : DEFAULT_SELECTION;
+  const businessSets = useMemo(
+    () => getDashboardTagBusinessSets(tags, profiles),
+    [tags, profiles]
   );
   const selectedBusinessIds = useMemo(
     () =>
-      selectedRegularTags.length > 0
-        ? new Set(selectedRegularTags.flatMap(tag => tag.businessIds))
-        : null,
-    [selectedRegularTags]
-  );
-  const hiddenBusinessIds = useMemo(
-    () => new Set(hiddenTag?.businessIds || []),
-    [hiddenTag?.businessIds]
+      new Set(
+        tags
+          .filter(tag => !tag.systemKey && selection.selectedTagIds.includes(tag.id))
+          .flatMap(tag => tag.businessIds)
+      ),
+    [tags, selection.selectedTagIds]
   );
 
   const matchesTagVisibility = useCallback(
     (businessId: string | null | undefined) => {
-      if (!tagFilterReady) return true;
-
-      const isHidden = businessId
-        ? hiddenBusinessIds.has(businessId)
-        : false;
-      if (isHidden) return showHiddenTag;
-
-      if (!selectedBusinessIds) return true;
-      return businessId ? selectedBusinessIds.has(businessId) : false;
+      if (!tagFilterReady) return isError;
+      return matchesDashboardTagSelection(
+        businessId,
+        selection,
+        selectedBusinessIds,
+        businessSets
+      );
     },
-    [
-      hiddenBusinessIds,
-      selectedBusinessIds,
-      showHiddenTag,
-      tagFilterReady,
-    ]
+    [businessSets, isError, selectedBusinessIds, selection, tagFilterReady]
   );
 
-  const hasTagVisibilityFilter =
-    tagFilterReady &&
-    (selectedRegularTags.length > 0 ||
-      selectedTagIds.length < regularTagIds.length ||
-      (!showHiddenTag && hiddenBusinessIds.size > 0));
+  const activeTagFilterCount =
+    selection.selectedTagIds.length +
+    (selection.showUntagged ? 1 : 0) +
+    (selection.showHiddenTag ? 1 : 0);
 
   return {
-    selectedTagIds: tagFilterReady ? selectedTagIds : [],
-    setSelectedTagIds,
-    showHiddenTag: tagFilterReady ? showHiddenTag : false,
-    setShowHiddenTag,
+    ...selection,
+    ...actions,
+    counts: businessSets.counts,
+    activeTagFilterCount,
     tagFilterReady,
+    isTagVisibilityLoading:
+      profilesLoading || isLoading ||
+      (Boolean(accountId) && !tagFilterReady && !isError),
     matchesTagVisibility,
-    hasTagVisibilityFilter,
+    hasTagVisibilityFilter:
+      tagFilterReady &&
+      (!selection.showAllBusinesses ||
+        (!selection.showHiddenTag && businessSets.counts.hidden > 0)),
   };
 }
+
+export type DashboardTagVisibilityController = ReturnType<
+  typeof useDashboardTagVisibility
+>;

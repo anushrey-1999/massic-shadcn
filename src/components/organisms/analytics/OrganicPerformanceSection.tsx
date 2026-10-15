@@ -24,10 +24,11 @@ import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet"
 import { CampaignImpactReportSheet } from "@/components/organisms/campaign-impact/CampaignImpactReportSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
+import { AnalyticsChartTooltip } from "@/components/molecules/analytics/AnalyticsChartTooltip";
 import { ChartOverlayToggle } from "@/components/molecules/analytics/ChartOverlayToggle";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
 import { NoGSCMetricsSelected } from "@/components/molecules/analytics/NoGSCMetricsSelected";
-import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
+import { ANALYTICS_CHART_STYLE, CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
 import {
   AreaChart,
   Area,
@@ -1365,12 +1366,12 @@ export function OrganicPerformanceSection({
                   </div>
                   <ChartContainer
                     config={chartConfig}
-                    className="h-full w-full flex-col justify-end items-stretch aspect-auto"
+                    className={ANALYTICS_CHART_STYLE.containerClassName}
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={chartDataToRender}
-                        margin={{ top: 12, right: 8, left: 8, bottom: 0 }}
+                        margin={ANALYTICS_CHART_STYLE.margin}
                       >
                         <defs>
                           <linearGradient
@@ -1447,8 +1448,8 @@ export function OrganicPerformanceSection({
                           </linearGradient>
                         </defs>
                         <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="#e5e7eb"
+                          strokeDasharray={ANALYTICS_CHART_STYLE.gridDasharray}
+                          stroke={ANALYTICS_CHART_STYLE.gridStroke}
                           vertical={false}
                         />
                         <XAxis
@@ -1456,8 +1457,8 @@ export function OrganicPerformanceSection({
                           tickFormatter={(value) => xAxisTickLabels.get(String(value)) || String(value)}
                           tickLine={false}
                           axisLine={false}
-                          tick={{ fontSize: 12, fill: "#9ca3af" }}
-                          tickMargin={8}
+                          tick={ANALYTICS_CHART_STYLE.tick}
+                          tickMargin={ANALYTICS_CHART_STYLE.tickMargin}
                           ticks={xAxisTicks12Months}
                           interval={
                             xAxisTicks12Months
@@ -1527,16 +1528,10 @@ export function OrganicPerformanceSection({
                               )
                             );
                             return (
-                              <div className="min-w-[196px] rounded-lg border border-border bg-background px-3 py-2.5 shadow-md">
-                                {data?.rangeContextLabel ? (
-                                  <p className="text-[11px] font-medium tracking-[0.12px] text-muted-foreground">
-                                    {data.rangeContextLabel}
-                                  </p>
-                                ) : null}
-                                <div className="mb-2 flex items-center justify-between gap-3">
-                                  <p className="text-base font-medium leading-5 text-general-foreground">
-                                    {data?.rangeLabel || label}
-                                  </p>
+                              <AnalyticsChartTooltip
+                                label={data?.rangeLabel || label}
+                                context={data?.rangeContextLabel}
+                                badges={<>
                                   {showMovingAverage && (
                                     <span className="shrink-0 rounded-sm bg-general-secondary px-2 py-0.5 text-[10px] font-medium leading-4 text-general-muted-foreground">
                                       7-day average
@@ -1547,58 +1542,57 @@ export function OrganicPerformanceSection({
                                       Click to view anomaly
                                     </span>
                                   )}
-                                </div>
-                                <div className="space-y-1.5 text-sm">
-                                  {visibleLines.impressions && data?.gscAvailable !== false && (
+                                </>}
+                              >
+                                {visibleLines.impressions && data?.gscAvailable !== false && (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <p className="flex items-center gap-2 text-[#6b7280]">
+                                      <span className="h-2 w-2 rounded-full bg-[#6b7280]" />
+                                      Impressions
+                                    </p>
+                                    <span className="font-medium text-general-foreground">
+                                      {formatChartMetricValue(data?.impressions)}
+                                    </span>
+                                  </div>
+                                )}
+                                {visibleLines.clicks && data?.gscAvailable !== false && (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <p className="flex items-center gap-2 text-[#2563eb]">
+                                      <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
+                                      Clicks
+                                    </p>
+                                    <span className="font-medium text-general-foreground">
+                                      {formatChartMetricValue(data?.clicks)}
+                                    </span>
+                                  </div>
+                                )}
+                                {visibleLines.sessions &&
+                                  data?.ga4Available !== false &&
+                                  data?.sessions !== undefined && (
                                     <div className="flex items-center justify-between gap-4">
-                                      <p className="flex items-center gap-2 text-[#6b7280]">
-                                        <span className="h-2 w-2 rounded-full bg-[#6b7280]" />
-                                        Impressions
+                                      <p className="flex items-center gap-2 text-[#ea580c]">
+                                        <span className="h-2 w-2 rounded-full bg-[#ea580c]" />
+                                        Sessions
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.impressions)}
+                                        {formatChartMetricValue(data?.sessions)}
                                       </span>
                                     </div>
                                   )}
-                                  {visibleLines.clicks && data?.gscAvailable !== false && (
+                                {visibleLines.goals &&
+                                  data?.ga4Available !== false &&
+                                  data?.goals !== undefined && (
                                     <div className="flex items-center justify-between gap-4">
-                                      <p className="flex items-center gap-2 text-[#2563eb]">
-                                        <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
-                                        Clicks
+                                      <p className="flex items-center gap-2 text-[#059669]">
+                                        <span className="h-2 w-2 rounded-full bg-[#059669]" />
+                                        Goals
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.clicks)}
+                                        {formatChartMetricValue(data?.goals)}
                                       </span>
                                     </div>
                                   )}
-                                  {visibleLines.sessions &&
-                                    data?.ga4Available !== false &&
-                                    data?.sessions !== undefined && (
-                                      <div className="flex items-center justify-between gap-4">
-                                        <p className="flex items-center gap-2 text-[#ea580c]">
-                                          <span className="h-2 w-2 rounded-full bg-[#ea580c]" />
-                                          Sessions
-                                        </p>
-                                        <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.sessions)}
-                                        </span>
-                                      </div>
-                                    )}
-                                  {visibleLines.goals &&
-                                    data?.ga4Available !== false &&
-                                    data?.goals !== undefined && (
-                                      <div className="flex items-center justify-between gap-4">
-                                        <p className="flex items-center gap-2 text-[#059669]">
-                                          <span className="h-2 w-2 rounded-full bg-[#059669]" />
-                                          Goals
-                                        </p>
-                                        <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.goals)}
-                                        </span>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
+                              </AnalyticsChartTooltip>
                             );
                           }}
                         />
@@ -1609,7 +1603,7 @@ export function OrganicPerformanceSection({
                             yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Impressions (7-day average)" : "Impressions"}
                           />
                         )}
@@ -1620,7 +1614,7 @@ export function OrganicPerformanceSection({
                             yAxisId="left"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Clicks (7-day average)" : "Clicks"}
                           />
                         )}
@@ -1631,7 +1625,7 @@ export function OrganicPerformanceSection({
                             yAxisId="left"
                             stroke="#059669"
                             fill="url(#fillGoals)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Goals (7-day average)" : "Goals"}
                           />
                         )}
@@ -1642,7 +1636,7 @@ export function OrganicPerformanceSection({
                             yAxisId="left"
                             stroke="#ea580c"
                             fill="url(#fillSessions)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Sessions (7-day average)" : "Sessions"}
                           />
                         )}

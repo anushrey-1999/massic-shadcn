@@ -13,12 +13,14 @@ export function ProfileIdentityFields({
   form,
   disabled = false,
   initialFieldsLocked = false,
+  websiteLocked = false,
   deriveName = false,
   className,
 }: {
   form: any;
   disabled?: boolean;
   initialFieldsLocked?: boolean;
+  websiteLocked?: boolean;
   deriveName?: boolean;
   className?: string;
 }) {
@@ -54,7 +56,7 @@ export function ProfileIdentityFields({
         autoCorrect="off"
         spellCheck={false}
         placeholder="example.com"
-        disabled={disabled || initialFieldsLocked}
+        disabled={disabled || initialFieldsLocked || websiteLocked}
       />
       <GenericInput<BusinessInfoFormData>
         form={form}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Filter, Pencil, Tag } from "lucide-react";
 
 import { DashboardTagsSheet } from "@/components/molecules/home/DashboardTagsSheet";
@@ -64,6 +64,10 @@ export function DashboardTagFilterMenu({
   dashboardTags,
   variant = "home",
 }: DashboardTagFilterMenuProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const isRestoringMenuFocus = useRef(false);
+  const dismissedByOutsidePointer = useRef(false);
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [tagSheetMode, setTagSheetMode] = useState<"list" | "create">("list");
   const { tags, isError } = dashboardTags;
@@ -150,8 +154,16 @@ export function DashboardTagFilterMenu({
   );
 
   const menuTrigger = (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip
+      open={tooltipOpen && !menuOpen && !tagSheetOpen}
+      onOpenChange={setTooltipOpen}
+    >
+      <TooltipTrigger
+        asChild
+        onFocus={event => {
+          if (isRestoringMenuFocus.current) event.preventDefault();
+        }}
+      >
         <span className="inline-flex">
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
         </span>
@@ -199,12 +211,35 @@ export function DashboardTagFilterMenu({
           ) : null}
         </div>
       ) : (
-        <DropdownMenu>
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={open => {
+            if (open) dismissedByOutsidePointer.current = false;
+            setMenuOpen(open);
+            setTooltipOpen(false);
+          }}
+        >
           {menuTrigger}
           <DropdownMenuContent
             align="end"
             sideOffset={6}
             className={MENU_CONTENT_CLASS}
+            onPointerDownOutside={() => {
+              dismissedByOutsidePointer.current = true;
+            }}
+            onCloseAutoFocus={event => {
+              setTooltipOpen(false);
+              if (dismissedByOutsidePointer.current) {
+                event.preventDefault();
+                dismissedByOutsidePointer.current = false;
+                return;
+              }
+              // Keep Radix's focus restoration without reopening the tooltip.
+              isRestoringMenuFocus.current = true;
+              queueMicrotask(() => {
+                isRestoringMenuFocus.current = false;
+              });
+            }}
           >
             <DropdownMenuItem
               role="menuitemcheckbox"
@@ -262,16 +297,6 @@ export function DashboardTagFilterMenu({
               </span>
             </DropdownMenuItem>
 
-            <DropdownMenuSeparator className="bg-general-border" />
-
-            <DropdownMenuItem
-              onSelect={() => openTagSheet(tags.length === 0 ? "create" : "list")}
-              className={MENU_ITEM_CLASS}
-            >
-              <Pencil className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
-              <span>Manage tags</span>
-            </DropdownMenuItem>
-
             {hiddenTag ? (
               <>
                 <DropdownMenuSeparator className="bg-general-border" />
@@ -292,6 +317,16 @@ export function DashboardTagFilterMenu({
                 </DropdownMenuItem>
               </>
             ) : null}
+
+            <DropdownMenuSeparator className="bg-general-border" />
+
+            <DropdownMenuItem
+              onSelect={() => openTagSheet(tags.length === 0 ? "create" : "list")}
+              className={MENU_ITEM_CLASS}
+            >
+              <Pencil className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
+              <span>Manage tags</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}

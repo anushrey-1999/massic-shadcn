@@ -35,6 +35,21 @@ type BusinessSubscription = {
   whitelisted?: boolean;
 };
 
+export function hasWhitelistAccess(
+  ...sources: Array<
+    | { isWhitelisted?: boolean; whitelisted?: boolean; status?: string | null }
+    | null
+    | undefined
+  >
+): boolean {
+  return sources.some(
+    (source) =>
+      source?.isWhitelisted === true ||
+      source?.whitelisted === true ||
+      source?.status === "whitelisted",
+  );
+}
+
 /** Billing supplies live status; the business profile supplies the plan name. */
 export function resolveBusinessSubscription(
   billing: BusinessSubscription | null | undefined,
@@ -56,12 +71,7 @@ export function hasActiveCoreOrGrowthPlan(
   subscription?: BusinessSubscription | null,
   isWhitelisted = false,
 ): boolean {
-  if (
-    isWhitelisted ||
-    subscription?.whitelisted === true ||
-    subscription?.status === "whitelisted"
-  )
-    return true;
+  if (isWhitelisted || hasWhitelistAccess(subscription)) return true;
   if (!hasBusinessPlanAccess(subscription)) return false;
 
   const planType = subscription?.plan_type?.trim().toLowerCase();

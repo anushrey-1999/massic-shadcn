@@ -52,6 +52,7 @@ import { isOrchestrationActive, isWorkflowActive } from "@/lib/workflow-status";
 import {
   hasActiveCoreOrGrowthPlan,
   hasBusinessPlanAccess,
+  hasWhitelistAccess,
   resolveBusinessSubscription,
 } from "@/lib/subscription-status";
 import { apiErrorMessage } from "@/lib/api-error";
@@ -131,14 +132,20 @@ export default function ProfileTemplate({
   );
   const business =
     profileData ?? profiles.find((profile) => profile.UniqueId === businessId);
-  const isWhitelisted = profiles.some(
-    (profile) => profile.isWhitelisted === true,
-  );
+  const businessSubscription =
+    business?.SubscriptionItems ??
+    profiles.find((profile) => profile.UniqueId === businessId)
+      ?.SubscriptionItems;
+  const isBusinessWhitelisted =
+    hasWhitelistAccess(business, businessSubscription) ||
+    profiles.some((profile) => profile.isWhitelisted === true);
   const subscription = useSubscription({
     businessId,
-    isWhitelisted,
+    isWhitelisted: isBusinessWhitelisted,
     throwOnReadError: true,
   });
+  const isWhitelisted =
+    isBusinessWhitelisted || hasWhitelistAccess(subscription.data);
   const analysis = useProfileAnalysis(businessId);
   const unlink = useToggleBusinessStatus();
   const guardSave = useFeatureActionGuard("profile.save");
@@ -158,10 +165,6 @@ export default function ProfileTemplate({
   >(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const operationRef = useRef(false);
-  const businessSubscription =
-    business?.SubscriptionItems ??
-    profiles.find((profile) => profile.UniqueId === businessId)
-      ?.SubscriptionItems;
   const currentSubscription = resolveBusinessSubscription(
     subscription.data,
     businessSubscription,
@@ -299,27 +302,29 @@ export default function ProfileTemplate({
     !maintenanceReady(action) || isWorkflowActive(jobDetails);
 
   const checkAnalysisPrerequisites = async (action: ProfileAnalysisAction) => {
-    // Only a resolved ineligible subscription can open billing immediately.
-    // A missing/failed read must be checked rather than treated as no plan.
-    if (!hasPlanAccess && subscription.data !== undefined) {
-      setPlanOpen(true);
-      return false;
-    }
-    try {
-      const latest = isWhitelisted ? null : await subscription.refetchData();
-      const eligible = hasActiveCoreOrGrowthPlan(
-        resolveBusinessSubscription(latest, businessSubscription),
-        isWhitelisted,
-      );
-      if (!eligible) {
+    if (!isWhitelisted) {
+      // Only a resolved ineligible subscription can open billing immediately.
+      // A missing/failed read must be checked rather than treated as no plan.
+      if (!hasPlanAccess && subscription.data !== undefined) {
         setPlanOpen(true);
         return false;
       }
-    } catch (error) {
-      toast.error("Couldn't check the business plan", {
-        description: apiErrorMessage(error),
-      });
-      return false;
+      try {
+        const latest = await subscription.refetchData();
+        if (
+          !hasActiveCoreOrGrowthPlan(
+            resolveBusinessSubscription(latest, businessSubscription),
+          )
+        ) {
+          setPlanOpen(true);
+          return false;
+        }
+      } catch (error) {
+        toast.error("Couldn't check the business plan", {
+          description: apiErrorMessage(error),
+        });
+        return false;
+      }
     }
     if (!maintenanceReady(action)) {
       toast.error(
@@ -507,12 +512,16 @@ export default function ProfileTemplate({
           loading={
             isLoading ||
             initialReadLoading ||
-            subscription.loading ||
-            !subscription.isFetched ||
+            (!isWhitelisted &&
+              (subscription.loading || !subscription.isFetched)) ||
             validation.catalogLoading ||
             !isHydrated
           }
-          error={readError ?? subscription.error ?? validation.catalogError}
+          error={
+            readError ??
+            (isWhitelisted ? null : subscription.error) ??
+            validation.catalogError
+          }
           onRetry={() =>
             Promise.allSettled([
               onRetryLoad?.(),
@@ -669,7 +678,7 @@ export default function ProfileTemplate({
         }}
       />
       <PlanModal
-        open={planOpen}
+        open={planOpen && !isWhitelisted}
         onClose={() => setPlanOpen(false)}
         currentPlan={currentPlan}
         showFooterButtons

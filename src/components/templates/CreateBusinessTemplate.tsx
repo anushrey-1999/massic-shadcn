@@ -16,6 +16,7 @@ export function CreateBusinessTemplate({
   onCancel,
   isPitch = false,
   initialFieldsLocked = false,
+  websiteLocked = false,
 }: {
   form: any;
   locationsLoading: boolean;
@@ -24,6 +25,7 @@ export function CreateBusinessTemplate({
   onCancel: () => void;
   isPitch?: boolean;
   initialFieldsLocked?: boolean;
+  websiteLocked?: boolean;
 }) {
   const values = useStore(form.store, (state: any) => state.values);
   const disabled =
@@ -78,6 +80,7 @@ export function CreateBusinessTemplate({
                 disabled={isSubmitting}
                 deriveName
                 initialFieldsLocked={initialFieldsLocked}
+                websiteLocked={websiteLocked}
               />
             </fieldset>
             <div className="flex gap-2 px-5 pb-5 sm:px-6 sm:pb-6">

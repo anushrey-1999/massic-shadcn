@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { apiErrorMessage } from "@/lib/api-error";
 import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
+import { businessConnectionPayload, type BusinessConnection } from "@/lib/business-connections";
 import {
   CreateBusinessConflictError,
   parseCreateBusinessConflict,
@@ -63,7 +64,11 @@ export async function fetchBusinessProfiles(
 
   try {
     const parsedProfiles: BusinessProfile[] = JSON.parse(response.data);
-    return Array.isArray(parsedProfiles) ? parsedProfiles : [];
+    if (!Array.isArray(parsedProfiles)) {
+      if (strict) throw new Error("The business list was not returned in the expected format.");
+      return [];
+    }
+    return parsedProfiles;
   } catch (error) {
     if (strict) {
       throw new Error("Failed to read existing businesses");
@@ -284,6 +289,8 @@ export interface CreatedBusinessExpectation {
   expectedIsPitch?: boolean;
   /** Ids that already existed before the create call. */
   preExistingIds?: Set<string> | null;
+  /** Linked creation may already have exactly the selected Google auth. */
+  expectedLinkedAuthId?: string;
 }
 
 /**
@@ -291,8 +298,8 @@ export interface CreatedBusinessExpectation {
  * created, or null when it passes every check.
  *
  * This is the invariant that prevents the "wires crossed" class of bug: a
- * business that already existed, that belongs to another domain, or that already
- * has analytics linked, can never be adopted as a freshly created record.
+ * business that already existed, belongs to another domain, or has an unexpected
+ * Google account linked can never be adopted as a freshly created record.
  */
 export function describeCreatedBusinessMismatch(
   candidate: Partial<BusinessProfile> | null | undefined,
@@ -305,10 +312,18 @@ export function describeCreatedBusinessMismatch(
     return "business already existed before this create";
   }
 
-  // A business created seconds ago cannot already have Search Console / GA linked.
-  // wbu.edu-style records are rejected here even if every other check passed.
-  if (String((candidate as any).LinkedAuthId || "").trim()) {
-    return "business already has analytics linked";
+  // A fresh linked business must match the auth selected in Settings; manual
+  // creation must still reject records with an existing Google connection.
+  const linkedAuthId = String(candidate.LinkedAuthId || "").trim();
+  if (linkedAuthId && linkedAuthId !== expectation.expectedLinkedAuthId) {
+    return "business has a different Google account linked";
+  }
+  if (
+    expectation.expectedLinkedAuthId &&
+    candidate.LinkedAuthId !== undefined &&
+    linkedAuthId !== expectation.expectedLinkedAuthId
+  ) {
+    return "business is not linked to the selected Google account";
   }
 
   const expectedDomain = websiteKey(expectation.expectedWebsite);
@@ -432,6 +447,10 @@ interface CreateBusinessPayload {
   locationOptions?: LocationOption[];
   suppressErrorToast?: boolean;
   suppressSuccessToast?: boolean;
+  connection?: BusinessConnection;
+  onBeforeCreate?: (preExistingIds: string[]) => void;
+  onCreated?: (business: BusinessProfile) => void;
+  onCreateRejected?: () => void;
 }
 
 interface CreateBusinessResponse {
@@ -512,12 +531,12 @@ export function useCreateBusiness() {
       // Map form data to API payload structure
       const payload = {
         userUniqueId,
-        accountUniqueId: null,
+        accountUniqueId: formData.connection?.authId ?? null,
         businesses: [
           {
             name: formData.businessName,
             description: "",
-            website: formData.website,
+            website: formData.connection?.siteUrl ?? formData.website,
             displayName: formData.businessName,
             locationType: formData.offerType, // products/services
             propertyId: "",
@@ -537,11 +556,13 @@ export function useCreateBusiness() {
               Country: country,
             },
             userUniqueId,
+            ...(formData.connection ? businessConnectionPayload(formData.connection) : {}),
           },
         ],
       };
 
       let response: any;
+      formData.onBeforeCreate?.([...preExistingIds]);
       try {
         response = await api.post<any>(
           "/profile/create-agency-businesses",
@@ -551,6 +572,10 @@ export function useCreateBusiness() {
 
         // Check if the API returned an error in the response body
         if (response.err === true || response.success === false) {
+          const status = response.statusCode ?? response.status;
+          if (response.code === "BUSINESS_ALREADY_EXISTS" || (status >= 400 && status < 500)) {
+            formData.onCreateRejected?.();
+          }
           const conflictError = parseCreateBusinessConflict(response);
           if (conflictError) throw conflictError;
           throw new Error(
@@ -562,7 +587,11 @@ export function useCreateBusiness() {
         }
       } catch (error: any) {
         if (error instanceof CreateBusinessConflictError) {
+          formData.onCreateRejected?.();
           throw error;
+        }
+        if (error.response?.status >= 400 && error.response?.status < 500) {
+          formData.onCreateRejected?.();
         }
         // If axios error with response (status code error like 409)
         if (error.response?.data) {
@@ -583,6 +612,7 @@ export function useCreateBusiness() {
         expectedWebsite: formData.website,
         expectedIsPitch: formData.isPitch === true,
         preExistingIds,
+        expectedLinkedAuthId: formData.connection?.authId,
       };
 
       // Any candidate, from any source, must clear the same guard.
@@ -670,6 +700,9 @@ export function useCreateBusiness() {
           "Business was created, but the app couldn't reliably identify it. Please refresh and open it from the list before editing.",
         );
       }
+
+      // Persist the verified identity before cache updates or follow-up writes.
+      formData.onCreated?.(createdBusiness);
 
       const includeCreated = (
         profiles: BusinessProfile[],

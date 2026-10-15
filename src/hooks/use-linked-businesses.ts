@@ -18,6 +18,11 @@ import {
 } from "@/lib/business-conflict";
 import { fetchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { normalizeDomainForFavicon } from "@/utils/utils";
+import {
+  businessConnectionPayload,
+  connectionFromLinkedBusiness,
+  toGbpLocationPayload as mapGbpSelection,
+} from "@/lib/business-connections";
 
 export { CreateBusinessConflictError } from "@/lib/business-conflict";
 
@@ -46,6 +51,8 @@ export interface BusinessProfile {
   IsActive: boolean;
   NoLocationExist?: boolean;
   Locations?: BusinessLocation[];
+  Name?: string;
+  Website?: string;
 }
 
 export interface LinkedBusiness {
@@ -91,14 +98,11 @@ interface GbpLocationPayload {
  * the `gbp` entries, so any physical addresses on the profile are left untouched.
  */
 function toGbpLocationPayload(business: LinkedBusiness): GbpLocationPayload[] {
-  if (business.noLocation || business.gbpCleared === true) return [];
-  return (business.selectedGbp || []).map((gbp) => ({
-    Kind: LOCATION_KINDS.GBP,
-    DisplayName: gbp.title || "",
-    Url: gbp.websiteUri || "",
-    Name: gbp.location || "",
-    AccountName: gbp.account || "",
-  }));
+  return mapGbpSelection({
+    selectedGbp: business.selectedGbp ?? [],
+    gbpCleared: business.gbpCleared === true,
+    noLocation: business.noLocation === true,
+  });
 }
 
 interface CreateBusinessPayload {
@@ -160,6 +164,8 @@ interface CreateAgencyBusinessVariables {
   mergeExisting?: boolean;
   mergeTargetUniqueId?: string;
   suppressDuplicateToast?: boolean;
+  suppressErrorToast?: boolean;
+  suppressSuccessToast?: boolean;
 }
 
 export interface ConnectedBusinessResult {
@@ -365,17 +371,7 @@ export function useCreateAgencyBusiness() {
             website: b.siteUrl || "",
             displayName: b.title || "",
             locationType: "global",
-            propertyId:
-              b.ga4Cleared === true
-                ? ""
-                : b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId ?? "",
-            ...(b.ga4Cleared !== true &&
-            Boolean(b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId) &&
-            b.ga4PagePathScope !== undefined
-              ? { ga4PagePathScope: b.ga4PagePathScope }
-              : {}),
-            locations: toGbpLocationPayload(b),
-            NoLocationExist: b.noLocation || false,
+            ...businessConnectionPayload(connectionFromLinkedBusiness(b)),
             category: "",
             brandVoice: "",
             productsServices: [],
@@ -453,12 +449,13 @@ export function useCreateAgencyBusiness() {
         };
       });
     },
-    onSuccess: () => {
-      toast.success("Businesses connected successfully");
+    onSuccess: (_, variables) => {
+      if (!variables.suppressSuccessToast) toast.success("Businesses connected successfully");
       queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });
       queryClient.invalidateQueries({ queryKey: ["businessProfiles"] });
     },
     onError: (error: Error, variables: CreateAgencyBusinessVariables) => {
+      if (variables.suppressErrorToast) return;
       if (
         variables?.suppressDuplicateToast &&
         error instanceof CreateBusinessConflictError

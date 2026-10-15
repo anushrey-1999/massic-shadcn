@@ -129,6 +129,8 @@ export interface CreateJobParams {
   businessId: string;
   values: BusinessInfoFormData;
   locationOptions?: LocationOption[];
+  /** Setup retries may find extracted offerings that must not be replaced. */
+  preserveExistingFields?: boolean;
 }
 
 export function useCreateJob() {
@@ -136,7 +138,12 @@ export function useCreateJob() {
 
   return useMutation<JobResponse, Error, CreateJobParams>({
     retry: false,
-    mutationFn: async ({ businessId, values, locationOptions = [] }) => {
+    mutationFn: async ({
+      businessId,
+      values,
+      locationOptions = [],
+      preserveExistingFields = false,
+    }) => {
       const request: CreateJobRequest = buildCreateJobRequest(
         businessId,
         values,
@@ -157,11 +164,16 @@ export function useCreateJob() {
           throw error;
       }
       if (existing?.job_id) {
-        await api.put(
-          `/jobs/${encodeURIComponent(businessId)}`,
-          "python",
-          buildUpdateJobRequest(values, locationOptions, "minimal"),
-        );
+        assertJobIdentity(existing, businessId);
+        if (!preserveExistingFields || existing.business_name !== values.businessName) {
+          await api.put(
+            `/jobs/${encodeURIComponent(businessId)}`,
+            "python",
+            preserveExistingFields
+              ? { business_name: values.businessName }
+              : buildUpdateJobRequest(values, locationOptions, "minimal"),
+          );
+        }
       } else {
         await api.post<unknown>(
           "/jobs",

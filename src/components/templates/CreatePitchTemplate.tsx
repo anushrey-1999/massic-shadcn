@@ -14,8 +14,8 @@ import {
 import { usePitchBusinesses } from "@/hooks/use-business-profiles";
 import {
   IncompleteBusinessCreationError,
-  useManualBusinessCreation,
-} from "@/hooks/use-manual-business-creation";
+  useBusinessCreation,
+} from "@/hooks/use-business-creation";
 import { useLocations } from "@/hooks/use-locations";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { businessInfoSchema } from "@/schemas/ProfileFormSchema";
@@ -33,7 +33,7 @@ export function CreatePitchTemplate() {
   const setLocationsLoading = useBusinessStore(
     (state) => state.setLocationsLoading,
   );
-  const manualCreation = useManualBusinessCreation({
+  const manualCreation = useBusinessCreation({
     isPitch: true,
     locationOptions,
   });

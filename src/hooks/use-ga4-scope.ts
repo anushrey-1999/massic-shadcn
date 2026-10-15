@@ -152,7 +152,7 @@ function invalidateGa4Consumers(queryClient: ReturnType<typeof useQueryClient>) 
       const rootKey = query.queryKey[0];
       return (
         typeof rootKey === "string" &&
-        /(ga4|analytics|conversion|driver|health|anomal|report)/i.test(rootKey)
+        /(ga4|analytics|conversion|driver|health|anomal|report|ai-traffic)/i.test(rootKey)
       );
     },
   });

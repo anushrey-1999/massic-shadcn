@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DashboardTagFilterMenu } from "@/components/molecules/home/DashboardTagFilterMenu";
 import type { useDashboardTags } from "@/hooks/use-dashboard-tags";
+import type { DashboardTagVisibilityController } from "@/hooks/use-dashboard-tag-visibility";
 import type { BusinessProfile } from "@/store/business-store";
 import { cn } from "@/lib/utils";
 
@@ -95,10 +96,7 @@ type HomeFilterBarProps = {
   showOnboarding: boolean;
   onShowOnboardingChange: (value: boolean) => void;
 
-  selectedTagIds: string[];
-  onSelectedTagIdsChange: (value: string[]) => void;
-  showHiddenTag: boolean;
-  onShowHiddenTagChange: (value: boolean) => void;
+  tagVisibility: DashboardTagVisibilityController;
 
   profiles: BusinessProfile[];
   dashboardTags: DashboardTagsController;
@@ -217,35 +215,23 @@ export function HomeFilterBar({
   onShowActiveChange,
   showOnboarding,
   onShowOnboardingChange,
-  selectedTagIds,
-  onSelectedTagIdsChange,
-  showHiddenTag,
-  onShowHiddenTagChange,
+  tagVisibility,
   profiles,
   dashboardTags,
 }: HomeFilterBarProps) {
   const showActiveId = useId();
   const showOnboardingId = useId();
-  const { tags } = dashboardTags;
 
   const isAllSignals = selectedSignals.length === 0;
   const selectedSignal =
     selectedSignals.length === 1 ? selectedSignals[0] : null;
   const signalCount = isAllSignals ? 0 : selectedSignals.length;
 
-  const regularTags = tags.filter(tag => !tag.systemKey);
-  const selectedTagSet = new Set(selectedTagIds);
-  const tagCount = regularTags.filter((tag) =>
-    selectedTagSet.has(tag.id)
-  ).length;
-  const activeTagFilterCount = tagCount + (showHiddenTag ? 1 : 0);
-
-  const hasActiveFilters = signalCount > 0 || activeTagFilterCount > 0;
+  const hasActiveFilters = signalCount > 0 || tagVisibility.activeTagFilterCount > 0;
 
   const clearFilters = () => {
     onSelectedSignalsChange([]);
-    onSelectedTagIdsChange([]);
-    onShowHiddenTagChange(false);
+    tagVisibility.resetTagVisibility();
   };
 
   const selectSignal = (value: HomeSignalFilterValue | "all") => {
@@ -328,10 +314,7 @@ export function HomeFilterBar({
         */}
         <div className="ml-auto flex shrink-0 items-center gap-3">
           <DashboardTagFilterMenu
-            selectedTagIds={selectedTagIds}
-            onSelectedTagIdsChange={onSelectedTagIdsChange}
-            showHiddenTag={showHiddenTag}
-            onShowHiddenTagChange={onShowHiddenTagChange}
+            tagVisibility={tagVisibility}
             profiles={profiles}
             dashboardTags={dashboardTags}
           />

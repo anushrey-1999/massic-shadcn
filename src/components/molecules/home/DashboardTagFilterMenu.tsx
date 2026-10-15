@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Filter, Pencil, Tag } from "lucide-react";
 
 import { DashboardTagsSheet } from "@/components/molecules/home/DashboardTagsSheet";
@@ -18,16 +18,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { useDashboardTags } from "@/hooks/use-dashboard-tags";
+import type { DashboardTagVisibilityController } from "@/hooks/use-dashboard-tag-visibility";
 import { cn } from "@/lib/utils";
 import type { BusinessProfile } from "@/store/business-store";
 
 type DashboardTagsController = ReturnType<typeof useDashboardTags>;
 
 type DashboardTagFilterMenuProps = {
-  selectedTagIds: string[];
-  onSelectedTagIdsChange: (value: string[]) => void;
-  showHiddenTag: boolean;
-  onShowHiddenTagChange: (value: boolean) => void;
+  tagVisibility: DashboardTagVisibilityController;
   profiles: BusinessProfile[];
   dashboardTags: DashboardTagsController;
   variant?: "home" | "sidebar";
@@ -61,36 +59,47 @@ function toggleValue<T>(values: T[], value: T): T[] {
 }
 
 export function DashboardTagFilterMenu({
-  selectedTagIds,
-  onSelectedTagIdsChange,
-  showHiddenTag,
-  onShowHiddenTagChange,
+  tagVisibility,
   profiles,
   dashboardTags,
   variant = "home",
 }: DashboardTagFilterMenuProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const isRestoringMenuFocus = useRef(false);
+  const dismissedByOutsidePointer = useRef(false);
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [tagSheetMode, setTagSheetMode] = useState<"list" | "create">("list");
-  const { tags, isLoading, isError } = dashboardTags;
+  const { tags, isError } = dashboardTags;
+  const {
+    selectedTagIds,
+    setSelectedTagIds,
+    showAllBusinesses,
+    setShowAllBusinesses,
+    showUntagged,
+    setShowUntagged,
+    showHiddenTag,
+    setShowHiddenTag,
+    counts,
+    activeTagFilterCount,
+    isTagVisibilityLoading,
+  } = tagVisibility;
 
   const hiddenTag = tags.find(tag => tag.systemKey === "hidden") || null;
   const regularTags = tags.filter(tag => !tag.systemKey);
   const selectedTagSet = new Set(selectedTagIds);
   const tagCount = regularTags.filter(tag => selectedTagSet.has(tag.id)).length;
-  const areAllRegularTagsVisible = tagCount === regularTags.length;
-  const activeTagFilterCount = tagCount + (showHiddenTag ? 1 : 0);
   const isSidebar = variant === "sidebar";
 
-  const tagsLabel =
-    tags.length === 0
-      ? "Create a tag"
-      : tagCount === 0 && !showHiddenTag
-        ? "All non-Hidden businesses shown"
-        : areAllRegularTagsVisible && !showHiddenTag
-          ? "All tagged businesses shown"
-          : `${tagCount} regular ${
-              tagCount === 1 ? "tag" : "tags"
-            } selected${showHiddenTag ? ", Hidden shown" : ""}`;
+  const tagsLabel = showAllBusinesses
+    ? `All businesses${showHiddenTag ? ", including Hidden" : ", excluding Hidden"}`
+    : [
+        tagCount > 0 ? `${tagCount} ${tagCount === 1 ? "tag" : "tags"} selected` : null,
+        showUntagged ? "Untagged" : null,
+        showHiddenTag ? "Hidden" : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
   const openTagSheet = (mode: "list" | "create") => {
     setTagSheetMode(mode);
@@ -145,14 +154,18 @@ export function DashboardTagFilterMenu({
   );
 
   const menuTrigger = (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip
+      open={tooltipOpen && !menuOpen && !tagSheetOpen}
+      onOpenChange={setTooltipOpen}
+    >
+      <TooltipTrigger
+        asChild
+        onFocus={event => {
+          if (isRestoringMenuFocus.current) event.preventDefault();
+        }}
+      >
         <span className="inline-flex">
-          {tags.length === 0 ? (
-            <span onClick={() => openTagSheet("create")}>{trigger}</span>
-          ) : (
-            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-          )}
+          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
         </span>
       </TooltipTrigger>
       <TooltipContent>{tagsLabel}</TooltipContent>
@@ -161,7 +174,7 @@ export function DashboardTagFilterMenu({
 
   return (
     <>
-      {isLoading ? (
+      {isTagVisibilityLoading ? (
         <Skeleton className={cn(isSidebar ? "size-6 rounded-sm" : "size-9 rounded-md")} />
       ) : isError ? (
         <div className={cn(!isSidebar && "text-general-muted-foreground flex min-h-9 items-center gap-2 text-sm")}>
@@ -197,29 +210,51 @@ export function DashboardTagFilterMenu({
             </button>
           ) : null}
         </div>
-      ) : tags.length === 0 ? (
-        menuTrigger
       ) : (
-        <DropdownMenu>
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={open => {
+            if (open) dismissedByOutsidePointer.current = false;
+            setMenuOpen(open);
+            setTooltipOpen(false);
+          }}
+        >
           {menuTrigger}
           <DropdownMenuContent
             align="end"
             sideOffset={6}
             className={MENU_CONTENT_CLASS}
+            onPointerDownOutside={() => {
+              dismissedByOutsidePointer.current = true;
+            }}
+            onCloseAutoFocus={event => {
+              setTooltipOpen(false);
+              if (dismissedByOutsidePointer.current) {
+                event.preventDefault();
+                dismissedByOutsidePointer.current = false;
+                return;
+              }
+              // Keep Radix's focus restoration without reopening the tooltip.
+              isRestoringMenuFocus.current = true;
+              queueMicrotask(() => {
+                isRestoringMenuFocus.current = false;
+              });
+            }}
           >
             <DropdownMenuItem
               role="menuitemcheckbox"
-              aria-checked={areAllRegularTagsVisible}
+              aria-checked={showAllBusinesses}
               onSelect={event => {
                 event.preventDefault();
-                onSelectedTagIdsChange(
-                  areAllRegularTagsVisible ? [] : regularTags.map(tag => tag.id)
-                );
+                setShowAllBusinesses(!showAllBusinesses);
               }}
               className={MENU_ITEM_CLASS}
             >
-              <MenuCheckbox checked={areAllRegularTagsVisible} />
-              <span className="truncate">All tags</span>
+              <MenuCheckbox checked={showAllBusinesses} />
+              <span className="truncate">All businesses</span>
+              <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
+                {counts.allBusinesses}
+              </span>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator className="bg-general-border" />
@@ -233,18 +268,34 @@ export function DashboardTagFilterMenu({
                   aria-checked={checked}
                   onSelect={event => {
                     event.preventDefault();
-                    onSelectedTagIdsChange(toggleValue(selectedTagIds, tag.id));
+                    setSelectedTagIds(toggleValue(selectedTagIds, tag.id));
                   }}
                   className={MENU_ITEM_CLASS}
                 >
                   <MenuCheckbox checked={checked} />
                   <span className="truncate">{tag.name}</span>
                   <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
-                    {tag.businessCount}
+                    {counts.regularTags[tag.id] ?? 0}
                   </span>
                 </DropdownMenuItem>
               );
             })}
+
+            <DropdownMenuItem
+              role="menuitemcheckbox"
+              aria-checked={showUntagged}
+              onSelect={event => {
+                event.preventDefault();
+                setShowUntagged(!showUntagged);
+              }}
+              className={MENU_ITEM_CLASS}
+            >
+              <MenuCheckbox checked={showUntagged} />
+              <span className="truncate">Untagged</span>
+              <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
+                {counts.untagged}
+              </span>
+            </DropdownMenuItem>
 
             {hiddenTag ? (
               <>
@@ -254,14 +305,14 @@ export function DashboardTagFilterMenu({
                   aria-checked={showHiddenTag}
                   onSelect={event => {
                     event.preventDefault();
-                    onShowHiddenTagChange(!showHiddenTag);
+                    setShowHiddenTag(!showHiddenTag);
                   }}
                   className={MENU_ITEM_CLASS}
                 >
                   <MenuCheckbox checked={showHiddenTag} />
                   <span className="truncate">{hiddenTag.name}</span>
                   <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
-                    {hiddenTag.businessCount}
+                    {counts.hidden}
                   </span>
                 </DropdownMenuItem>
               </>
@@ -270,7 +321,7 @@ export function DashboardTagFilterMenu({
             <DropdownMenuSeparator className="bg-general-border" />
 
             <DropdownMenuItem
-              onSelect={() => openTagSheet("list")}
+              onSelect={() => openTagSheet(tags.length === 0 ? "create" : "list")}
               className={MENU_ITEM_CLASS}
             >
               <Pencil className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
@@ -287,7 +338,7 @@ export function DashboardTagFilterMenu({
         tags={tags}
         profiles={profiles}
         selectedTagIds={selectedTagIds}
-        onSelectedTagIdsChange={onSelectedTagIdsChange}
+        onSelectedTagIdsChange={setSelectedTagIds}
         createTag={dashboardTags.createTag}
         updateTag={dashboardTags.updateTag}
         deleteTag={dashboardTags.deleteTag}

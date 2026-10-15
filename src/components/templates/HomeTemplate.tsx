@@ -166,18 +166,16 @@ export function HomeTemplate() {
     );
   }, [sectionsReady, showActive, showOnboarding]);
 
-  const { profiles } = useBusinessProfiles();
+  const { profiles, sidebarDataLoading: profilesLoading } = useBusinessProfiles();
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
   const dashboardTags = useDashboardTags();
+  const tagVisibility = useDashboardTagVisibility(dashboardTags, profiles, profilesLoading);
   const {
-    selectedTagIds,
-    setSelectedTagIds,
-    showHiddenTag,
-    setShowHiddenTag,
     matchesTagVisibility,
     hasTagVisibilityFilter,
-  } = useDashboardTagVisibility(dashboardTags);
+    isTagVisibilityLoading,
+  } = tagVisibility;
 
   const joined = useMemo(() => {
     const profileByUniqueId = new Map<
@@ -425,7 +423,7 @@ export function HomeTemplate() {
   // Health rows back both the signal filter and the card badges, so the board is
   // only ready once they land. Without this the first batch reads as "everything
   // filtered out" and the empty state flashes in place of the skeletons.
-  const activeSectionLoading = previewsLoading || healthLoading;
+  const activeSectionLoading = previewsLoading || healthLoading || isTagVisibilityLoading;
   const isStatusFilterEmpty =
     !activeSectionLoading &&
     activeBusinesses.length > 0 &&
@@ -495,10 +493,7 @@ export function HomeTemplate() {
           onShowActiveChange={setShowActive}
           showOnboarding={showOnboarding}
           onShowOnboardingChange={setShowOnboarding}
-          selectedTagIds={selectedTagIds}
-          onSelectedTagIdsChange={setSelectedTagIds}
-          showHiddenTag={showHiddenTag}
-          onShowHiddenTagChange={setShowHiddenTag}
+          tagVisibility={tagVisibility}
           profiles={profiles}
           dashboardTags={dashboardTags}
         />
@@ -618,7 +613,7 @@ export function HomeTemplate() {
                 </Typography>
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {previewsLoading || onboardingJobsLoading ? (
+                  {previewsLoading || onboardingJobsLoading || isTagVisibilityLoading ? (
                     <div className="flex flex-col gap-2.5 overflow-y-auto flex-1">
                       {[1, 2].map((i) => (
                         <Card key={i} className="p-3 border-border">
@@ -777,7 +772,7 @@ export function HomeTemplate() {
                 </Typography>
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {previewsLoading || onboardingJobsLoading ? (
+                  {previewsLoading || onboardingJobsLoading || isTagVisibilityLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
                       {[1, 2, 3].map((i) => (
                         <Card key={i} className="p-3 border-border">

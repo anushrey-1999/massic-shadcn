@@ -32,7 +32,7 @@ export function useProfileAnalysis(businessId: string) {
                   profile_status: "processing",
                   profile_id: result?.profile_id ?? job.profile_id,
                 }
-              : { orchestration_status: "build_running" }),
+              : { orchestration_status: "pending" }),
           },
       );
       void queryClient.invalidateQueries({

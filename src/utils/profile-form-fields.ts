@@ -66,6 +66,14 @@ export const PROFILE_FIELD_DEFINITIONS = {
     label: "Calls to action",
     section: "positioning",
   },
+  brandToneSocial: {
+    label: "Social brand tone",
+    section: "positioning",
+  },
+  brandToneWeb: {
+    label: "Web brand tone",
+    section: "positioning",
+  },
   supportEmail: {
     label: "Support email",
     section: "channels",

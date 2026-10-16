@@ -7,6 +7,7 @@ export type ServiceAreaType =
 export type ProfileStatus = "processing" | "success" | "abandoned" | "error";
 
 export type OrchestrationStatus =
+  | "pending"
   | "build_running"
   | "strategies_running"
   | "completed"

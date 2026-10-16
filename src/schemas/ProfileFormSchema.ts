@@ -207,14 +207,8 @@ export const businessInfoSchema = z.object({
       }),
     )
     .optional(),
-  brandToneSocial: z
-    .array(z.string())
-    .max(3, "You can only select up to 3 options")
-    .optional(),
-  brandToneWeb: z
-    .array(z.string())
-    .max(3, "You can only select up to 3 options")
-    .optional(),
+  brandToneSocial: z.array(z.string()).optional(),
+  brandToneWeb: z.array(z.string()).optional(),
   calendarEvents: z
     .array(
       z.object({

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "@tanstack/react-form";
 import { ArrowRight, Lock, Loader2 } from "lucide-react";
 
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
@@ -12,10 +11,15 @@ import { ContentCuesForm } from "@/components/organisms/profile/ContentCuesForm"
 import { LocationsForm } from "@/components/organisms/profile/LocationsForm";
 import { CompetitorsForm } from "@/components/organisms/profile/CompetitorsForm";
 import { ProfileCategoryFields } from "@/components/organisms/profile/ProfileCategoryFields";
+import {
+  ProfileReferenceDocument,
+  type ProfileReferenceSource,
+} from "@/components/organisms/profile/ProfileReferenceDocument";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useBusinessStore } from "@/store/business-store";
 import { GenericInput } from "@/components/ui/generic-input";
 import { TagsInput } from "@/components/ui/tags-input";
 import {
@@ -30,11 +34,13 @@ import type {
 import {
   countIssuesBySection,
   getProfileSummaryIssues,
-  type ProfileSectionId as SectionId,
+  type ProfileSectionId,
   type ProfileValidationIssue,
 } from "@/utils/profile-form-fields";
 
-const FULL_SECTIONS: Array<{ id: SectionId; label: string }> = [
+type SectionId = ProfileSectionId | "document";
+
+const FULL_SECTIONS: Array<{ id: ProfileSectionId; label: string }> = [
   { id: "identity", label: "Identity" },
   { id: "classification", label: "Classification" },
   { id: "locations", label: "Locations" },
@@ -45,36 +51,6 @@ const FULL_SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: "channels", label: "Channels" },
   { id: "competitors", label: "Competitors" },
 ];
-
-function IdentitySummary({ form }: { form: any }) {
-  const values = useStore(form.store, (state: any) => state.values);
-  const rows = [
-    { label: "Website", value: values?.website },
-    { label: "Primary location", value: values?.primaryLocation },
-    { label: "Service-area type", value: values?.serviceAreaType },
-  ];
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      {rows.map((row, index) => (
-        <div
-          key={row.label}
-          className={cn(
-            "flex min-w-0 items-center gap-2 py-3",
-            index < rows.length - 1 && "border-b border-general-border",
-          )}
-        >
-          <p className="w-[120px] shrink-0 text-xs font-medium text-general-muted-foreground">
-            {row.label}
-          </p>
-          <p className="min-w-0 flex-1 truncate text-xs text-general-foreground">
-            {String(row.value ?? "").trim() || "—"}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function ProfileEditorTemplate({
   form,
@@ -92,12 +68,14 @@ export function ProfileEditorTemplate({
   busyReason,
   initialFieldsLocked = false,
   readOnlyDetails,
+  referenceProfile,
   submissionIssues = [],
   validationFocusRequest = 0,
   customHeaderActions,
   trailingHeaderActions,
   notice,
   showDefaultActions = true,
+  showAnalyzeBusiness = true,
   className,
   extractionStatus,
   showPrimaryCategoryRepair = false,
@@ -117,16 +95,21 @@ export function ProfileEditorTemplate({
   busyReason?: string;
   initialFieldsLocked?: boolean;
   readOnlyDetails?: ProfileReadOnlyDetails;
+  referenceProfile?: ProfileReferenceSource;
   submissionIssues?: ProfileValidationIssue[];
   validationFocusRequest?: number;
   customHeaderActions?: React.ReactNode;
   trailingHeaderActions?: React.ReactNode;
   notice?: React.ReactNode;
   showDefaultActions?: boolean;
+  showAnalyzeBusiness?: boolean;
   className?: string;
   extractionStatus?: OfferingExtractionStatus;
   showPrimaryCategoryRepair?: boolean;
 }) {
+  const { locationOptions, locationsLoading } = useBusinessStore(
+    (state) => state.profileForm,
+  );
   const [offeringEditorOpen, setOfferingEditorOpen] = useState(false);
   const lastMode = useRef(mode);
   // Access can change while a dialog holds an uncommitted draft.
@@ -136,7 +119,14 @@ export function ProfileEditorTemplate({
   const pendingFocusRef = useRef<ProfileValidationIssue | null>(null);
   const submissionIssuesRef = useRef(submissionIssues);
   submissionIssuesRef.current = submissionIssues;
-  const sections = FULL_SECTIONS;
+  const hasReference = mode === "full" && Boolean(referenceProfile);
+  const sections = useMemo<Array<{ id: SectionId; label: string }>>(
+    () =>
+      hasReference
+        ? [...FULL_SECTIONS, { id: "document", label: "Document" }]
+        : FULL_SECTIONS,
+    [hasReference],
+  );
 
   const sectionIssueCounts = useMemo(
     () => countIssuesBySection(submissionIssues),
@@ -150,8 +140,11 @@ export function ProfileEditorTemplate({
 
   useEffect(() => {
     const firstIssue = submissionIssuesRef.current[0];
-    if (mode === "minimal" || !firstIssue || validationFocusRequest === 0)
+    if (!firstIssue || validationFocusRequest === 0) return;
+    if (mode === "minimal") {
+      setActiveSection("identity");
       return;
+    }
     pendingFocusRef.current = firstIssue;
     setActiveSection(firstIssue.section);
   }, [validationFocusRequest, mode]);
@@ -182,7 +175,7 @@ export function ProfileEditorTemplate({
       )}
     >
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-general-border-three bg-general-primary-foreground px-4 py-4 sm:px-6 sm:py-6">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-general-border-three bg-general-primary-foreground px-4 py-4 sm:px-6 sm:py-6">
         <div className="flex items-center gap-6">
           <div className="text-2xl font-medium leading-[1.2] tracking-[-0.02em] text-general-foreground">
             {leftTitle}
@@ -227,36 +220,38 @@ export function ProfileEditorTemplate({
                   </TooltipContent>
                 ) : null}
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={onAnalyzeBusiness}
-                      disabled={analyzeDisabled || isWorkflowProcessing}
-                    >
-                      {analyzePending ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Preparing analysis…
-                        </>
-                      ) : (
-                        "Analyze business"
-                      )}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {analyzeDisabledReason ? (
-                  <TooltipContent>
-                    <p>{analyzeDisabledReason}</p>
-                  </TooltipContent>
-                ) : isWorkflowProcessing ? (
-                  <TooltipContent>
-                    <p>{busyReason ?? "Workflow In Process"}</p>
-                  </TooltipContent>
-                ) : null}
-              </Tooltip>
+              {showAnalyzeBusiness && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onAnalyzeBusiness}
+                        disabled={analyzeDisabled || isWorkflowProcessing}
+                      >
+                        {analyzePending ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Preparing analysis…
+                          </>
+                        ) : (
+                          "Analyze business"
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {analyzeDisabledReason ? (
+                    <TooltipContent>
+                      <p>{analyzeDisabledReason}</p>
+                    </TooltipContent>
+                  ) : isWorkflowProcessing ? (
+                    <TooltipContent>
+                      <p>{busyReason ?? "Workflow In Process"}</p>
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
+              )}
             </>
           )}
           {trailingHeaderActions}
@@ -286,11 +281,13 @@ export function ProfileEditorTemplate({
               <nav className="flex min-w-0 overflow-x-auto md:flex-col">
                 {sections.map((s) => {
                   const isActive = s.id === activeSection;
-                  const issueCount = sectionIssueCounts[s.id] ?? 0;
+                  const issueCount =
+                    s.id === "document" ? 0 : sectionIssueCounts[s.id] ?? 0;
                   return (
                     <button
                       key={s.id}
                       type="button"
+                      aria-current={isActive ? "page" : undefined}
                       aria-label={
                         issueCount > 0
                           ? `${s.label}, ${issueCount} ${issueCount === 1 ? "error" : "errors"}`
@@ -328,10 +325,13 @@ export function ProfileEditorTemplate({
 
             {/* Main */}
             <fieldset
-              disabled={isWorkflowProcessing}
+              disabled={isWorkflowProcessing && activeSection !== "document"}
               className={cn(
-                "flex-1 min-h-0 min-w-0 px-4 py-4 overflow-y-auto sm:px-6",
-                isWorkflowProcessing && "cursor-not-allowed",
+                "flex-1 min-h-0 min-w-0 px-4 py-4 sm:px-6",
+                activeSection === "document" ? "overflow-hidden" : "overflow-y-auto",
+                isWorkflowProcessing &&
+                  activeSection !== "document" &&
+                  "cursor-not-allowed",
               )}
             >
               {sectionSummaryIssues.length > 0 ? (
@@ -346,72 +346,62 @@ export function ProfileEditorTemplate({
                   </p>
                 </div>
               ) : null}
-              {activeSection === "identity" ? (
-                <div className="flex min-w-0 flex-col gap-6 xl:flex-row">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-medium text-general-foreground">
-                      Identity
-                    </h2>
-
-                    <div className="flex flex-col">
-                      <div className="border-b border-general-border/30 py-3">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="businessName"
-                          type="input"
-                          label="Business name"
-                          fieldOrientation="horizontal"
-                          fieldClassName="flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0"
-                          className="max-w-[382px]"
-                          required
-                        />
-                      </div>
-                      <div className="border-b border-general-border/30 py-3">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="foundingDate"
-                          type="input"
-                          label="Year founded"
-                          fieldOrientation="horizontal"
-                          fieldClassName="flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0"
-                          className="max-w-[382px]"
-                          placeholder="E.g. 2018"
-                        />
-                      </div>
-                      <div className="border-b border-general-border/30 py-3">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="logoUrl"
-                          type="url"
-                          label="Logo URL"
-                          fieldOrientation="horizontal"
-                          fieldClassName="flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0"
-                          className="max-w-[382px]"
-                          placeholder="https://example.com/logo.png"
-                        />
-                      </div>
-                      <div className="py-3">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="website"
-                          type="input"
-                          inputMode="url"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          label="Website"
-                          fieldOrientation="horizontal"
-                          fieldClassName="flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-0"
-                          className="max-w-[382px]"
-                          required
-                          disabled={initialFieldsLocked}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full shrink-0 self-start rounded-lg border border-general-border bg-general-primary-foreground p-3 xl:w-[352px]">
-                    <IdentitySummary form={form} />
+              {activeSection === "document" && referenceProfile ? (
+                <ProfileReferenceDocument {...referenceProfile} />
+              ) : activeSection === "identity" ? (
+                <div className="max-w-[920px]">
+                  <h2 className="mb-4 border-b border-general-border/30 pb-3 text-base font-medium text-general-foreground">
+                    Identity
+                  </h2>
+                  <div className="flex flex-col gap-6">
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="businessName"
+                      type="input"
+                      label="Business name"
+                      required
+                    />
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="foundingDate"
+                      type="input"
+                      label="Year founded"
+                      placeholder="E.g. 2018"
+                    />
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="logoUrl"
+                      type="url"
+                      label="Logo URL"
+                      placeholder="https://example.com/logo.png"
+                    />
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="website"
+                      type="input"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      label="Website"
+                      required
+                      disabled={initialFieldsLocked}
+                    />
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="primaryLocation"
+                      type="location-select"
+                      label="Primary location"
+                      required
+                      options={locationOptions}
+                      placeholder={
+                        locationsLoading
+                          ? "Loading locations…"
+                          : "Select primary location"
+                      }
+                      loading={locationsLoading}
+                      disabled={initialFieldsLocked || locationsLoading}
+                    />
                   </div>
                 </div>
               ) : activeSection === "classification" ? (

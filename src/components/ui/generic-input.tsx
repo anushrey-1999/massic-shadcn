@@ -373,6 +373,8 @@ function GenericInput<
 
       return (
         <LocationSelect
+          id={inputId}
+          className={className}
           value={currentValue}
           onChange={handleLocationChange}
           options={normalizedLocationOptions}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   CircleAlert,
@@ -44,11 +45,17 @@ import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useSubscription } from "@/hooks/use-subscription";
+import { profileReferenceKeys } from "@/hooks/use-profile-reference";
 import {
   useProfileAnalysis,
   type ProfileAnalysisAction,
 } from "@/hooks/use-profile-analysis";
-import { isOrchestrationActive, isWorkflowActive } from "@/lib/workflow-status";
+import {
+  getRecordedWorkflowStatuses,
+  isOrchestrationActive,
+  isWorkflowActive,
+} from "@/lib/workflow-status";
+import { getProfileWorkflowActions } from "@/lib/profile-workflow-actions";
 import {
   hasActiveCoreOrGrowthPlan,
   hasBusinessPlanAccess,
@@ -123,6 +130,7 @@ export default function ProfileTemplate({
   onAgentProfileRefresh,
 }: ProfileTemplateProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
   const locationOptions = useBusinessStore(
     (state) => state.profileForm.locationOptions,
@@ -154,6 +162,7 @@ export default function ProfileTemplate({
   const [saving, setSaving] = useState(false);
   const [checkingPlan, setCheckingPlan] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [planPurpose, setPlanPurpose] = useState<"analysis" | "agent">("analysis");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveConfirm, setSaveConfirm] = useState(false);
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
@@ -181,7 +190,10 @@ export default function ProfileTemplate({
       : null,
     isWhitelisted,
   );
-  const mode = hasPlanAccess ? "full" : "minimal";
+  const hasBuiltProfile =
+    jobDetails?.has_build_completed ??
+    Boolean(jobDetails?.profile_id && jobDetails.profile_status === "success");
+  const mode = hasPlanAccess && hasBuiltProfile ? "full" : "minimal";
   const serverValues = useMemo(() => {
     const node = mapProfileDataToFormValues(
       profileData ?? null,
@@ -215,22 +227,86 @@ export default function ProfileTemplate({
   const serverProcessing =
     jobDetails?.profile_status === "processing" ||
     isOrchestrationActive(jobDetails);
+  const checkPlanAccess = async (purpose: "analysis" | "agent") => {
+    if (isWhitelisted) return true;
+    const showPlans = () => {
+      setPlanPurpose(purpose);
+      setPlanOpen(true);
+      return false;
+    };
+    // Missing or failed reads must be checked, not treated as no plan.
+    if (!hasPlanAccess && subscription.data !== undefined && !subscription.error)
+      return showPlans();
+    try {
+      const latest = await subscription.refetchData();
+      return (
+        hasActiveCoreOrGrowthPlan(
+          resolveBusinessSubscription(latest, businessSubscription),
+        ) || showPlans()
+      );
+    } catch (error) {
+      toast.error("Couldn't check the business plan", {
+        description: apiErrorMessage(error),
+      });
+      return false;
+    }
+  };
   const profileAgent = useProfileAgent({
     businessId,
     job: jobDetails,
     dirty: isDirty,
-    saving: isLoading || saving || analysis.isPending || checkingPlan,
-    onRefresh: onAgentProfileRefresh,
+    saving:
+      Boolean(readError) ||
+      isLoading ||
+      saving ||
+      unlink.isPending ||
+      analysis.isPending ||
+      checkingPlan,
+    hasPlanAccess,
+    checkPlanAccess: async () => {
+      if (operationRef.current) return false;
+      operationRef.current = true;
+      try {
+        return await checkPlanAccess("agent");
+      } finally {
+        operationRef.current = false;
+      }
+    },
+    onRefresh: onAgentProfileRefresh
+      ? async (signal) => {
+          await onAgentProfileRefresh(signal);
+          if (!signal.aborted) {
+            await queryClient.invalidateQueries({
+              queryKey: profileReferenceKeys.business(businessId),
+            });
+          }
+        }
+      : undefined,
   });
-  const locked =
+  const externalOperationLocked =
     Boolean(readError) ||
     serverProcessing ||
-    analysis.isPending ||
     saving ||
-    checkingPlan ||
     unlink.isPending ||
     profileAgent.busy ||
+    profileAgent.checkingAccess ||
     isLoading;
+  const locked = externalOperationLocked || analysis.isPending || checkingPlan;
+  const workflowActions = getProfileWorkflowActions(jobDetails, {
+    locked,
+    readError,
+  });
+  // Preparation owns checkingPlan; it must still respect all other live locks.
+  const currentExecutionState = {
+    actions: getProfileWorkflowActions(jobDetails, {
+      locked: externalOperationLocked,
+      readError,
+    }),
+    isDirty,
+    guardAnalyze,
+  };
+  const executionState = useRef(currentExecutionState);
+  executionState.current = currentExecutionState;
 
   useEffect(() => {
     if (!validationMode) return;
@@ -292,56 +368,24 @@ export default function ProfileTemplate({
     }
   };
 
-  const maintenanceReady = (action: ProfileAnalysisAction) =>
-    action === "search"
-      ? jobDetails?.orchestration_status === "completed"
-      : action === "context"
-        ? jobDetails?.has_build_completed === true
-        : true;
-  const maintenanceBlocked = (action: ProfileAnalysisAction) =>
-    !maintenanceReady(action) || isWorkflowActive(jobDetails);
-
-  const checkAnalysisPrerequisites = async (action: ProfileAnalysisAction) => {
-    if (!isWhitelisted) {
-      // Only a resolved ineligible subscription can open billing immediately.
-      // A missing/failed read must be checked rather than treated as no plan.
-      if (!hasPlanAccess && subscription.data !== undefined) {
-        setPlanOpen(true);
-        return false;
-      }
-      try {
-        const latest = await subscription.refetchData();
-        if (
-          !hasActiveCoreOrGrowthPlan(
-            resolveBusinessSubscription(latest, businessSubscription),
-          )
-        ) {
-          setPlanOpen(true);
-          return false;
-        }
-      } catch (error) {
-        toast.error("Couldn't check the business plan", {
-          description: apiErrorMessage(error),
-        });
-        return false;
-      }
-    }
-    if (!maintenanceReady(action)) {
-      toast.error(
-        action === "search"
-          ? "Analyze the business before rerunning search data."
-          : "Complete a profile build before updating business context.",
-      );
+  const checkActionAvailability = (action: ProfileAnalysisAction) => {
+    const current = executionState.current;
+    const availability = current.actions[action];
+    if (availability.disabled) {
+      toast.error(availability.disabledReason);
       return false;
     }
-    if (isDirty) {
+    if (current.isDirty) {
       toast.error("Save your changes before analyzing the business.");
       return false;
     }
-    if (!jobDetails?.job_id) {
-      toast.error("Save the business profile before analyzing the business.");
-      return false;
-    }
+    return true;
+  };
+
+  const checkAnalysisPrerequisites = async (action: ProfileAnalysisAction) => {
+    if (!checkActionAvailability(action)) return false;
+    if (!(await checkPlanAccess("analysis"))) return false;
+    if (!checkActionAvailability(action)) return false;
     try {
       if (
         showIssues(
@@ -350,7 +394,7 @@ export default function ProfileTemplate({
         )
       )
         return false;
-      return true;
+      return checkActionAvailability(action);
     } catch (error) {
       toast.error("Couldn't validate the business profile", {
         description: apiErrorMessage(error),
@@ -362,8 +406,7 @@ export default function ProfileTemplate({
   const requestAnalysis = async (action: ProfileAnalysisAction) => {
     if (
       !guardAnalyze() ||
-      locked ||
-      maintenanceBlocked(action) ||
+      workflowActions[action].disabled ||
       operationRef.current
     )
       return;
@@ -380,8 +423,7 @@ export default function ProfileTemplate({
   const run = async () => {
     if (
       !confirmAction ||
-      locked ||
-      maintenanceBlocked(confirmAction) ||
+      workflowActions[confirmAction].disabled ||
       operationRef.current ||
       !guardAnalyze()
     )
@@ -390,13 +432,15 @@ export default function ProfileTemplate({
     setConfirmAction(null);
     operationRef.current = true;
     try {
-      // Settings actions must show confirmation before their billing/API reads.
-      // The header's Analyze action has already checked these prerequisites.
-      if (action !== "analyze") {
-        setCheckingPlan(true);
-        if (!(await checkAnalysisPrerequisites(action))) return;
-        setCheckingPlan(false);
-      }
+      // Recheck every action after confirmation against the latest profile state.
+      setCheckingPlan(true);
+      if (!(await checkAnalysisPrerequisites(action))) return;
+      if (
+        !executionState.current.guardAnalyze() ||
+        !checkActionAvailability(action)
+      )
+        return;
+      setCheckingPlan(false);
       await analysis.mutateAsync(action);
       toast.success(
         action === "context"
@@ -463,8 +507,30 @@ export default function ProfileTemplate({
     jobDetails?.orchestration_status === "error" ||
     jobDetails?.profile_status === "error" ||
     jobDetails?.profile_status === "abandoned";
+  const workflowActive = isWorkflowActive(jobDetails);
+  const workflowStatuses = getRecordedWorkflowStatuses(jobDetails);
+  const queued =
+    jobDetails?.orchestration_status === "pending" ||
+    (!serverProcessing &&
+      workflowStatuses.includes("pending") &&
+      !workflowStatuses.includes("processing"));
+  const buildingProfile =
+    jobDetails?.profile_status === "processing" ||
+    jobDetails?.orchestration_status === "build_running";
+  const progressTitle = queued
+    ? "Business analysis queued"
+    : buildingProfile
+      ? "Building your business profile"
+      : workflowActive
+        ? "Building your growth strategy"
+        : "Analyzing your business profile";
+  const progressDescription = queued
+    ? "Your request is queued and will start shortly. You can leave this page and return later."
+    : buildingProfile
+      ? "Editing is paused while we update your business context. You can leave this page and come back later."
+      : "Search data is running for your business. You can make changes in the meantime.";
   const notice =
-    serverProcessing || analysis.isPending ? (
+    serverProcessing || workflowActive || analysis.isPending ? (
       <div
         role="status"
         aria-live="polite"
@@ -473,13 +539,10 @@ export default function ProfileTemplate({
         <Loader2 className="size-5 shrink-0 animate-spin text-general-primary" />
         <div>
           <p className="text-sm font-medium">
-            {jobDetails?.orchestration_status === "strategies_running"
-              ? "Building your growth strategy"
-              : "Analyzing your business profile"}
+            {progressTitle}
           </p>
           <p className="mt-1 text-xs text-general-muted-foreground">
-            Editing is paused until processing finishes. You can leave this page
-            and return later.
+            {progressDescription}
           </p>
         </div>
       </div>
@@ -534,6 +597,15 @@ export default function ProfileTemplate({
             form={form}
             mode={mode}
             readOnlyDetails={mapJobToReadOnlyDetails(jobDetails)}
+            referenceProfile={
+              mode === "full" && jobDetails?.profile_id
+                ? {
+                    businessId,
+                    profileId: jobDetails.profile_id,
+                    profileStatus: jobDetails.profile_status,
+                  }
+                : undefined
+            }
             extractionStatus={jobDetails?.offering_extraction}
             submissionIssues={validation.displayIssues(issues)}
             showPrimaryCategoryRepair={validation.repairPrimaryCategory}
@@ -570,16 +642,10 @@ export default function ProfileTemplate({
                   ? "No unsaved changes."
                   : undefined
             }
-            analyzeDisabled={locked || maintenanceBlocked("analyze")}
+            showAnalyzeBusiness={workflowActions.analyze.visible}
+            analyzeDisabled={workflowActions.analyze.disabled}
             analyzePending={checkingPlan || analysis.isPending}
-            analyzeDisabledReason={
-              isWorkflowActive(jobDetails) ||
-              jobDetails?.orchestration_status === "strategies_running"
-                ? "Building your growth strategy. Please wait until it completes."
-                : locked
-                  ? "Wait for the current business operation to finish."
-                  : undefined
-            }
+            analyzeDisabledReason={workflowActions.analyze.disabledReason}
             isWorkflowProcessing={locked}
             busyReason="Wait for the current business operation to finish."
             initialFieldsLocked={Boolean(jobDetails?.job_id)}
@@ -617,21 +683,12 @@ export default function ProfileTemplate({
                       key={action}
                       type="button"
                       variant="ghost"
-                      disabled={locked || maintenanceBlocked(action)}
-                      title={
-                        isWorkflowActive(jobDetails)
-                          ? "Building your growth strategy. Please wait until it completes."
-                          : maintenanceBlocked(action)
-                            ? action === "search"
-                              ? "Available after business analysis completes."
-                              : "Available after a profile build completes."
-                            : undefined
-                      }
+                      disabled={workflowActions[action].disabled}
+                      title={workflowActions[action].disabledReason}
                       className="w-full justify-start gap-2"
                       onClick={() => {
                         if (
-                          locked ||
-                          maintenanceBlocked(action) ||
+                          workflowActions[action].disabled ||
                           operationRef.current ||
                           !guardAnalyze()
                         )
@@ -680,11 +737,16 @@ export default function ProfileTemplate({
       <PlanModal
         open={planOpen && !isWhitelisted}
         onClose={() => setPlanOpen(false)}
+        showDismissButton
         currentPlan={currentPlan}
         showFooterButtons
         showAlertBar
         alertSeverity="error"
-        alertMessage="Choose a Core or Growth plan to analyze this business."
+        alertMessage={
+          planPurpose === "agent"
+            ? "Choose a Core or Growth plan to use the Profile agent."
+            : "Choose a Core or Growth plan to analyze this business."
+        }
         isDescription={false}
         loading={subscription.loading}
         onSelectPlan={async (planName, action) => {
@@ -721,8 +783,8 @@ export default function ProfileTemplate({
             <AlertDialogAction asChild>
               <Button
                 disabled={
-                  locked ||
-                  (confirmAction !== null && maintenanceBlocked(confirmAction))
+                  confirmAction === null ||
+                  workflowActions[confirmAction].disabled
                 }
                 onClick={() => void run()}
               >

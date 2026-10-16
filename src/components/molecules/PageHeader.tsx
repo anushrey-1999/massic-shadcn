@@ -1,11 +1,12 @@
 "use client";
 
-import { Bot, Download, Settings } from "lucide-react";
+import { Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Typography } from "../ui/typography";
 import { useParams } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { MassicAgentEntryButton } from "@/components/massic-agent/massic-agent-entry-button";
 
 interface BreadcrumbItem {
   label: string;
@@ -114,12 +115,7 @@ export function PageHeader({
           ) : null}
 
           {businessId && effectiveShowAskMassic ? (
-            <Button asChild variant="outline" size="sm" className="gap-2">
-              <Link href={`/business/${businessId}/agent`}>
-                <Bot className="h-4 w-4 text-general-primary" />
-                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">Massic Agent</span>
-              </Link>
-            </Button>
+            <MassicAgentEntryButton key={businessId} businessId={businessId} />
           ) : null}
 
           {isButton ? (

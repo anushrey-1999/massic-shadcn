@@ -140,6 +140,7 @@ const VirtualizedCommandItems = React.memo<{
 VirtualizedCommandItems.displayName = 'VirtualizedCommandItems'
 
 interface LocationSelectProps {
+  id?: string
   value?: string
   onChange: (value: string) => void
   options: LocationOption[]
@@ -151,6 +152,7 @@ interface LocationSelectProps {
 }
 
 export function LocationSelect({
+  id,
   value,
   onChange,
   options,
@@ -404,12 +406,12 @@ export function LocationSelect({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            id={id}
             variant="outline"
             role="combobox"
             aria-expanded={open}
             className={cn(
-              'w-full justify-between border-input bg-white font-normal text-general-foreground shadow-none disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100',
-              !triggerClassName && 'h-10 rounded-md',
+              'h-10 w-full justify-between rounded-md border-input bg-white font-normal text-general-foreground shadow-none disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-primary-foreground disabled:text-general-foreground disabled:opacity-100',
               triggerClassName
             )}
             disabled={disabled || loading}

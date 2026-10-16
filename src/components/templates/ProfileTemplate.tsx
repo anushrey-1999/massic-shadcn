@@ -193,7 +193,7 @@ export default function ProfileTemplate({
   const hasBuiltProfile =
     jobDetails?.has_build_completed ??
     Boolean(jobDetails?.profile_id && jobDetails.profile_status === "success");
-  const mode = hasPlanAccess && hasBuiltProfile ? "full" : "minimal";
+  const mode = hasPlanAccess ? "full" : "minimal";
   const serverValues = useMemo(() => {
     const node = mapProfileDataToFormValues(
       profileData ?? null,
@@ -598,7 +598,7 @@ export default function ProfileTemplate({
             mode={mode}
             readOnlyDetails={mapJobToReadOnlyDetails(jobDetails)}
             referenceProfile={
-              mode === "full" && jobDetails?.profile_id
+              mode === "full" && hasBuiltProfile && jobDetails?.profile_id
                 ? {
                     businessId,
                     profileId: jobDetails.profile_id,

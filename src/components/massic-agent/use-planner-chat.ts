@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryState } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { agentKeys } from "./agent-api";
+import { AGENT_CHAT_MODES } from "./agent-modes";
 import {
   buildChatRequest,
   lastMatchingPlan,
@@ -18,22 +19,22 @@ type PlanDraft = {
 };
 const emptyPlanDraft = (): PlanDraft => ({ resource: null, selectedIds: [] });
 
-/** Main workspace navigation, with plan context restricted to Planner mode. */
+/** Main workspace navigation, with plan context in Planner and General modes. */
 export function usePlannerChat(
   business: string,
   mode: AgentChatMode = "planner",
 ) {
-  const isPlanner = mode === "planner";
+  const { agentId, tag, supportsPlans } = AGENT_CHAT_MODES[mode];
   const [threadId, setThreadId] = useQueryState("thread");
   const queryClient = useQueryClient();
   const [plans, setPlans] = useState<Record<string, PlanDraft>>({});
   const planRef = useRef<PlanDraft>(emptyPlanDraft());
   const chat = useAgentChat(business, {
-    agentId: mode,
-    tag: isPlanner ? "chat" : "analytics",
+    agentId,
+    tag,
     threadId,
     onThreadChange: (thread, previousKey) => {
-      if (isPlanner && thread && previousKey)
+      if (supportsPlans && thread && previousKey)
         setPlans((previous) => ({
           ...previous,
           [thread]: previous[previousKey] ?? emptyPlanDraft(),
@@ -42,15 +43,15 @@ export function usePlannerChat(
     },
     buildRequest: (message, options) =>
       buildChatRequest({
-        agentId: mode,
+        agentId,
         threadId,
         message,
-        resource: isPlanner ? planRef.current.resource : null,
-        selectedIds: isPlanner ? planRef.current.selectedIds : [],
-        omitView: !isPlanner || options?.omitView,
+        resource: supportsPlans ? planRef.current.resource : null,
+        selectedIds: supportsPlans ? planRef.current.selectedIds : [],
+        omitView: !supportsPlans || options?.omitView,
       }),
     onTurnEnd: (message, thread) => {
-      if (!isPlanner) return;
+      if (!supportsPlans) return;
       const resource = lastMatchingPlan(message.widgetParts ?? []);
       if (resource)
         setPlans((previous) => ({
@@ -71,11 +72,11 @@ export function usePlannerChat(
         });
     },
   });
-  const plan = (isPlanner && plans[chat.activeKey]) || emptyPlanDraft();
+  const plan = (supportsPlans && plans[chat.activeKey]) || emptyPlanDraft();
   planRef.current = plan;
   useEffect(() => {
     if (
-      !isPlanner ||
+      !supportsPlans ||
       !threadId ||
       !chat.knownThread ||
       !chat.history.messages.data
@@ -99,12 +100,12 @@ export function usePlannerChat(
         },
       };
     });
-  }, [isPlanner, threadId, chat.knownThread, chat.history.messages.data]);
+  }, [supportsPlans, threadId, chat.knownThread, chat.history.messages.data]);
   const updateDraft = (patch: Partial<ChatDraft & PlanDraft>) => {
     const { resource, selectedIds, preferredSurface, ...draft } = patch;
     if (Object.keys(draft).length) chat.updateDraft(draft);
     if (
-      isPlanner &&
+      supportsPlans &&
       ("resource" in patch ||
         "selectedIds" in patch ||
         "preferredSurface" in patch)
@@ -125,7 +126,7 @@ export function usePlannerChat(
     preferredSurface?: PlanSurface,
   ) => {
     const key = chat.newChat();
-    if (!isPlanner) return;
+    if (!supportsPlans) return;
     setPlans((previous) => ({
       ...previous,
       [key]: {

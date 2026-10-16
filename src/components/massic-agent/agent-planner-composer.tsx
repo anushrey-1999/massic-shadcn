@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AgentComposer } from "./agent-composer";
+import { AGENT_CHAT_MODES } from "./agent-modes";
 import { AgentComposerRow } from "./agent-composer-row";
 import {
   PLAN_SURFACES,
@@ -44,7 +45,7 @@ type Props = {
   attachments?: ReactNode;
 };
 export function AgentPlannerComposer(p: Props) {
-  const isPlanner = p.mode !== "analytics";
+  const { supportsPlans } = AGENT_CHAT_MODES[p.mode ?? "planner"];
   const busy = p.disabled || p.streaming || p.sendDisabled;
   const actionSurface = p.resource
     ? resourcePlanSurface(p.resource.type)
@@ -71,13 +72,13 @@ export function AgentPlannerComposer(p: Props) {
       focusKey={p.focusKey}
       centered={p.centered}
       placeholder={
-        isPlanner && p.resource
+        supportsPlans && p.resource
           ? "How would you like to refine this plan?"
           : "Ask Massic"
       }
       attachments={p.attachments}
       context={
-        isPlanner ? (
+        supportsPlans ? (
           <>
             {" "}
             <AgentComposerRow visible={!!p.resource}>
@@ -101,7 +102,7 @@ export function AgentPlannerComposer(p: Props) {
         ) : undefined
       }
       actions={
-        isPlanner ? (
+        (p.mode ?? "planner") === "planner" ? (
           <>
             {" "}
             <AgentComposerRow visible={showQuickActions}>

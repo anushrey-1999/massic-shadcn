@@ -240,9 +240,6 @@ export const ContentCuesForm = ({
           <CardTitle className="text-sm font-medium leading-normal">
             <FieldLabel className="gap-0 text-sm font-medium leading-normal">
               What is the tone of your brand's content?
-              <span className="text-general-muted-foreground pl-1">
-                Add up to 3 per channel.
-              </span>
             </FieldLabel>
           </CardTitle>
         </CardHeader>
@@ -265,16 +262,13 @@ export const ContentCuesForm = ({
                     name="brandToneSocial"
                     children={(field: any) => {
                       const currentValue = Array.isArray(field.state.value)
-                        ? field.state.value.slice(0, 3)
+                        ? field.state.value
                         : [];
                       return (
                         <TagsInput
                           value={currentValue}
-                          onChange={(next) =>
-                            field.handleChange(next.slice(0, 3))
-                          }
+                          onChange={(next) => field.handleChange(next)}
                           placeholder="Type a social tone and press Enter"
-                          maxItems={3}
                         />
                       );
                     }}
@@ -298,16 +292,13 @@ export const ContentCuesForm = ({
                     name="brandToneWeb"
                     children={(field: any) => {
                       const currentValue = Array.isArray(field.state.value)
-                        ? field.state.value.slice(0, 3)
+                        ? field.state.value
                         : [];
                       return (
                         <TagsInput
                           value={currentValue}
-                          onChange={(next) =>
-                            field.handleChange(next.slice(0, 3))
-                          }
+                          onChange={(next) => field.handleChange(next)}
                           placeholder="Type a web tone and press Enter"
-                          maxItems={3}
                         />
                       );
                     }}

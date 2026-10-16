@@ -110,8 +110,7 @@ export function normalizeToneOptions(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((value) => String(value).trim())
-    .filter(Boolean)
-    .slice(0, 3);
+    .filter(Boolean);
 }
 
 export function toTitleCaseToneValues(raw: unknown): string[] | null {
@@ -119,7 +118,6 @@ export function toTitleCaseToneValues(raw: unknown): string[] | null {
   const values = raw
     .map((value) => String(value).trim())
     .filter(Boolean)
-    .slice(0, 3)
     .map(
       (value) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase(),
     );

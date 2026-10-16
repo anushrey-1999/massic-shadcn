@@ -10,7 +10,7 @@ const COMMON_SECOND_LEVEL_DOMAINS = new Set([
 
 export function deriveBusinessNameFromWebsite(website: string): string {
   const input = website.trim();
-  if (!input) return "Business";
+  if (!input) return "";
 
   try {
     const url = new URL(
@@ -37,9 +37,9 @@ export function deriveBusinessNameFromWebsite(website: string): string {
       .replace(/([a-z])([A-Z])/g, "$1 $2")
       .trim();
 
-    if (!words) return "Business";
+    if (!words) return "";
     return words.replace(/\b\w/g, (character) => character.toUpperCase());
   } catch {
-    return "Business";
+    return "";
   }
 }

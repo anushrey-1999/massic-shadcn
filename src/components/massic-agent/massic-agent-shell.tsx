@@ -63,13 +63,14 @@ import {
   resourcePlanSurface,
 } from "./agent-model";
 import { usePlannerChat } from "./use-planner-chat";
+import { AGENT_CHAT_MODES, isAgentChatMode } from "./agent-modes";
 import type { AgentChatMode, AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
 
 export function MassicAgentShell({ businessId }: { businessId: string }) {
   const searchParams = useSearchParams();
-  const mode: AgentChatMode =
-    searchParams.get("mode") === "analytics" ? "analytics" : "planner";
+  const requestedMode = searchParams.get("mode");
+  const mode = isAgentChatMode(requestedMode) ? requestedMode : "planner";
   const { profileData } = useBusinessProfileById(businessId);
   const businessName =
     profileData?.Name || profileData?.DisplayName || "Business";
@@ -108,7 +109,7 @@ function AgentWorkspace({
   businessId: string;
   mode: AgentChatMode;
 }) {
-  const isPlanner = mode === "planner";
+  const { tag, supportsPlans } = AGENT_CHAT_MODES[mode];
   const chat = usePlannerChat(businessId, mode);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,7 +119,7 @@ function AgentWorkspace({
   const [search, setSearch] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
   const [view, setView] = useState<"chat" | "chats" | "plans">(() =>
-    isPlanner && searchParams.get("view") === "plans" ? "plans" : "chat",
+    supportsPlans && searchParams.get("view") === "plans" ? "plans" : "chat",
   );
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
@@ -141,18 +142,18 @@ function AgentWorkspace({
   const entryThreadId = searchParams.get("thread");
   const autoSubmit = searchParams.get("submit") === "1";
   const entrySurface =
-    isPlanner &&
+    supportsPlans &&
     (entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels")
       ? entrySurfaceRaw
       : null;
   const preferredAction: AgentEntryAction | undefined =
-    isPlanner &&
+    supportsPlans &&
     (entryActionRaw === "create" ||
       entryActionRaw === "refine" ||
       entryActionRaw === "activate")
       ? entryActionRaw
       : undefined;
-  const planRef = isPlanner ? chat.draft.resource : null;
+  const planRef = supportsPlans ? chat.draft.resource : null;
   const preferredSurface = planRef
     ? resourcePlanSurface(planRef.type)
     : chat.draft.preferredSurface;
@@ -303,9 +304,7 @@ function AgentWorkspace({
       chat.updateTitle(result.thread_id, result.title ?? title.trim());
       setRenameTarget(null);
       void qc.invalidateQueries({
-        queryKey: agentKeys.threads(businessId, [
-          isPlanner ? "chat" : "analytics",
-        ]),
+        queryKey: agentKeys.threads(businessId, [tag]),
       });
     },
   });
@@ -363,7 +362,7 @@ function AgentWorkspace({
     setPlanVisible(true);
   };
   const openPlan = (r: ResourceRef) => {
-    if (!isPlanner) return;
+    if (!supportsPlans) return;
     pendingPlanClearRef.current = null;
     if (planRef && resourceKey(planRef) === resourceKey(r)) {
       if (planVisible) closePlan(false);
@@ -390,14 +389,14 @@ function AgentWorkspace({
     if (
       modeDisabled ||
       value === mode ||
-      (value !== "planner" && value !== "analytics")
+      !isAgentChatMode(value)
     )
       return;
     setChangingMode(true);
     const params = new URLSearchParams(searchParams.toString());
     for (const key of ["thread", "surface", "action", "plan", "submit", "view"])
       params.delete(key);
-    if (value === "analytics") params.set("mode", value);
+    if (value !== "planner") params.set("mode", value);
     else params.delete("mode");
     const query = params.toString();
     router.replace(
@@ -488,7 +487,7 @@ function AgentWorkspace({
     router.push(fallbackHref);
   };
   const historyProps = {
-    showPlans: isPlanner,
+    showPlans: supportsPlans,
     conversations: chat.conversations,
     activeId: chat.activeKey,
     activeView: view,
@@ -559,12 +558,15 @@ function AgentWorkspace({
                   align="start"
                   className="w-40 shadow-xs"
                 >
-                  <SelectItem value="planner" className="cursor-pointer">
-                    Planner
-                  </SelectItem>
-                  <SelectItem value="analytics" className="cursor-pointer">
-                    Analytics
-                  </SelectItem>
+                  {Object.entries(AGENT_CHAT_MODES).map(([value, config]) => (
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      className="cursor-pointer"
+                    >
+                      {config.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             }

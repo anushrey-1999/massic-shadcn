@@ -19,7 +19,6 @@ import {
 import { businessDomain } from "@/lib/business-domain-match";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import type { BusinessProfile } from "@/store/business-store";
-import { deriveBusinessNameFromWebsite } from "@/utils/business-name";
 import {
   buildBusinessProfilePayload,
   selectCombinedBusinessPayload,
@@ -78,9 +77,7 @@ export function useBusinessCreation({
       };
       const values: BusinessInfoFormData = {
         ...input,
-        businessName:
-          input.businessName.trim() ||
-          deriveBusinessNameFromWebsite(input.website),
+        businessName: input.businessName.trim(),
       };
       let business: BusinessProfile | null = progress.current.business;
 

@@ -31,9 +31,11 @@ export function ProfileIdentityFields({
     form.store,
     (state: any) => state.values as BusinessInfoFormData,
   );
-  const lastDerivedName = useRef("");
+  const lastWebsite = useRef(values.website);
+  const lastDerivedName = useRef(deriveBusinessNameFromWebsite(values.website));
   useEffect(() => {
-    if (!deriveName || disabled) return;
+    if (!deriveName || disabled || values.website === lastWebsite.current) return;
+    lastWebsite.current = values.website;
     const derived = deriveBusinessNameFromWebsite(values.website);
     if (
       !values.businessName.trim() ||

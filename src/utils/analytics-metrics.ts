@@ -23,3 +23,14 @@ export const ANALYTICS_METRIC_LABELS: Record<AnalyticsMetricKey, string> = {
 
 /** Search Console has no data on the All tab, so only GA4 metrics are plotted. */
 export const ALL_TAB_METRIC_KEYS: readonly AnalyticsMetricKey[] = ["sessions", "goals"];
+
+/** Shared rendering settings taken from the All / Organic overview chart. */
+export const ANALYTICS_CHART_STYLE = {
+  margin: { top: 12, right: 8, left: 8, bottom: 0 },
+  containerClassName: "h-full w-full flex-col justify-end items-stretch aspect-auto",
+  tick: { fontSize: 12, fill: "#9ca3af" },
+  tickMargin: 8,
+  gridStroke: "#e5e7eb",
+  gridDasharray: "3 3",
+  strokeWidth: 1,
+} as const;

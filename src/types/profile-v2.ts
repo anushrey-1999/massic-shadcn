@@ -100,7 +100,7 @@ export interface CreateJobRequest extends JobWriteFields {
 export type UpdateJobRequest = JobWriteFields;
 
 export interface WorkflowStatus {
-  status?: "pending" | "processing" | "success" | "error" | null;
+  status?: "pending" | "processing" | "success" | "partial" | "error" | null;
   workflows?: Record<string, string | null>;
   [key: string]: unknown;
 }

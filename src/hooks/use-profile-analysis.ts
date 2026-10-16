@@ -3,8 +3,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./use-api";
 import type { JobResponse } from "@/types/profile-v2";
+import type { ProfileAnalysisAction } from "@/lib/profile-workflow-actions";
 
-export type ProfileAnalysisAction = "analyze" | "search" | "context";
+export type { ProfileAnalysisAction } from "@/lib/profile-workflow-actions";
 
 export function useProfileAnalysis(businessId: string) {
   const queryClient = useQueryClient();
@@ -35,12 +36,12 @@ export function useProfileAnalysis(businessId: string) {
               : { orchestration_status: "pending" }),
           },
       );
-      void queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: ["jobs", "detail", businessId],
       });
     },
     onError: () => {
-      void queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: ["jobs", "detail", businessId],
       });
     },

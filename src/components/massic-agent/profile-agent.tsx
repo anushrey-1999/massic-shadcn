@@ -34,12 +34,16 @@ export function useProfileAgent({
   job,
   dirty,
   saving,
+  hasPlanAccess,
+  checkPlanAccess,
   onRefresh,
 }: {
   businessId: string;
   job?: JobResponse | null;
   dirty: boolean;
   saving: boolean;
+  hasPlanAccess: boolean;
+  checkPlanAccess: () => Promise<boolean>;
   onRefresh?: (signal: AbortSignal) => Promise<void>;
 }) {
   const queryClient = useQueryClient();
@@ -51,9 +55,17 @@ export function useProfileAgent({
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const accessCheck = useRef(false);
+  const mounted = useRef(true);
   const lookup = useRef<AbortController | null>(null);
   const refreshController = useRef<AbortController | null>(null);
   const disabledReason = profileAgentDisabledReason(job, dirty, saving);
+  const currentDisabledReason = useRef(disabledReason);
+  currentDisabledReason.current = disabledReason;
+  const accessDisabledReason = hasPlanAccess
+    ? null
+    : "Choose a Core or Growth plan to use the Profile agent.";
 
   const refresh = async () => {
     if (!onRefresh) return;
@@ -79,7 +91,12 @@ export function useProfileAgent({
     threadId,
     confirmedThread,
     enabled:
-      opened && !lookingUp && !lookupError && !refreshError && !disabledReason,
+      hasPlanAccess &&
+      opened &&
+      !lookingUp &&
+      !lookupError &&
+      !refreshError &&
+      !disabledReason,
     onThreadChange: (thread) => {
       setThreadId(thread);
       setConfirmedThread(thread ?? undefined);
@@ -94,9 +111,27 @@ export function useProfileAgent({
     if (open && !busy) void refresh().catch(() => {});
   };
   const openAgent = async () => {
-    if (disabledReason && !busy) return;
+    // Existing operations can always be reopened to view their progress.
+    if (busy) {
+      setOpen(true);
+      return;
+    }
+    if (disabledReason || lookingUp || accessCheck.current) return;
+    accessCheck.current = true;
+    setCheckingAccess(true);
+    try {
+      const allowed = await checkPlanAccess();
+      if (!mounted.current) return;
+      if (!allowed) {
+        setOpen(false);
+        return;
+      }
+      if (currentDisabledReason.current) return;
+    } finally {
+      accessCheck.current = false;
+      if (mounted.current) setCheckingAccess(false);
+    }
     setOpen(true);
-    if (busy || lookingUp) return;
     lookup.current?.abort();
     const controller = new AbortController();
     lookup.current = controller;
@@ -122,13 +157,14 @@ export function useProfileAgent({
       if (!controller.signal.aborted) setLookingUp(false);
     }
   };
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       lookup.current?.abort();
       refreshController.current?.abort();
-    },
-    [],
-  );
+    };
+  }, []);
   return {
     chat,
     open,
@@ -136,6 +172,8 @@ export function useProfileAgent({
     openAgent,
     busy,
     disabledReason,
+    accessDisabledReason,
+    checkingAccess,
     lookingUp,
     lookupError,
     refreshing,
@@ -151,7 +189,8 @@ export function ProfileAgentButton({
 }: {
   agent: ProfileAgentController;
 }) {
-  const disabled = !!agent.disabledReason && !agent.busy;
+  const disabled =
+    agent.checkingAccess || (!!agent.disabledReason && !agent.busy);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -163,21 +202,27 @@ export function ProfileAgentButton({
             onClick={() => void agent.openAgent()}
             className="gap-2"
           >
-            {agent.busy ? (
+            {agent.busy || agent.checkingAccess ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <MessageSquare className="size-4" />
             )}
-            {agent.busy ? "Profile agent working…" : "Profile agent"}
+            {agent.checkingAccess
+              ? "Checking plan…"
+              : agent.busy
+                ? "Profile agent working…"
+                : "Profile agent"}
           </Button>
         </span>
       </TooltipTrigger>
       <TooltipContent>
-        {disabled
-          ? agent.disabledReason
-          : agent.busy
-            ? "Open the profile agent to view progress."
-            : "Update your profile by chatting with Massic."}
+        {agent.checkingAccess
+          ? "Checking your business plan."
+          : disabled
+            ? agent.disabledReason
+            : agent.busy
+              ? "Open the profile agent to view progress."
+              : "Update your profile by chatting with Massic."}
       </TooltipContent>
     </Tooltip>
   );
@@ -204,6 +249,7 @@ export function ProfileAgentDialog({
       !chat.messages.length);
   const blocked =
     !!agent.disabledReason ||
+    !!agent.accessDisabledReason ||
     !!agent.lookupError ||
     !!agent.refreshError ||
     !!chat.recovery ||
@@ -316,11 +362,12 @@ export function ProfileAgentDialog({
                 Refreshing your profile…
               </p>
             )}
-            {agent.disabledReason && !chat.runningKey && (
-              <p className="text-xs text-muted-foreground">
-                {agent.disabledReason}
-              </p>
-            )}
+            {(agent.disabledReason || agent.accessDisabledReason) &&
+              !chat.runningKey && (
+                <p className="text-xs text-muted-foreground">
+                  {agent.disabledReason || agent.accessDisabledReason}
+                </p>
+              )}
             <AgentComposer
               value={chat.draft.input}
               onChange={(input) => chat.updateDraft({ input })}

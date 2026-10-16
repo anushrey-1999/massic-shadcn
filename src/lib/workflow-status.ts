@@ -62,9 +62,31 @@ export function getOverallWorkflowStatus(
   return status;
 }
 
+export function getRecordedWorkflowStatuses(
+  jobDetails: JobDetails | null | undefined,
+): WorkflowStatusValue[] {
+  const workflowStatus = jobDetails?.workflow_status;
+  if (!workflowStatus) return [];
+
+  const { status, workflows, ...legacyWorkflows } = workflowStatus;
+  return [
+    status,
+    ...Object.values(workflows ?? {}),
+    ...Object.values(legacyWorkflows),
+  ].filter(
+    (value): value is WorkflowStatusValue =>
+      value == null || typeof value === "string",
+  );
+}
+
 export function isWorkflowActive(jobDetails: JobDetails | null | undefined): boolean {
-  const status = getOverallWorkflowStatus(jobDetails);
-  return isOrchestrationActive(jobDetails) || status === "pending" || status === "processing";
+  // A terminal aggregate can coexist with individual workflows still running.
+  return (
+    isOrchestrationActive(jobDetails) ||
+    getRecordedWorkflowStatuses(jobDetails).some(
+      status => status === "pending" || status === "processing",
+    )
+  );
 }
 
 export function isOrchestrationActive(

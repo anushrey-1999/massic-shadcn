@@ -48,21 +48,23 @@ export function AgentMarkdown({
   content,
   renderCitation,
   renderLink,
+  tableLabel = "Response table",
 }: {
   content: string;
-  renderCitation: (number: number) => ReactNode;
-  renderLink: (href: string, children: ReactNode) => ReactNode;
+  renderCitation?: (number: number) => ReactNode;
+  renderLink?: (href: string, children: ReactNode) => ReactNode;
+  tableLabel?: string;
 }) {
   return (
     <Markdown
-      remarkPlugins={[remarkGfm, remarkAgentCitations]}
+      remarkPlugins={renderCitation ? [remarkGfm, remarkAgentCitations] : [remarkGfm]}
       skipHtml
       components={{
         a: ({ node, href, children }) => {
           const reference = node?.properties["data-citation-ref"];
-          if (typeof reference === "number") return renderCitation(reference);
+          if (typeof reference === "number" && renderCitation) return renderCitation(reference);
           if (!href) return <>{children}</>;
-          if (/^https?:\/\//.test(href)) return renderLink(href, children);
+          if (/^https?:\/\//.test(href) && renderLink) return renderLink(href, children);
           return (
             <a href={href} target="_blank" rel="noreferrer">
               {children}
@@ -88,7 +90,7 @@ export function AgentMarkdown({
           <div
             className="my-4 max-w-full overflow-x-auto rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             role="region"
-            aria-label="Response table"
+            aria-label={tableLabel}
             tabIndex={0}
           >
             <table className="w-full border-collapse text-left text-sm">

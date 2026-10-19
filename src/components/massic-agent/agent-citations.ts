@@ -1,7 +1,7 @@
 import type { AgentMessage, CitationDocument, CitationSource } from "./types";
 
 export function sourceUrl(source: CitationSource): string | undefined {
-  try { const url = new URL(source.url ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : undefined; } catch { return undefined; }
+  try { const url = new URL(source.data?.url ?? source.url ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : undefined; } catch { return undefined; }
 }
 export function readableLabel(value: string | undefined, fallback: string): string {
   if (!value?.trim() || /^(?:[\w-]+_src_\d+|[0-9a-f]{8}-[0-9a-f-]{27,})$/i.test(value.trim()) || /^[{[]/.test(value.trim())) return fallback;

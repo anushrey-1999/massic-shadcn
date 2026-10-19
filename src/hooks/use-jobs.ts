@@ -3,13 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/hooks/use-api";
-import {
-  isOrchestrationActive,
-  isWorkflowActive,
-} from "@/lib/workflow-status";
-import { hasActiveCoreOrGrowthPlan } from "@/lib/subscription-status";
+import { isOrchestrationActive, isWorkflowActive } from "@/lib/workflow-status";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
-import { useBusinessStore } from "@/store/business-store";
 import type {
   CreateJobRequest,
   JobWriteFields,
@@ -20,23 +15,11 @@ import {
   buildCreateJobRequest,
   buildUpdateJobRequest,
 } from "@/utils/profile-v2-mappers";
+import { serializeJobRequest } from "@/utils/profile-job-request";
 
 const JOBS_KEY = "jobs";
 
 export type JobDetails = JobResponse;
-
-function isBusinessPurchased(businessId: string): boolean {
-  const profiles = useBusinessStore.getState().profiles;
-  const business = profiles.find((profile) => profile.UniqueId === businessId);
-  const isAgencyWhitelisted = profiles.some(
-    (profile) => profile.isWhitelisted === true
-  );
-
-  return hasActiveCoreOrGrowthPlan(
-    business?.SubscriptionItems,
-    isAgencyWhitelisted
-  );
-}
 
 /** Legacy Node business-profile shape. It is never sent to Infer. */
 export interface BusinessProfilePayload {
@@ -83,20 +66,6 @@ export interface BusinessProfilePayload {
   [key: string]: unknown;
 }
 
-/** Legacy UI offering row retained for Node-profile mapping only. */
-export interface Offering {
-  name?: string;
-  description?: string;
-  link?: string;
-  offering_type?: string;
-  offeringType?: string;
-  price_range?: string;
-  priceRange?: string;
-  price_positioning?: string;
-  duration?: string;
-  inclusions?: string[] | string;
-}
-
 type LocationOption = {
   value: string;
   label: string;
@@ -121,7 +90,7 @@ export function useJobByBusinessId(businessId: string | null) {
       try {
         return await api.get<JobResponse>(
           `/jobs/${encodeURIComponent(businessId)}`,
-          "python"
+          "python",
         );
       } catch (error) {
         const status = (error as { response?: { status?: number } })?.response
@@ -139,6 +108,7 @@ export function useJobByBusinessId(businessId: string | null) {
       const job = query.state.data;
       if (
         job?.profile_status === "processing" ||
+        job?.offering_extraction === "processing" ||
         isOrchestrationActive(job)
       ) {
         return 5_000;
@@ -159,6 +129,8 @@ export interface CreateJobParams {
   businessId: string;
   values: BusinessInfoFormData;
   locationOptions?: LocationOption[];
+  /** Setup retries may find extracted offerings that must not be replaced. */
+  preserveExistingFields?: boolean;
 }
 
 export function useCreateJob() {
@@ -170,32 +142,62 @@ export function useCreateJob() {
       businessId,
       values,
       locationOptions = [],
+      preserveExistingFields = false,
     }) => {
       const request: CreateJobRequest = buildCreateJobRequest(
         businessId,
         values,
         locationOptions,
-        isBusinessPurchased(businessId)
       );
-      const response = await api.post<JobResponse>(
-        "/jobs",
+      // A previous create may have succeeded before its follow-up GET failed.
+      // Resolve that job before retrying, so creation never duplicates it.
+      let existing: JobResponse | null = null;
+      try {
+        existing = await api.get<JobResponse>(
+          `/jobs/${encodeURIComponent(businessId)}`,
+          "python",
+        );
+      } catch (error) {
+        if (
+          (error as { response?: { status?: number } }).response?.status !== 404
+        )
+          throw error;
+      }
+      if (existing?.job_id) {
+        assertJobIdentity(existing, businessId);
+        if (!preserveExistingFields || existing.business_name !== values.businessName) {
+          await api.put(
+            `/jobs/${encodeURIComponent(businessId)}`,
+            "python",
+            preserveExistingFields
+              ? { business_name: values.businessName }
+              : buildUpdateJobRequest(values, locationOptions, "minimal"),
+          );
+        }
+      } else {
+        await api.post<unknown>(
+          "/jobs",
+          "python",
+          serializeJobRequest(request),
+        );
+      }
+      const job = await api.get<JobResponse>(
+        `/jobs/${encodeURIComponent(businessId)}`,
         "python",
-        request
       );
-      return assertJobIdentity(response, businessId);
+      return assertJobIdentity(job, businessId);
     },
     onSuccess: (job) => {
-      queryClient.setQueryData(
-        [JOBS_KEY, "detail", job.business_id],
-        job
-      );
+      queryClient.setQueryData([JOBS_KEY, "detail", job.business_id], job);
     },
   });
 }
 export interface UpdateJobParams {
+  mode?: "minimal" | "full";
   businessId: string;
   values: BusinessInfoFormData;
   locationOptions?: LocationOption[];
+  includePrimaryCategory?: boolean;
 }
 
 export function useUpdateJob() {
@@ -207,24 +209,28 @@ export function useUpdateJob() {
       businessId,
       values,
       locationOptions = [],
+      mode = "full",
+      includePrimaryCategory = false,
     }) => {
       const request: UpdateJobRequest = buildUpdateJobRequest(
         values,
         locationOptions,
-        isBusinessPurchased(businessId)
+        mode,
+        { includePrimaryCategory },
       );
-      const response = await api.put<JobResponse>(
+      await api.put<unknown>(
         `/jobs/${encodeURIComponent(businessId)}`,
         "python",
-        request
+        serializeJobRequest(request),
       );
-      return assertJobIdentity(response, businessId);
+      const job = await api.get<JobResponse>(
+        `/jobs/${encodeURIComponent(businessId)}`,
+        "python",
+      );
+      return assertJobIdentity(job, businessId);
     },
     onSuccess: (job) => {
-      queryClient.setQueryData(
-        [JOBS_KEY, "detail", job.business_id],
-        job
-      );
+      queryClient.setQueryData([JOBS_KEY, "detail", job.business_id], job);
     },
   });
 }
@@ -238,21 +244,19 @@ export function usePatchJob() {
   >({
     retry: false,
     mutationFn: async ({ businessId, request }) => {
-      const response = await api.put<JobResponse>(
+      await api.put<unknown>(
         `/jobs/${encodeURIComponent(businessId)}`,
         "python",
-        {
-          ...request,
-          is_business_purchased: isBusinessPurchased(businessId),
-        } satisfies UpdateJobRequest
+        serializeJobRequest(request),
       );
-      return assertJobIdentity(response, businessId);
+      const job = await api.get<JobResponse>(
+        `/jobs/${encodeURIComponent(businessId)}`,
+        "python",
+      );
+      return assertJobIdentity(job, businessId);
     },
     onSuccess: (job) => {
-      queryClient.setQueryData(
-        [JOBS_KEY, "detail", job.business_id],
-        job
-      );
+      queryClient.setQueryData([JOBS_KEY, "detail", job.business_id], job);
     },
   });
 }

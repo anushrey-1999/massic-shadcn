@@ -1,5 +1,6 @@
 "use client";
 
+import { useProfileEditingDisabled } from "@/components/organisms/profile/profile-editing-context";
 import * as React from "react";
 import type { FieldApi, FormApi } from "@tanstack/react-form";
 import { cn } from "@/lib/utils";
@@ -218,6 +219,8 @@ function GenericInput<
   radioCardIcons,
   ...props
 }: GenericInputProps<TFormData>) {
+  const profileDisabled = useProfileEditingDisabled();
+  props = { ...props, disabled: props.disabled || profileDisabled };
   const normalizedLocationOptions = React.useMemo(
     () =>
       options?.map((opt) => ({
@@ -337,6 +340,7 @@ function GenericInput<
       const currentValue = value as string | undefined;
 
       const handleLocationChange = (newValue: string) => {
+        if (props.disabled) return;
         if (onChange) {
           // LocationSelect passes value directly, but onChange can handle both
           // Pass the string directly - onChange wrapper will handle it
@@ -369,6 +373,8 @@ function GenericInput<
 
       return (
         <LocationSelect
+          id={inputId}
+          className={className}
           value={currentValue}
           onChange={handleLocationChange}
           options={normalizedLocationOptions}
@@ -390,6 +396,7 @@ function GenericInput<
       const placeholderText = placeholderOption?.label || props.placeholder || "Select an option";
 
       const handleValueChange = (newValue: string) => {
+        if (props.disabled) return;
         if (onChange) {
           // Create a synthetic event to match the expected onChange signature
           const syntheticEvent = {

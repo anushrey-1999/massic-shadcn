@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import type { JobResponse } from "@/types/profile-v2";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 
 import ProfileTemplate from "@/components/templates/ProfileTemplate";
 import {
@@ -20,6 +21,7 @@ import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
 import {
   buildBusinessProfilePayload,
+  selectCombinedBusinessPayload,
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
 } from "@/utils/profile-form-mappers";
 import { mergeJobAndFormForNodeProfile } from "@/utils/profile-v2-mappers";
@@ -29,18 +31,27 @@ export default function BusinessProfilePage() {
   const params = useParams();
   const businessId = params?.id as string;
   const autoCreateAttempted = useRef(false);
-  const { profileData, profileDataLoading, refetchProfile } =
-    useBusinessProfileById(businessId || null);
+  const lastReadError = useRef("");
+  const {
+    profileData,
+    profileDataLoading,
+    profileDataFetching,
+    profileDataError,
+    refetchProfile,
+  } = useBusinessProfileById(businessId || null);
   const jobQuery = useJobByBusinessId(businessId || null);
-  const { locationOptions, isLoading: locationsLoading } = useLocations("us");
-  const updateNodeProfile = useUpdateBusinessProfile(businessId || null);
+  const {
+    locationOptions,
+    isLoading: locationsLoading,
+    isFetching: locationsFetching,
+  } = useLocations("us");
+  const updateNodeProfile = useUpdateBusinessProfile(businessId || null, {
+    silent: true,
+  });
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
-  const {
-    setLocationOptions,
-    setLocationsLoading,
-    setCurrentBusinessId,
-  } = useBusinessStore();
+  const { setLocationOptions, setLocationsLoading, setCurrentBusinessId } =
+    useBusinessStore();
 
   useEffect(() => {
     setLocationOptions(locationOptions);
@@ -58,31 +69,42 @@ export default function BusinessProfilePage() {
   const syncNodeProfile = async (
     canonicalJob: JobResponse | null | undefined,
     formValues: BusinessInfoFormData,
-    nodePayload: Record<string, unknown> = {}
+    nodePayload: Record<string, unknown> = {},
+    mode: "minimal" | "full" = "minimal",
+    includePrimaryCategory = false,
   ) => {
     const existingNodeValues = mapBusinessProfileToFormValues(
       profileData ?? null,
       null,
-      locationOptions
+      locationOptions,
     );
     const canonicalNodePayload = canonicalJob
       ? buildBusinessProfilePayload(
           mergeJobAndFormForNodeProfile(
             canonicalJob,
             formValues,
-            existingNodeValues
+            existingNodeValues,
           ),
           {
             existingProfile: profileData,
             locationOptions,
             preserveExistingProfile: true,
-          }
+          },
         )
       : nodePayload;
     canonicalNodePayload.ProfileId =
       canonicalJob?.profile_id ?? (String(nodePayload.ProfileId ?? "") || null);
-    await updateNodeProfile.mutateAsync(canonicalNodePayload);
-    await Promise.all([refetchProfile(), jobQuery.refetch()]);
+    await updateNodeProfile.mutateAsync(
+      mode === "full"
+        ? canonicalNodePayload
+        : selectCombinedBusinessPayload(canonicalNodePayload, {
+            includePrimaryCategory,
+          }),
+    );
+    await Promise.all([
+      refetchProfile({ throwOnError: true }),
+      jobQuery.refetch({ throwOnError: true }),
+    ]);
   };
 
   useEffect(() => {
@@ -97,6 +119,8 @@ export default function BusinessProfilePage() {
       profileDataLoading ||
       locationsLoading ||
       !jobQuery.isFetched ||
+      jobQuery.isError ||
+      profileDataError ||
       jobQuery.data?.job_id ||
       createJob.isPending
     ) {
@@ -106,7 +130,7 @@ export default function BusinessProfilePage() {
     const values = mapBusinessProfileToFormValues(
       profileData,
       null,
-      locationOptions
+      locationOptions,
     );
     values.businessName =
       values.businessName.trim() ||
@@ -124,10 +148,10 @@ export default function BusinessProfilePage() {
       .mutateAsync({ businessId, values, locationOptions })
       .catch((error) => {
         toast.error("Couldn't create the Infer job automatically.", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "Complete the required fields and save the profile.",
+          description: apiErrorMessage(
+            error,
+            "Complete the required fields and save the profile.",
+          ),
         });
       });
   }, [
@@ -135,20 +159,37 @@ export default function BusinessProfilePage() {
     createJob,
     jobQuery.data?.job_id,
     jobQuery.isFetched,
+    jobQuery.isError,
+    profileDataError,
     locationOptions,
     locationsLoading,
     profileData,
     profileDataLoading,
   ]);
 
+  useEffect(() => {
+    if (!jobQuery.error && !profileDataError) {
+      lastReadError.current = "";
+      return;
+    }
+    const message = apiErrorMessage(jobQuery.error ?? profileDataError);
+    if (lastReadError.current !== message) {
+      toast.error("Couldn't refresh the business profile", {
+        description: message,
+      });
+      lastReadError.current = message;
+    }
+  }, [jobQuery.error, profileDataError]);
+
   const handleAgentProfileRefresh = async (signal: AbortSignal) => {
     if (signal.aborted) return;
-    await jobQuery.refetch();
+    await jobQuery.refetch({ throwOnError: true });
   };
 
   const handleUpdateProfile = async (
     nodePayload: Record<string, unknown>,
-    formValues?: BusinessInfoFormData
+    formValues?: BusinessInfoFormData,
+    mode: "minimal" | "full" = "minimal",
   ) => {
     if (!businessId || !formValues) {
       throw new Error("Business profile values are required.");
@@ -156,10 +197,22 @@ export default function BusinessProfilePage() {
 
     let jobExistsAfterSave = Boolean(jobQuery.data?.job_id);
     let canonicalJob = jobQuery.data;
+    const nodePrimaryCategory = mapBusinessProfileToFormValues(
+      profileData ?? null,
+      null,
+      locationOptions,
+    ).primaryCategory;
+    const includePrimaryCategory =
+      Boolean(jobQuery.data?.job_id) &&
+      (formValues.primaryCategory !== (jobQuery.data?.primary_category ?? "") ||
+        (Boolean(nodePrimaryCategory) &&
+          formValues.primaryCategory !== nodePrimaryCategory));
     if (jobExistsAfterSave) {
       canonicalJob = await updateJob.mutateAsync({
         businessId,
         values: formValues,
+        mode,
+        includePrimaryCategory,
         locationOptions,
       });
     } else {
@@ -171,7 +224,13 @@ export default function BusinessProfilePage() {
       jobExistsAfterSave = true;
     }
 
-    await syncNodeProfile(canonicalJob, formValues, nodePayload);
+    await syncNodeProfile(
+      canonicalJob,
+      formValues,
+      nodePayload,
+      mode,
+      includePrimaryCategory,
+    );
     return { jobExistsAfterSave };
   };
 
@@ -190,6 +249,21 @@ export default function BusinessProfilePage() {
       profileData={profileData}
       jobDetails={jobQuery.data}
       isLoading={isLoading}
+      initialReadLoading={
+        profileDataLoading ||
+        profileDataFetching ||
+        jobQuery.isPending ||
+        jobQuery.isFetching ||
+        locationsLoading ||
+        locationsFetching
+      }
+      readError={jobQuery.error ?? profileDataError}
+      onRetryLoad={() =>
+        Promise.allSettled([
+          jobQuery.refetch({ throwOnError: true }),
+          refetchProfile({ throwOnError: true }),
+        ])
+      }
       onUpdateProfile={handleUpdateProfile}
       onAgentProfileRefresh={handleAgentProfileRefresh}
     />

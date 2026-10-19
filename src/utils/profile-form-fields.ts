@@ -1,6 +1,7 @@
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { businessInfoSchema } from "@/schemas/ProfileFormSchema";
 import { isValidWebsiteUrl } from "@/utils/utils";
+import { isCatalogIndustry } from "@/utils/profile-catalog";
 
 export type ProfileSectionId =
   | "identity"
@@ -65,6 +66,14 @@ export const PROFILE_FIELD_DEFINITIONS = {
     label: "Calls to action",
     section: "positioning",
   },
+  brandToneSocial: {
+    label: "Social brand tone",
+    section: "positioning",
+  },
+  brandToneWeb: {
+    label: "Web brand tone",
+    section: "positioning",
+  },
   supportEmail: {
     label: "Support email",
     section: "channels",
@@ -86,8 +95,36 @@ export type ProfileValidationIssue = {
   section: ProfileSectionId;
 };
 
+export function getProfileSummaryIssues(
+  issues: ProfileValidationIssue[],
+): ProfileValidationIssue[] {
+  // Primary category already displays its catalog error below the selector.
+  return issues.filter((issue) => issue.field !== "primaryCategory");
+}
+
+export function validatePrimaryCategory(
+  value: string | undefined,
+  industries: readonly string[] | undefined,
+): ProfileValidationIssue[] {
+  if (
+    !value?.trim() ||
+    industries === undefined ||
+    isCatalogIndustry(value, industries)
+  )
+    return [];
+  return [
+    {
+      field: "primaryCategory",
+      label: "Primary category",
+      section: "classification",
+      message:
+        "Select a primary category from the dropdown. The saved value is no longer available.",
+    },
+  ];
+}
+
 export function validateInitialProfileFields(
-  values: BusinessInfoFormData
+  values: BusinessInfoFormData,
 ): ProfileValidationIssue[] {
   const issues: ProfileValidationIssue[] = [];
   if (!isValidWebsiteUrl(String(values.website ?? ""))) {
@@ -118,12 +155,13 @@ export function validateInitialProfileFields(
 }
 
 export function validateStrategyProfileFields(
-  values: BusinessInfoFormData
+  values: BusinessInfoFormData,
+  options: { industries?: readonly string[] } = {},
 ): ProfileValidationIssue[] {
   const issues = validateInitialProfileFields(values).map((issue) =>
     issue.field === "serviceAreaType"
       ? { ...issue, section: "service-areas" as const }
-      : issue
+      : issue,
   );
 
   if (!String(values.businessName ?? "").trim()) {
@@ -136,22 +174,25 @@ export function validateStrategyProfileFields(
   }
   if (
     !(values.offeringsList ?? []).some((offering) =>
-      Boolean(String(offering?.name ?? "").trim())
+      Boolean(String(offering?.name ?? "").trim()),
     )
   ) {
     issues.push({
       field: "offeringsList",
       label: "Offerings",
-      message: "Add at least one offering with a name.",
+      message: "At least one offering is required to analyze the business.",
       section: "offerings",
     });
   }
-  return issues;
+  return [
+    ...issues,
+    ...validatePrimaryCategory(values.primaryCategory, options.industries),
+  ];
 }
 
 function definitionFor(
   field: keyof BusinessInfoFormData,
-  sectionMode: "minimal" | "full" = "full"
+  sectionMode: "minimal" | "full" = "full",
 ): ProfileFieldDefinition {
   if (field === "serviceAreaType" && sectionMode === "minimal") {
     return {
@@ -176,7 +217,8 @@ export function validateProfileForm(
     ctas?: boolean;
     sectionMode?: "minimal" | "full";
     visibleSections?: ProfileSectionId[];
-  } = {}
+    industries?: readonly string[];
+  } = {},
 ): ProfileValidationIssue[] {
   const issues: ProfileValidationIssue[] = [];
   const parsed = businessInfoSchema.safeParse(values);
@@ -229,24 +271,30 @@ export function validateProfileForm(
     });
   }
 
+  if (isVisible("classification")) {
+    issues.push(
+      ...validatePrimaryCategory(values.primaryCategory, options.industries),
+    );
+  }
+
   return issues.filter(
     (issue, index, all) =>
       all.findIndex(
         (candidate) =>
           candidate.field === issue.field &&
-          candidate.message === issue.message
-      ) === index
+          candidate.message === issue.message,
+      ) === index,
   );
 }
 
 export function countIssuesBySection(
-  issues: ProfileValidationIssue[]
+  issues: ProfileValidationIssue[],
 ): Partial<Record<ProfileSectionId, number>> {
   return issues.reduce<Partial<Record<ProfileSectionId, number>>>(
     (counts, issue) => {
       counts[issue.section] = (counts[issue.section] ?? 0) + 1;
       return counts;
     },
-    {}
+    {},
   );
 }

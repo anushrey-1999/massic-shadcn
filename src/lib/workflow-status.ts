@@ -13,6 +13,9 @@ export function getWorkflowStatus(
   jobDetails: JobDetails | null | undefined,
   workflowKey: string
 ): WorkflowStatusValue {
+  // An accepted run can still expose the previous run's workflow statuses.
+  if (jobDetails?.orchestration_status === "pending") return "pending";
+
   const workflowStatus = jobDetails?.workflow_status as
     | { workflows?: Record<string, WorkflowStatusValue>; status?: string }
     | undefined;
@@ -35,6 +38,8 @@ export function getWorkflowStatus(
 export function getOverallWorkflowStatus(
   jobDetails: JobDetails | null | undefined
 ): WorkflowStatusValue {
+  if (jobDetails?.orchestration_status === "pending") return "pending";
+
   const workflowStatus = jobDetails?.workflow_status as
     | { workflows?: Record<string, WorkflowStatusValue>; status?: WorkflowStatusValue }
     | undefined;
@@ -57,16 +62,38 @@ export function getOverallWorkflowStatus(
   return status;
 }
 
+export function getRecordedWorkflowStatuses(
+  jobDetails: JobDetails | null | undefined,
+): WorkflowStatusValue[] {
+  const workflowStatus = jobDetails?.workflow_status;
+  if (!workflowStatus) return [];
+
+  const { status, workflows, ...legacyWorkflows } = workflowStatus;
+  return [
+    status,
+    ...Object.values(workflows ?? {}),
+    ...Object.values(legacyWorkflows),
+  ].filter(
+    (value): value is WorkflowStatusValue =>
+      value == null || typeof value === "string",
+  );
+}
+
 export function isWorkflowActive(jobDetails: JobDetails | null | undefined): boolean {
-  const status = getOverallWorkflowStatus(jobDetails);
-  return status === "pending" || status === "processing";
+  // A terminal aggregate can coexist with individual workflows still running.
+  return (
+    isOrchestrationActive(jobDetails) ||
+    getRecordedWorkflowStatuses(jobDetails).some(
+      status => status === "pending" || status === "processing",
+    )
+  );
 }
 
 export function isOrchestrationActive(
   jobDetails: JobDetails | null | undefined
 ): boolean {
   const status = jobDetails?.orchestration_status;
-  return status === "deep_running" || status === "strategies_running";
+  return status === "pending" || status === "build_running" || status === "strategies_running";
 }
 
 export function isWorkflowSuccess(

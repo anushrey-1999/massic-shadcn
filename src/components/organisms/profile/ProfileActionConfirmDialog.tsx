@@ -17,13 +17,13 @@ export type ProfileConfirmAction =
 
 const COPY: Record<ProfileConfirmAction, { title: string; description: string }> = {
   save: {
-    title: "Save Changes",
+    title: "Save changes",
     description: "Your profile changes will be saved. Do you want to continue?",
   },
   "create-pitch": {
-    title: "Create Pitch",
+    title: "Create pitch",
     description:
-      "This will create the pitch with the website and location details below. Do you want to continue?",
+      "This will create the pitch with the saved business details, offerings, and competitors. Do you want to continue?",
   },
 };
 

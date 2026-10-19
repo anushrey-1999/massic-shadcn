@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   Bot,
@@ -135,9 +136,9 @@ function ReportError({
   fetching: boolean;
 }) {
   return (
-    <Alert variant="destructive" className="my-3" role="alert">
-      <AlertCircle className="size-4" />
-      <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+    <Alert variant="destructive" className="my-3 flex items-center gap-2" role="alert">
+      <AlertCircle className="size-4 shrink-0" />
+      <AlertDescription className="flex flex-1 flex-wrap items-center justify-between gap-3">
         <span>Unable to load this AI Traffic report. Try again.</span>
         <Button variant="outline" size="sm" onClick={retry} disabled={fetching}>
           {fetching && <Loader2 className="size-4 animate-spin" />}{" "}
@@ -411,10 +412,13 @@ export function AITrafficSection({
   if (gate.isBlocked)
     return (
       <div className="p-7">
-        <Alert>
-          <Info className="size-4" />
-          <AlertDescription>
-            Connect Google Analytics in Settings to view AI Traffic.
+        <Alert className="flex items-center gap-2">
+          <Info className="size-4 shrink-0 text-general-muted-foreground" />
+          <AlertDescription className="flex flex-1 flex-wrap items-center justify-between gap-3">
+            <span>Connect Google Analytics in Settings to view AI Traffic.</span>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings">Open Settings</Link>
+            </Button>
           </AlertDescription>
         </Alert>
       </div>
@@ -515,8 +519,8 @@ export function AITrafficSection({
               ))}
             </div>
             {data.current.ai.sessions === 0 && (
-              <Alert>
-                <Info className="size-4" />
+              <Alert className="flex items-center gap-2">
+                <Info className="size-4 shrink-0 text-general-muted-foreground" />
                 <AlertDescription>
                   No AI Assistant sessions reported for this period.
                 </AlertDescription>

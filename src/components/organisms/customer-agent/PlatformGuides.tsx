@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PlatformIcon, type PlatformKey } from "@/components/organisms/WebChannels/platform-icon";
+import { cn } from "@/lib/utils";
+import { SECONDARY_BUTTON_CLASS } from "./controls";
 
 type Guide = { platform: PlatformKey; name: string; steps: string[] };
 
@@ -59,18 +61,25 @@ export function PlatformGuides({ snippet }: { snippet: string }) {
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-general-muted-foreground">Guides</span>
         {GUIDES.map((guide) => (
-          <Button key={guide.platform} variant="outline" onClick={() => setActive(guide)}>
-            <PlatformIcon platform={guide.platform} className="size-6 border-none bg-transparent" />
+          <Button
+            key={guide.platform}
+            type="button"
+            variant="outline"
+            onClick={() => setActive(guide)}
+            className={cn("h-7 gap-1.5 px-2 text-xs font-normal", SECONDARY_BUTTON_CLASS)}
+          >
+            <PlatformIcon platform={guide.platform} className="size-4 rounded-none border-none bg-transparent [&_img]:size-4" />
             {guide.name}
           </Button>
         ))}
       </div>
 
       <Dialog open={active !== null} onOpenChange={(open) => !open && setActive(null)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="grid-cols-1 sm:max-w-lg">
+          <DialogHeader className="pr-6">
             <DialogTitle className="font-medium">Install on {active?.name}</DialogTitle>
             <DialogDescription>Add the snippet once and it appears on every page.</DialogDescription>
           </DialogHeader>

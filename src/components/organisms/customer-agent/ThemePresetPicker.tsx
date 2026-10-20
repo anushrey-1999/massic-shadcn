@@ -6,7 +6,6 @@ import type { ThemePreset } from "@/types/customer-agent";
 
 type PresetLook = {
   label: string;
-  description: string;
   bg: string;
   bubble: string;
   border: string;
@@ -16,17 +15,17 @@ type PresetLook = {
 
 // Light-mode surfaces and radii from the widget's preset definitions.
 const PRESET_LOOKS: Record<ThemePreset, PresetLook> = {
-  clean: { label: "Clean", description: "Neutral and quiet", bg: "#FFFFFF", bubble: "#F5F5F4", border: "#E7E5E4", radius: 8, filledHeader: false },
-  soft: { label: "Soft", description: "Warm, rounded", bg: "#FAF8F5", bubble: "#F1EDE7", border: "#E9E3DB", radius: 12, filledHeader: false },
-  sharp: { label: "Sharp", description: "Compact, square", bg: "#FFFFFF", bubble: "#F1F5F9", border: "#E2E8F0", radius: 2, filledHeader: false },
-  bold: { label: "Bold", description: "Brand-colored header", bg: "#FFFFFF", bubble: "#F5F5F4", border: "#E7E5E4", radius: 6, filledHeader: true },
+  clean: { label: "Clean", bg: "#FFFFFF", bubble: "#F5F5F4", border: "#E7E5E4", radius: 8, filledHeader: false },
+  soft: { label: "Soft", bg: "#FAF8F5", bubble: "#F1EDE7", border: "#E9E3DB", radius: 12, filledHeader: false },
+  sharp: { label: "Sharp", bg: "#FFFFFF", bubble: "#F1F5F9", border: "#E2E8F0", radius: 2, filledHeader: false },
+  bold: { label: "Bold", bg: "#FFFFFF", bubble: "#F5F5F4", border: "#E7E5E4", radius: 6, filledHeader: true },
 };
 
 function Thumbnail({ look, accent }: { look: PresetLook; accent: string }) {
   return (
     <div
       aria-hidden
-      className="flex h-20 w-full flex-col overflow-hidden border"
+      className="flex h-14 w-full flex-col overflow-hidden border"
       style={{ background: look.bg, borderColor: look.border, borderRadius: look.radius }}
     >
       <div
@@ -69,15 +68,12 @@ export function ThemePresetPicker({ value, accent, onChange }: ThemePresetPicker
             value={preset}
             className={cn(
               "flex flex-col gap-2 rounded-lg border border-general-border bg-white p-2 text-left transition-colors outline-none",
-              "hover:bg-general-secondary focus-visible:ring-2 focus-visible:ring-ring/50",
+              "hover:bg-general-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
               "data-[state=checked]:border-general-foreground data-[state=checked]:shadow-xs"
             )}
           >
             <Thumbnail look={look} accent={accent} />
-            <span className="space-y-0.5 px-0.5">
-              <span className="block text-sm font-medium text-general-foreground">{look.label}</span>
-              <span className="block text-xs text-general-muted-foreground">{look.description}</span>
-            </span>
+            <span className="px-0.5 text-sm font-medium text-general-foreground">{look.label}</span>
           </RadioGroupPrimitive.Item>
         );
       })}

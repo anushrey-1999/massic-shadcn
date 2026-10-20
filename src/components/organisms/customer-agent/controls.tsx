@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 
 type Choice<T extends string> = { value: T; label: string };
 
+/** Secondary button look from the style guide: white fill, #D4D4D4 border and shadow-xs, so it reads on white cards. */
+export const SECONDARY_BUTTON_CLASS = "border-general-border-three bg-white shadow-xs";
+
 interface ChoiceGroupProps<T extends string> {
   label: string;
   value: T;
@@ -29,14 +32,14 @@ export function ChoiceGroup<T extends string>({
       onValueChange={(next) => onChange(next as T)}
       disabled={disabled}
       orientation="horizontal"
-      className="inline-flex h-9 items-center gap-1 rounded-lg bg-general-secondary p-1"
+      className="inline-flex h-9 items-center gap-0.5 rounded-lg bg-general-border p-1"
     >
       {options.map((option) => (
         <RadioGroupPrimitive.Item
           key={option.value}
           value={option.value}
           className={cn(
-            "h-7 rounded-md px-2.5 text-sm text-general-muted-foreground transition-colors outline-none",
+            "h-7 cursor-pointer rounded-md px-3 text-sm text-general-muted-foreground transition-colors outline-none",
             "hover:text-general-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
             "data-[state=checked]:bg-white data-[state=checked]:font-medium data-[state=checked]:text-general-foreground data-[state=checked]:shadow-xs",
             "disabled:cursor-not-allowed disabled:opacity-50"

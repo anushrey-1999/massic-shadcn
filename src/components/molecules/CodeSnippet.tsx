@@ -34,24 +34,24 @@ export function CodeSnippet({ code, className, copyLabel = "Copy code" }: CodeSn
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-lg border border-general-border bg-general-secondary p-3",
+        "flex min-w-0 items-start gap-2 rounded-lg border border-general-border bg-general-primary-foreground p-3",
         className
       )}
     >
-      <pre className="min-w-0 flex-1 overflow-x-auto py-1.5 font-mono text-xs leading-5 text-general-foreground">
+      <pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap py-1 font-mono text-xs leading-5 text-general-foreground [overflow-wrap:anywhere]">
         <code>{code}</code>
       </pre>
       <Button
         type="button"
-        size="sm"
-        variant="outline"
-        className="shrink-0 bg-white"
+        size="icon-sm"
+        variant="ghost"
         onClick={handleCopy}
-        aria-live="polite"
+        aria-label={copied ? "Copied" : copyLabel}
+        title={copied ? "Copied" : copyLabel}
       >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        {copied ? "Copied" : copyLabel}
+        {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
       </Button>
+      <span className="sr-only" role="status">{copied ? "Code copied to clipboard" : ""}</span>
     </div>
   );
 }

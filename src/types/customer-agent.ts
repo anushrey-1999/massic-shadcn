@@ -112,6 +112,8 @@ export type CustomerAgentBusiness = {
   logo_url: string | null;
   phone: string | null;
   email: string | null;
+  /** Profile website, used to suggest the first allowed domain. */
+  website?: string | null;
 };
 
 export type CustomerAgentConfig = AppearanceValues &

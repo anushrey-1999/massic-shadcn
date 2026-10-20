@@ -43,6 +43,10 @@ export function accentContrast(accent: string): number {
   return Math.max(1.05 / (l + 0.05), (l + 0.05) / (luminance("#111113") + 0.05));
 }
 
+export function pickAppearance({ theme, content, visibility }: CustomerAgentConfig): AppearanceValues {
+  return { theme, content, visibility };
+}
+
 /**
  * Public widget config the frame renders, built from saved facts plus unsaved appearance edits.
  * The widget reads action links from `business`, so the Behavior-owned links are merged in, as the gateway does.

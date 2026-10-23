@@ -71,7 +71,7 @@ export default function PitchSummaryPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
         {isLoading && !summaryData ? (

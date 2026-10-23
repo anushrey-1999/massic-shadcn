@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useStore } from "@tanstack/react-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
-import { FieldLabel } from "@/components/ui/field";
+import { FieldLabel, FieldError } from "@/components/ui/field";
 import {
   ProfileItemLink,
   ProfileListEditor,
@@ -12,10 +12,20 @@ import {
   type ProfileListField,
 } from "@/components/organisms/profile/ProfileListEditor";
 
-import { CTARow, StakeholderRow } from "@/store/business-store";
+import {
+  CTARow,
+  StakeholderRow,
+  CalendarEventRow,
+} from "@/store/business-store";
 import { MicVocal } from "lucide-react";
-// import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { TagsInput } from "@/components/ui/tags-input";
+import {
+  CustomAddRowTable,
+  type Column,
+} from "@/components/organisms/CustomAddRowTable";
+import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { useProfileEditingDisabled } from "./profile-editing-context";
 
 type BusinessInfoFormData = {
   usps?: string;
@@ -24,6 +34,7 @@ type BusinessInfoFormData = {
   ctasSavedIndices?: number[];
   stakeholders?: Array<{ name: string; title: string; role?: string }>;
   stakeholdersSavedIndices?: number[];
+  calendarEvents?: CalendarEventRow[];
   brandToneSocial?: string[];
   brandToneWeb?: string[];
   brandTerms?: string[];
@@ -101,6 +112,7 @@ export const ContentCuesForm = ({
   form,
   embedded = false,
 }: ContentCuesFormProps) => {
+  const disabled = useProfileEditingDisabled();
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
   const differentiatorsData = useStore(
@@ -115,6 +127,11 @@ export const ContentCuesForm = ({
   const stakeholdersData = useStore(
     form.store,
     (state: any) => (state.values?.stakeholders || []) as StakeholderRow[],
+  );
+
+  const calendarEventsData = useStore(
+    form.store,
+    (state: any) => (state.values?.calendarEvents || []) as CalendarEventRow[],
   );
 
   const ctaEditor = useProfileItemEditor();
@@ -135,7 +152,73 @@ export const ContentCuesForm = ({
     (name: keyof BusinessInfoFormData) => (next: unknown[]) =>
       form.setFieldValue(name, next);
 
+  const {
+    handleAddRow: handleAddCalendarEventRow,
+    handleRowChange: handleCalendarEventRowChange,
+    handleDeleteRow: handleCalendarEventDeleteRow,
+  } = useAddRowTableState<CalendarEventRow>({
+    data: calendarEventsData,
+    formFieldName: "calendarEvents",
+    setFormFieldValue: (name: string, value: any) =>
+      form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    getCurrentData: () => {
+      const currentState = form.state.values.calendarEvents || [];
+      return currentState as CalendarEventRow[];
+    },
+    emptyRowFactory: () => ({ eventName: "", startDate: null, endDate: null }),
+  });
+
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+
+  const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(
+    () => [
+      {
+        key: "eventName",
+        label: "Upcoming Events",
+        validation: { required: true },
+        width: "50%",
+      },
+      {
+        key: "startDate",
+        label: "Date",
+        validation: {
+          required: true,
+        },
+        width: "50%",
+        render: (
+          _value: any,
+          row: CalendarEventRow,
+          _index: number,
+          helpers,
+        ) => {
+          return (
+            <div className="flex flex-col gap-1">
+              <DateRangePicker
+                disabled={helpers.disabled}
+                startDate={row.startDate}
+                endDate={row.endDate}
+                onChange={(startDate, endDate) => {
+                  helpers.setRowValue("startDate", startDate, {
+                    ...row,
+                    startDate,
+                    endDate,
+                  });
+                }}
+                placeholder="Select date"
+                className="w-full"
+              />
+              {helpers.touched && helpers.error ? (
+                <FieldError className="text-xs mt-0.5">
+                  {helpers.error}
+                </FieldError>
+              ) : null}
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
   const innerContent = (
     <div className="space-y-7">
@@ -336,6 +419,29 @@ export const ContentCuesForm = ({
               getItemTitle={(person) => person.name || "person"}
               emptyMessage="No key people yet. Add the founders, owners, or experts behind the business."
               showAddButton
+            />
+          </div>
+        </CardContent>
+      </Card>
+      <Card variant={cardVariant}>
+        <CardHeader className="">
+          <CardTitle className="text-sm font-medium leading-normal">
+            <FieldLabel className="gap-0 text-sm font-medium leading-normal">
+              Calendar Events
+            </FieldLabel>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full md:w-3/4">
+            <CustomAddRowTable
+              disabled={disabled}
+              columns={calendarEventsColumnsWithHandlers}
+              data={calendarEventsData}
+              onAddRow={handleAddCalendarEventRow}
+              onRowChange={handleCalendarEventRowChange}
+              onDeleteRow={handleCalendarEventDeleteRow}
+              addButtonText="Add Custom Event"
+              variant="card"
             />
           </div>
         </CardContent>

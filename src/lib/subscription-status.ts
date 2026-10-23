@@ -78,6 +78,15 @@ export function hasActiveCoreOrGrowthPlan(
   return planType === "core" || planType === "growth";
 }
 
+export function hasActiveGrowthPlan(
+  subscription?: BusinessSubscription | null,
+  isWhitelisted = false,
+): boolean {
+  if (isWhitelisted || hasWhitelistAccess(subscription)) return true;
+  if (!hasBusinessPlanAccess(subscription)) return false;
+  return subscription?.plan_type?.trim().toLowerCase() === "growth";
+}
+
 export function hasMassicOpportunitiesAccess(
   status?: {
     has_subscription?: boolean;

@@ -59,6 +59,7 @@ import {
 import { getProfileWorkflowActions } from "@/lib/profile-workflow-actions";
 import {
   hasActiveCoreOrGrowthPlan,
+  hasActiveGrowthPlan,
   hasBusinessPlanAccess,
   hasWhitelistAccess,
   resolveBusinessSubscription,
@@ -162,8 +163,11 @@ export default function ProfileTemplate({
   const guardUnlink = useFeatureActionGuard("business.unlink");
   const [saving, setSaving] = useState(false);
   const [checkingPlan, setCheckingPlan] = useState(false);
+  const [checkingCustomerAgent, setCheckingCustomerAgent] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
-  const [planPurpose, setPlanPurpose] = useState<"analysis" | "agent">("analysis");
+  const [planPurpose, setPlanPurpose] = useState<
+    "analysis" | "agent" | "customer-agent"
+  >("analysis");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveConfirm, setSaveConfirm] = useState(false);
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
@@ -189,6 +193,10 @@ export default function ProfileTemplate({
             currentSubscription.plan,
         }
       : null,
+    isWhitelisted,
+  );
+  const hasCustomerAgentAccess = hasActiveGrowthPlan(
+    currentSubscription,
     isWhitelisted,
   );
   const hasBuiltProfile =
@@ -228,22 +236,34 @@ export default function ProfileTemplate({
   const serverProcessing =
     jobDetails?.profile_status === "processing" ||
     isOrchestrationActive(jobDetails);
-  const checkPlanAccess = async (purpose: "analysis" | "agent") => {
+  const checkPlanAccess = async (
+    purpose: "analysis" | "agent" | "customer-agent",
+  ) => {
     if (isWhitelisted) return true;
+    const hasRequiredAccess =
+      purpose === "customer-agent" ? hasCustomerAgentAccess : hasPlanAccess;
     const showPlans = () => {
       setPlanPurpose(purpose);
       setPlanOpen(true);
       return false;
     };
     // Missing or failed reads must be checked, not treated as no plan.
-    if (!hasPlanAccess && subscription.data !== undefined && !subscription.error)
+    if (
+      !hasRequiredAccess &&
+      subscription.data !== undefined &&
+      !subscription.error
+    )
       return showPlans();
     try {
       const latest = await subscription.refetchData();
+      const resolved = resolveBusinessSubscription(
+        latest,
+        businessSubscription,
+      );
       return (
-        hasActiveCoreOrGrowthPlan(
-          resolveBusinessSubscription(latest, businessSubscription),
-        ) || showPlans()
+        (purpose === "customer-agent"
+          ? hasActiveGrowthPlan(resolved)
+          : hasActiveCoreOrGrowthPlan(resolved)) || showPlans()
       );
     } catch (error) {
       toast.error("Couldn't check the business plan", {
@@ -284,6 +304,20 @@ export default function ProfileTemplate({
         }
       : undefined,
   });
+  const openCustomerAgent = async () => {
+    if (operationRef.current || checkingCustomerAgent) return;
+    operationRef.current = true;
+    setCheckingCustomerAgent(true);
+    try {
+      if (!(await checkPlanAccess("customer-agent"))) return;
+      allowNavigation(() =>
+        router.push(`/business/${businessId}/customer-agent`),
+      );
+    } finally {
+      operationRef.current = false;
+      setCheckingCustomerAgent(false);
+    }
+  };
   const externalOperationLocked =
     Boolean(readError) ||
     serverProcessing ||
@@ -657,14 +691,20 @@ export default function ProfileTemplate({
                     type="button"
                     variant="outline"
                     className="gap-2"
-                    onClick={() =>
-                      allowNavigation(() =>
-                        router.push(`/business/${businessId}/customer-agent`),
-                      )
-                    }
+                    disabled={checkingCustomerAgent}
+                    onClick={() => void openCustomerAgent()}
                   >
-                    <Headset className="size-4" aria-hidden="true" />
-                    Customer agent
+                    {checkingCustomerAgent ? (
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Headset className="size-4" aria-hidden="true" />
+                    )}
+                    {checkingCustomerAgent
+                      ? "Checking plan…"
+                      : "Customer agent"}
                   </Button>
                   {onAgentProfileRefresh && (
                     <ProfileAgentButton agent={profileAgent} />
@@ -760,7 +800,9 @@ export default function ProfileTemplate({
         showAlertBar
         alertSeverity="error"
         alertMessage={
-          planPurpose === "agent"
+          planPurpose === "customer-agent"
+            ? "Choose a Growth plan to use the Customer agent."
+            : planPurpose === "agent"
             ? "Choose a Core or Growth plan to use the Profile agent."
             : "Choose a Core or Growth plan to analyze this business."
         }

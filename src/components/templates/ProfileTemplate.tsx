@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   CircleAlert,
   FileText,
+  Headset,
   Loader2,
   RefreshCw,
   Settings,
@@ -650,9 +651,25 @@ export default function ProfileTemplate({
             busyReason="Wait for the current business operation to finish."
             initialFieldsLocked={Boolean(jobDetails?.job_id)}
             customHeaderActions={
-              jobDetails?.job_id &&
-              onAgentProfileRefresh && (
-                <ProfileAgentButton agent={profileAgent} />
+              jobDetails?.job_id && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() =>
+                      allowNavigation(() =>
+                        router.push(`/business/${businessId}/customer-agent`),
+                      )
+                    }
+                  >
+                    <Headset className="size-4" aria-hidden="true" />
+                    Customer agent
+                  </Button>
+                  {onAgentProfileRefresh && (
+                    <ProfileAgentButton agent={profileAgent} />
+                  )}
+                </>
               )
             }
             trailingHeaderActions={

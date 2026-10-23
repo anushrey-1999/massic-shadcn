@@ -1,26 +1,29 @@
-import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type {
   CustomerAgentConfig,
   CustomerAgentUpdate,
-  InstallStatus,
-  WidgetSession,
+  VisitorCredits,
+  VisitorSiteKey,
 } from "@/types/customer-agent";
 
 type ConfigResponse = { config: CustomerAgentConfig };
-type SessionResponse = { session: WidgetSession };
 
 const basePath = (businessId: string) => `/customer-agent/${businessId}`;
 const configKey = (businessId: string) => ["customerAgent", businessId, "config"];
-const installStatusKey = (businessId: string) => ["customerAgent", businessId, "installStatus"];
-
-const INSTALL_POLL_MS = 15_000;
+export const visitorCreditsKey = (businessId: string) =>
+  ["massic-agent", businessId, "credits", "visitor"] as const;
+export const visitorSiteKey = (businessId: string) =>
+  ["massic-agent", businessId, "site-key", "visitor"] as const;
 
 function errorMessage(error: unknown) {
   const apiMessage = (error as any)?.response?.data?.message;
   return apiMessage || (error as Error)?.message || "Please try again.";
+}
+
+function errorStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } })?.response?.status;
 }
 
 export function useCustomerAgent(businessId: string) {
@@ -47,7 +50,7 @@ export function useCustomerAgent(businessId: string) {
       const response = await api.patch<ConfigResponse>(
         `${basePath(businessId)}/config`,
         "node",
-        changes
+        changes,
       );
       return response.config;
     },
@@ -60,47 +63,85 @@ export function useCustomerAgent(businessId: string) {
     },
   });
 
-  const rotateKey = useMutation<CustomerAgentConfig, Error, void>({
-    mutationFn: async () => {
-      const response = await api.post<ConfigResponse>(`${basePath(businessId)}/rotate-key`, "node");
-      return response.config;
-    },
-    onSuccess: (config) => {
-      queryClient.setQueryData(queryKey, config);
-      toast.success("Site key rotated", {
-        description: "Update the snippet on your website to keep the agent running.",
-      });
-    },
-    onError: (error) => {
-      toast.error("Couldn't rotate the site key", { description: errorMessage(error) });
-    },
-  });
-
   return {
     config: query.data,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
     update,
-    rotateKey,
   };
 }
 
-/** Polls while the snippet hasn't been seen on any allowed domain yet. */
-export function useCustomerAgentInstallStatus(businessId: string, enabled: boolean) {
-  return useQuery<InstallStatus>({
-    queryKey: installStatusKey(businessId),
-    queryFn: () => api.get<InstallStatus>(`${basePath(businessId)}/install-status`, "node"),
-    enabled: Boolean(businessId) && enabled,
-    refetchInterval: (query) => (query.state.data?.installs.length ? false : INSTALL_POLL_MS),
+export function useVisitorAgentInstall(businessId: string) {
+  const queryClient = useQueryClient();
+  const credits = useQuery<VisitorCredits>({
+    queryKey: visitorCreditsKey(businessId),
+    queryFn: () =>
+      api.get<VisitorCredits>("/agent/admin/credits", "python", {
+        params: { business_id: businessId, audience: "visitor" },
+      }),
+    enabled: Boolean(businessId),
+    retry: false,
     refetchOnWindowFocus: true,
   });
-}
-
-/** Owner-scoped session for "Test your agent": skips the domain check. */
-export function useCustomerAgentTestSession(businessId: string) {
-  return useCallback(async () => {
-    const response = await api.post<SessionResponse>(`${basePath(businessId)}/test-session`, "node");
-    return response.session;
-  }, [businessId]);
+  const siteKey = useQuery<VisitorSiteKey | null>({
+    queryKey: visitorSiteKey(businessId),
+    queryFn: async () => {
+      try {
+        return await api.get<VisitorSiteKey>("/agent/visitor/site-key", "python", {
+          params: { business_id: businessId },
+        });
+      } catch (error) {
+        if (errorStatus(error) === 404) return null;
+        throw error;
+      }
+    },
+    enabled: Boolean(businessId),
+    retry: false,
+  });
+  const grant = useMutation<VisitorCredits, Error, boolean>({
+    mutationFn: (enabled) =>
+      api.put<VisitorCredits>(
+        "/agent/admin/credits/grant",
+        "python",
+        { enabled },
+        { params: { business_id: businessId, audience: "visitor" } },
+      ),
+    onSuccess: async (next) => {
+      queryClient.setQueryData(visitorCreditsKey(businessId), next);
+      await queryClient.invalidateQueries({ queryKey: visitorSiteKey(businessId) });
+      toast.success(next.enabled ? "Visitor agent enabled" : "Visitor agent disabled", {
+        description: next.enabled
+          ? "Your site key is ready to install."
+          : "Your site key is preserved for when you enable it again.",
+      });
+    },
+    onError: (error) => {
+      const status = errorStatus(error);
+      toast.error("Couldn't update visitor access", {
+        description:
+          status === 409
+            ? "Complete the business profile before enabling the visitor agent."
+            : errorMessage(error),
+      });
+    },
+  });
+  const regenerate = useMutation<VisitorSiteKey, Error, void>({
+    mutationFn: () =>
+      api.post<VisitorSiteKey>(
+        "/agent/visitor/site-key/regenerate",
+        "python",
+        undefined,
+        { params: { business_id: businessId } },
+      ),
+    onSuccess: (next) => {
+      queryClient.setQueryData(visitorSiteKey(businessId), next);
+      toast.success("Site key regenerated", {
+        description: "Replace the old key in your website snippet.",
+      });
+    },
+    onError: (error) =>
+      toast.error("Couldn't regenerate the site key", { description: errorMessage(error) }),
+  });
+  return { credits, siteKey, grant, regenerate };
 }

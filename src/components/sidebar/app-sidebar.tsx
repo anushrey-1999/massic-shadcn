@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
+import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -705,7 +705,7 @@ export default function AppSidebar() {
                                     if (subItem.slug === 'analytics') {
                                       isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
                                     } else if (subItem.slug === 'profile') {
-                                      isActive = pathname === subItemHref
+                                      isActive = isBusinessProfileRoute(pathname, business.UniqueId)
                                     } else {
                                       isActive = pathname.startsWith(itemBasePath)
                                     }
@@ -793,7 +793,7 @@ export default function AppSidebar() {
                 if (subItem.slug === 'analytics') {
                   isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
                 } else if (subItem.slug === 'profile') {
-                  isActive = pathname === subItemHref
+                  isActive = isBusinessProfileRoute(pathname, business.UniqueId)
                 } else {
                   isActive = pathname.startsWith(subItemHref)
                 }

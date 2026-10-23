@@ -68,9 +68,10 @@ export function usePlannerChat(
         queryKey: agentKeys.plans(business),
       });
       for (const part of message.widgetParts ?? [])
-        void queryClient.invalidateQueries({
-          queryKey: agentKeys.plan(business, part.resource.id),
-        });
+        if (part.widget === "resource_table")
+          void queryClient.invalidateQueries({
+            queryKey: agentKeys.plan(business, part.resource.id),
+          });
     },
   });
   const plan = (supportsPlans && plans[chat.activeKey]) || emptyPlanDraft();

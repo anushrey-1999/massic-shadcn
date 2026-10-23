@@ -8,24 +8,8 @@ const WIDGET_BASE_URL = (
 export const WIDGET_ORIGIN = new URL(WIDGET_BASE_URL).origin;
 export const WIDGET_FRAME_URL = `${WIDGET_BASE_URL}/frame.html`;
 
-export function installSnippet(siteKey: string): string {
-  return `<script async src="${WIDGET_BASE_URL}/loader.js" data-site-key="${siteKey}"></script>`;
-}
-
-const ORIGIN_PATTERN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/;
-
-/**
- * Normalizes user input to an exact HTTPS origin (`https://shop.example.com`).
- * A wildcard subdomain is kept only when typed explicitly (`https://*.example.com`).
- */
-export function parseDomain(input: string): { origin: string } | { error: string } {
-  let value = input.trim().toLowerCase();
-  if (!value) return { error: "Enter a domain." };
-  if (value.startsWith("http://")) return { error: "Use an https:// address." };
-  if (!value.startsWith("https://")) value = `https://${value}`;
-  const origin = value.replace(/^(https:\/\/[^/?#]+).*$/, "$1");
-  if (!ORIGIN_PATTERN.test(origin)) return { error: "Enter a domain like example.com." };
-  return { origin };
+export function installSnippet(siteId: string, siteKey: string): string {
+  return `<script async src="${WIDGET_BASE_URL}/loader.js" data-site-id="${siteId}" data-site-key="${siteKey}"></script>`;
 }
 
 function luminance(hex: string): number {
@@ -43,22 +27,23 @@ export function accentContrast(accent: string): number {
   return Math.max(1.05 / (l + 0.05), (l + 0.05) / (luminance("#111113") + 0.05));
 }
 
-export function pickAppearance({ theme, content, visibility }: CustomerAgentConfig): AppearanceValues {
-  return { theme, content, visibility };
+export function pickAppearance({ appearance }: CustomerAgentConfig): AppearanceValues {
+  return appearance;
 }
 
 /**
  * Public widget config the frame renders, built from saved facts plus unsaved appearance edits.
- * The widget reads action links from `business`, so the Behavior-owned links are merged in, as the gateway does.
  */
 export function previewConfig(config: CustomerAgentConfig, appearance: AppearanceValues) {
   return {
     site_id: config.site_id,
-    enabled: true,
     business: {
-      ...config.business,
-      booking_url: config.behavior.booking_url,
-      quote_url: config.behavior.quote_url,
+      name: config.business.name,
+      logo_url: config.business.logo_url,
+      phone: config.business.phone,
+      email: config.business.email,
+      booking_url: null,
+      quote_url: null,
     },
     ...appearance,
   };

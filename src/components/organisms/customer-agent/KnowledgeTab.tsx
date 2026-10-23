@@ -1,238 +1,219 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { FileText, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { FileDropzone } from "@/components/molecules/FileDropzone";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BorderBeam } from "@/components/ui/border-beam";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { BookOpenText, Loader2, MessageSquareText } from "lucide-react";
+import { AgentMarkdown } from "@/components/massic-agent/agent-markdown";
+import markdownStyles from "@/components/massic-agent/agent.module.css";
 import { Button } from "@/components/ui/button";
-import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
-import { Textarea } from "@/components/ui/textarea";
-import { FieldRow } from "./controls";
-import { Section } from "./Section";
+import { api } from "@/hooks/use-api";
+import {
+  AgentAttachmentControls,
+  AgentAttachmentsProvider,
+} from "@/components/massic-agent/agent-attachments";
+import { AgentChatFeedback } from "@/components/massic-agent/agent-chat-feedback";
+import { AgentChatThread } from "@/components/massic-agent/agent-chat-thread";
+import { AgentComposer } from "@/components/massic-agent/agent-composer";
+import { errorMessage, getLatestThread } from "@/components/massic-agent/agent-api";
+import { attachmentsReady } from "@/components/massic-agent/agent-uploads";
+import { useAgentChat } from "@/components/massic-agent/use-agent-chat";
 
-const FILE_EXTENSIONS = ["pdf", "docx", "txt", "md", "csv"] as const;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const DOCUMENTS_MAX = 20;
-const CONTEXT_MAX = 2000;
-const SIMULATED_CRAWL_MS = 2500;
-const SIMULATED_UPLOAD_STEP_MS = 150;
-const SIMULATED_SAVE_MS = 600;
+type Playbook = {
+  business_id?: string;
+  doc_type?: string;
+  content: string;
+  version: number;
+  updated_at?: string | null;
+};
 
-type LocalDocument = { id: string; name: string; sizeBytes: number; addedAt: Date; progress: number | null };
+const playbookKey = (businessId: string) =>
+  ["massic-agent", businessId, "document", "receptionist_playbook"] as const;
 
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+async function getPlaybook(businessId: string): Promise<Playbook> {
+  try {
+    return await api.get<Playbook>("/agent/docs/receptionist_playbook", "python", {
+      params: { business_id: businessId },
+    });
+  } catch (error) {
+    if ((error as { response?: { status?: number } })?.response?.status === 404)
+      return { content: "", version: 0 };
+    throw error;
+  }
 }
 
-/** Timers that are cleared when the tab unmounts, so simulated work never updates a gone component. */
-function useTimers() {
-  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
-  useEffect(() => {
-    const active = timers.current;
-    return () => active.forEach(clearTimeout);
-  }, []);
-  return useCallback((callback: () => void, ms: number) => {
-    const id = setTimeout(() => {
-      timers.current.delete(id);
-      callback();
-    }, ms);
-    timers.current.add(id);
-  }, []);
-}
-
-/**
- * Knowledge controls in preview: crawl, extra context and documents behave as they will once
- * knowledge sync ships, but live only in this page and reset on reload.
- */
 export function KnowledgeTab({ businessId }: { businessId: string }) {
-  const schedule = useTimers();
-
-  return (
-    <div className="max-w-[752px] space-y-4 pb-6">
-      <Alert variant="info">
-        <AlertTitle>Knowledge sync is coming soon</AlertTitle>
-        <AlertDescription>You can try these controls now. Changes here aren&apos;t saved yet.</AlertDescription>
-      </Alert>
-      <WebsiteSection schedule={schedule} />
-      <ContextSection schedule={schedule} />
-      <DocumentsSection schedule={schedule} />
-      <Section
-        title="Key facts"
-        description="Your agent answers from your Profile details first. Edit them in one place, on your Profile."
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/business/${businessId}/profile`}>Edit in Profile</Link>
-          </Button>
-        }
-      >
-        <p className="text-sm text-general-muted-foreground">
-          Keep your hours, services and service area up to date so the agent can answer accurately.
-        </p>
-      </Section>
-    </div>
-  );
-}
-
-type Schedule = ReturnType<typeof useTimers>;
-
-function WebsiteSection({ schedule }: { schedule: Schedule }) {
-  const [crawling, setCrawling] = useState(false);
-  const [lastCrawledAt, setLastCrawledAt] = useState<Date | null>(null);
-
-  const recrawl = () => {
-    setCrawling(true);
-    schedule(() => {
-      setCrawling(false);
-      setLastCrawledAt(new Date());
-      toast.success("Site read", { description: "Preview only. Your pages will be indexed once knowledge sync ships." });
-    }, SIMULATED_CRAWL_MS);
-  };
-
-  return (
-    <Section
-      title="Website"
-      description="Your agent reads the public pages on your site."
-      action={
-        <Button variant="outline" size="sm" onClick={recrawl} disabled={crawling}>
-          {crawling ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-          Re-crawl
-        </Button>
-      }
-    >
-      {crawling ? (
-        <div className="relative flex items-center gap-3 rounded-lg border border-general-border bg-general-primary-foreground px-3 py-3">
-          <BorderBeam durationSeconds={4} />
-          <MassicAmoebaLoader size={20} label="Reading your site" />
-          <p className="text-sm font-medium text-general-foreground">Reading your site</p>
-        </div>
-      ) : (
-        <p className="text-sm text-general-muted-foreground">
-          {lastCrawledAt
-            ? `Last read ${formatDistanceToNow(lastCrawledAt, { addSuffix: true })}`
-            : "Not crawled yet"}
-        </p>
-      )}
-    </Section>
-  );
-}
-
-function ContextSection({ schedule }: { schedule: Schedule }) {
-  const [saved, setSaved] = useState("");
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const isDirty = draft.trim() !== saved;
-
-  const save = () => {
-    setSaving(true);
-    schedule(() => {
-      setSaving(false);
-      setSaved(draft.trim());
-      setDraft(draft.trim());
-      toast.success("Context updated", { description: "Preview only. It isn't saved yet." });
-    }, SIMULATED_SAVE_MS);
-  };
-
-  return (
-    <Section
-      title="Extra context"
-      description="Anything your website doesn't say: seasonal offers, policies, how you like to handle requests."
-    >
-      <FieldRow label="Context" htmlFor="knowledge-context" hint={`${draft.length}/${CONTEXT_MAX} characters`}>
-        <Textarea
-          id="knowledge-context"
-          rows={5}
-          maxLength={CONTEXT_MAX}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="We offer free estimates within 20 miles. Emergency calls are answered 24/7."
-        />
-      </FieldRow>
-      <div className="mt-3 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={() => setDraft(saved)} disabled={!isDirty || saving}>
-          Discard
-        </Button>
-        <Button size="sm" onClick={save} disabled={!isDirty || saving}>
-          {saving && <Loader2 className="size-4 animate-spin" />}
-          {saving ? "Saving…" : "Save context"}
-        </Button>
-      </div>
-    </Section>
-  );
-}
-
-function DocumentsSection({ schedule }: { schedule: Schedule }) {
-  const [documents, setDocuments] = useState<LocalDocument[]>([]);
-  const slots = DOCUMENTS_MAX - documents.length;
-
-  const setProgress = (id: string, progress: number | null) =>
-    setDocuments((items) => items.map((item) => (item.id === id ? { ...item, progress } : item)));
-
-  const simulateUpload = (id: string, progress = 0) => {
-    if (progress >= 100) {
-      setProgress(id, null);
-      return;
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [confirmedThread, setConfirmedThread] = useState<string>();
+  const [lookupPending, setLookupPending] = useState(true);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const playbook = useQuery({
+    queryKey: playbookKey(businessId),
+    queryFn: () => getPlaybook(businessId),
+    retry: false,
+  });
+  const loadLatestThread = async (signal?: AbortSignal) => {
+    setLookupPending(true);
+    setLookupError(null);
+    try {
+      const thread = await getLatestThread(businessId, "trainer", signal);
+      if (signal?.aborted || !mounted.current) return;
+      setThreadId(thread?.thread_id ?? null);
+      setConfirmedThread(thread?.thread_id);
+    } catch (error) {
+      if (!signal?.aborted && mounted.current) setLookupError(errorMessage(error));
+    } finally {
+      if (!signal?.aborted && mounted.current) setLookupPending(false);
     }
-    setProgress(id, progress);
-    schedule(() => simulateUpload(id, progress + 20), SIMULATED_UPLOAD_STEP_MS);
   };
+  useEffect(() => {
+    mounted.current = true;
+    const controller = new AbortController();
+    void loadLatestThread(controller.signal);
+    return () => {
+      mounted.current = false;
+      controller.abort();
+    };
+    // The business-scoped tab remounts when businessId changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId]);
 
-  const addFiles = (files: File[]) => {
-    const added = files.slice(0, Math.max(0, slots)).map((file) => ({
-      id: crypto.randomUUID(),
-      name: file.name,
-      sizeBytes: file.size,
-      addedAt: new Date(),
-      progress: 0,
-    }));
-    setDocuments((items) => [...added, ...items]);
-    added.forEach((document) => simulateUpload(document.id));
-  };
+  const chat = useAgentChat(businessId, {
+    agentId: "trainer",
+    tag: "trainer",
+    threadId,
+    confirmedThread,
+    enabled: !lookupPending && !lookupError,
+    onThreadChange: (thread) => {
+      setThreadId(thread);
+      setConfirmedThread(thread ?? undefined);
+    },
+    onTurnEnd: (message) => {
+      const playbookChanged = message.widgetParts?.some(
+        (part) =>
+          part.widget === "document" &&
+          part.resource.type === "receptionist_playbook",
+      );
+      if (playbookChanged) void playbook.refetch();
+    },
+  });
+  const loadingMessages =
+    !!chat.conversation && chat.history.messages.isLoading && !chat.messages.length;
+  const blocked =
+    lookupPending ||
+    !!lookupError ||
+    loadingMessages ||
+    chat.history.messages.isError ||
+    !chat.knownThread ||
+    !!chat.recovery;
 
   return (
-    <Section title="Documents" description="Price lists, FAQs and policies your website doesn't cover.">
-      <FileDropzone
-        accept={FILE_EXTENSIONS}
-        maxBytes={MAX_FILE_BYTES}
-        onFiles={addFiles}
-        disabled={slots <= 0}
-        hint={slots <= 0 ? `You've reached ${DOCUMENTS_MAX} documents. Remove one to add another.` : undefined}
-      />
-
-      {documents.length > 0 && (
-        <ul className="mt-3 divide-y divide-general-border rounded-lg border border-general-border">
-          {documents.map((document) => (
-            <li key={document.id} className="flex min-h-12 items-center gap-3 px-3 py-2">
-              {document.progress === null ? (
-                <FileText className="size-4 shrink-0 text-general-muted-foreground" aria-hidden />
-              ) : (
-                <Loader2 className="size-4 shrink-0 animate-spin text-general-muted-foreground" aria-hidden />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-general-foreground">{document.name}</p>
-                <p className="truncate text-xs text-general-muted-foreground tabular-nums">
-                  {document.progress === null
-                    ? `${formatSize(document.sizeBytes)} · added ${formatDistanceToNow(document.addedAt, { addSuffix: true })}`
-                    : `Uploading ${document.progress}%`}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${document.name}`}
-                disabled={document.progress !== null}
-                onClick={() => setDocuments((items) => items.filter((item) => item.id !== document.id))}
-              >
-                <Trash2 className="size-4" />
+    <AgentAttachmentsProvider business={businessId}>
+      <div className="grid min-h-[620px] gap-4 pb-6 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+      <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg border border-general-border bg-background shadow-xs lg:min-h-0">
+        <header className="shrink-0 border-b border-general-border px-4 py-3">
+          <h2 className="text-sm font-medium text-general-foreground">Train your customer agent</h2>
+        </header>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {lookupPending || loadingMessages ? (
+            <div role="status" className="flex flex-1 items-center justify-center gap-2 text-sm text-general-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading trainer…
+            </div>
+          ) : lookupError ? (
+            <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm text-destructive">{lookupError}</p>
+              <Button variant="outline" size="sm" onClick={() => void loadLatestThread()}>
+                Try again
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
+            </div>
+          ) : chat.history.messages.isError ? (
+            <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm text-destructive">{errorMessage(chat.history.messages.error)}</p>
+              <Button variant="outline" size="sm" onClick={() => void chat.history.messages.refetch()}>
+                Reload conversation
+              </Button>
+            </div>
+          ) : chat.messages.length ? (
+            <AgentChatThread
+              key={chat.presentationKey}
+              messages={chat.messages}
+              streaming={Boolean(chat.runningKey)}
+              activeResource={null}
+              onOpenPlan={() => {}}
+              onOpenCitations={() => {}}
+              hasMore={chat.history.messages.hasNextPage}
+              loadingMore={chat.history.messages.isFetchingNextPage}
+              onLoadMore={() => void chat.history.messages.fetchNextPage()}
+            />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+              <MessageSquareText className="size-6 text-general-muted-foreground" />
+              <p className="text-sm font-medium text-general-foreground">What should your customer agent know?</p>
+              <p className="max-w-sm text-sm text-general-muted-foreground">
+                Share services, policies, common questions, or how visitor requests should be handled.
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 space-y-2 border-t border-general-border px-4 py-3">
+          <AgentChatFeedback chat={chat} />
+          <AgentComposer
+            value={chat.draft.input}
+            onChange={(input) => chat.updateDraft({ input })}
+            onSend={() => void chat.send()}
+            onStop={() => void chat.stop()}
+            streaming={Boolean(chat.runningKey)}
+            stopping={chat.stopping}
+            disabled={blocked}
+            sendDisabled={!attachmentsReady(chat.draft.attachments)}
+            focusKey={chat.presentationKey}
+            placeholder="Teach the trainer about your business"
+            label="Message trainer"
+            attachments={
+              <AgentAttachmentControls
+                files={chat.draft.attachments}
+                disabled={Boolean(chat.runningKey) || blocked}
+                onAdd={chat.addFiles}
+                onRemove={chat.removeFile}
+                onRetry={chat.retryFile}
+              />
+            }
+          />
+        </div>
+      </section>
+
+      <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-general-border bg-background shadow-xs lg:min-h-0">
+        <header className="shrink-0 border-b border-general-border px-4 py-3">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-general-foreground">
+            <BookOpenText className="size-4" />
+            Latest playbook
+          </h2>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {playbook.isLoading ? (
+            <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-general-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading playbook…
+            </div>
+          ) : playbook.isError ? (
+            <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <p className="text-sm text-destructive">{errorMessage(playbook.error)}</p>
+              <Button variant="outline" size="sm" onClick={() => void playbook.refetch()}>Try again</Button>
+            </div>
+          ) : playbook.data?.content.trim() ? (
+            <div className={`${markdownStyles.markdown} min-w-0 break-words text-sm text-general-foreground`}>
+              <AgentMarkdown content={playbook.data.content} tableLabel="Customer agent playbook table" />
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <BookOpenText className="size-6 text-general-muted-foreground" />
+              <p className="text-sm font-medium text-general-foreground">No playbook yet</p>
+            </div>
+          )}
+        </div>
+      </section>
+      </div>
+    </AgentAttachmentsProvider>
   );
 }

@@ -6,7 +6,6 @@ import { EmptyState } from "@/components/molecules/EmptyState";
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { AppearanceTab } from "@/components/organisms/customer-agent/AppearanceTab";
-import { BehaviorTab } from "@/components/organisms/customer-agent/BehaviorTab";
 import { InstallTab } from "@/components/organisms/customer-agent/InstallTab";
 import { KnowledgeTab } from "@/components/organisms/customer-agent/KnowledgeTab";
 import { useUnsavedChangesContext } from "@/components/providers/unsaved-changes-provider";
@@ -17,7 +16,6 @@ import { useCustomerAgent } from "@/hooks/use-customer-agent";
 const TABS = [
   { value: "install", label: "Install" },
   { value: "appearance", label: "Appearance" },
-  { value: "behavior", label: "Behavior" },
   { value: "knowledge", label: "Knowledge" },
 ] as const;
 
@@ -91,13 +89,14 @@ export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgen
           ))}
         </TabsList>
         <TabsContent value="install" className="mt-4 min-h-0 flex-1 overflow-auto">
-          <InstallTab businessId={businessId} config={agent.config} update={agent.update} rotateKey={agent.rotateKey} />
+          <InstallTab businessId={businessId} config={agent.config} />
         </TabsContent>
         <TabsContent value="appearance" className="mt-4 min-h-0 flex-1 overflow-hidden">
-          <AppearanceTab businessId={businessId} config={agent.config} update={agent.update} />
-        </TabsContent>
-        <TabsContent value="behavior" className="mt-4 min-h-0 flex-1 overflow-auto">
-          <BehaviorTab businessId={businessId} config={agent.config} update={agent.update} />
+          <AppearanceTab
+            businessId={businessId}
+            config={agent.config}
+            update={agent.update}
+          />
         </TabsContent>
         <TabsContent value="knowledge" className="mt-4 min-h-0 flex-1 overflow-auto">
           <KnowledgeTab businessId={businessId} />

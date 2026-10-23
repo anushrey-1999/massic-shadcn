@@ -5,7 +5,6 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -50,7 +49,11 @@ const toLines = (items: string[]) => items.join("\n");
 const fromLines = (text: string) => text.split("\n");
 const toInt = (text: string) => Math.max(0, Math.trunc(Number(text) || 0));
 
-export function AppearanceTab({ businessId, config, update }: AppearanceTabProps) {
+export function AppearanceTab({
+  businessId,
+  config,
+  update,
+}: AppearanceTabProps) {
   const savedRef = useRef(pickAppearance(config));
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -60,7 +63,7 @@ export function AppearanceTab({ businessId, config, update }: AppearanceTabProps
     onSubmit: async ({ value }) => {
       const next = normalize(value);
       try {
-        await update.mutateAsync({ changes: next, successMessage: "Appearance saved" });
+        await update.mutateAsync({ changes: { appearance: next }, successMessage: "Appearance saved" });
       } catch {
         return;
       }
@@ -287,36 +290,6 @@ export function AppearanceTab({ businessId, config, update }: AppearanceTabProps
                 )}
               </div>
 
-              <FieldRow label="Quick actions">
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  {(
-                    [
-                      { key: "call", label: "Call", available: Boolean(business.phone), missing: "Add a phone number to your Profile" },
-                      { key: "book", label: "Book", available: Boolean(config.behavior.booking_url), missing: "Add a booking link in Behavior" },
-                      { key: "quote", label: "Get a quote", available: true, missing: "" },
-                    ] as const
-                  ).map((action) => (
-                    <form.Field key={action.key} name={`content.quick_actions.${action.key}`}>
-                      {(field) => (
-                        <label
-                          className="flex items-center gap-2 text-sm text-general-foreground"
-                          title={action.available ? undefined : action.missing}
-                        >
-                          <Checkbox
-                            checked={field.state.value && action.available}
-                            disabled={!action.available}
-                            onCheckedChange={(checked) => field.handleChange(checked === true)}
-                          />
-                          <span className={action.available ? undefined : "text-general-muted-foreground"}>
-                            {action.label}
-                          </span>
-                        </label>
-                      )}
-                    </form.Field>
-                  ))}
-                </div>
-              </FieldRow>
-
               <div className="space-y-3">
                 <form.Field name="content.teaser.enabled">
                   {(field) => (
@@ -427,7 +400,8 @@ export function AppearanceTab({ businessId, config, update }: AppearanceTabProps
       <PreviewPanel
         businessId={businessId}
         config={widgetConfig}
-        pageUrl={config.domains[0] ?? "https://example.com"}
+        siteId={config.site_id}
+        pageUrl={config.business.website || "https://example.com"}
         showDeviceToggle
       />
     </div>

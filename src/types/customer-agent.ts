@@ -70,42 +70,6 @@ export type WidgetContent = z.infer<typeof widgetContentSchema>;
 export type VisibilityRules = z.infer<typeof visibilitySchema>;
 export type AppearanceValues = z.infer<typeof appearanceSchema>;
 
-export const AGENT_TONES = ["friendly", "professional", "concise"] as const;
-export const AGENT_GOALS = ["book", "call", "quote"] as const;
-const optionalHttpsUrl = z
-  .string()
-  .trim()
-  .max(2048, "Use a shorter link.")
-  .regex(/^https:\/\/[^\s/$.?#][^\s]*$/i, "Use a full https:// link.")
-  .nullable();
-
-export const behaviorSchema = z
-  .object({
-    tone: z.enum(AGENT_TONES),
-    goal: z.enum(AGENT_GOALS),
-    booking_url: optionalHttpsUrl,
-    quote_url: optionalHttpsUrl,
-    topics_to_avoid: z.array(z.string().trim().min(1).max(120, "Keep each topic under 120 characters.")).max(20),
-    escalation: z.object({
-      on_request: z.boolean(),
-      on_low_confidence: z.boolean(),
-      on_complaint: z.boolean(),
-      instructions: z.string().max(500, "Use 500 characters or fewer."),
-    }),
-  })
-  .refine((behavior) => behavior.goal !== "book" || Boolean(behavior.booking_url), {
-    path: ["booking_url"],
-    message: "Add a booking link to make booking the main goal.",
-  });
-
-export const behaviorFormSchema = z.object({
-  behavior: behaviorSchema,
-});
-
-export type AgentTone = (typeof AGENT_TONES)[number];
-export type AgentGoal = (typeof AGENT_GOALS)[number];
-export type BehaviorValues = z.infer<typeof behaviorFormSchema>;
-
 /** Read-only business facts the widget shows; owned by the business Profile. */
 export type CustomerAgentBusiness = {
   name: string;
@@ -116,29 +80,29 @@ export type CustomerAgentBusiness = {
   website?: string | null;
 };
 
-export type CustomerAgentConfig = AppearanceValues &
-  BehaviorValues & {
-    site_id: string;
-    site_key: string;
-    enabled: boolean;
-    domains: string[];
-    business: CustomerAgentBusiness;
-  };
-
-export type CustomerAgentUpdate = Partial<
-  Pick<
-    CustomerAgentConfig,
-    "enabled" | "domains" | "theme" | "content" | "visibility" | "behavior"
-  >
->;
-
-export type InstallStatus = {
-  installs: { origin: string; last_seen_at: string }[];
+export type CustomerAgentConfig = {
+  site_id: string;
+  business: CustomerAgentBusiness;
+  appearance: AppearanceValues;
 };
 
-export type WidgetSession = {
-  token: string;
-  expires_at: string;
-  visitor_id: string;
-  conversation_id: string | null;
+export type CustomerAgentUpdate = {
+  appearance: Partial<AppearanceValues>;
+};
+
+export type VisitorCredits = {
+  business_id: string;
+  audience: "visitor";
+  balance_usd: number;
+  total_spent_usd: number;
+  enabled: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type VisitorSiteKey = {
+  business_id: string;
+  key: string;
+  created_at: string;
+  updated_at: string;
 };

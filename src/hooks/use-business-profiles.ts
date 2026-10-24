@@ -106,7 +106,7 @@ export function useBusinessProfiles() {
         return [];
       }
 
-      const parsedProfiles = await fetchBusinessProfiles(userUniqueId);
+      const parsedProfiles = await fetchBusinessProfiles(userUniqueId, false);
       setBusinessProfiles(parsedProfiles);
       return parsedProfiles;
     },
@@ -686,13 +686,13 @@ export function useCreateBusiness() {
         return matches.length === 1 ? acceptCandidate(matches[0]) : null;
       };
 
-      // Prefer pitch-scoped diff when creating a pitch, then the all-business diff.
+      // Only resolve from the list for the requested type. The default list
+      // contains live businesses, so it cannot identify a newly created pitch.
       const createdBusiness: BusinessProfile | null =
         createdFromResponse ??
         (formData.isPitch === true
           ? pickCreatedFromLists(updatedPitchProfiles, beforePitchIds)
-          : null) ??
-        pickCreatedFromLists(updatedProfiles, beforeAllIds);
+          : pickCreatedFromLists(updatedProfiles, beforeAllIds));
 
       if (!createdBusiness?.UniqueId) {
         // Fail safe: returning the wrong business here can overwrite a real profile.
@@ -712,7 +712,12 @@ export function useCreateBusiness() {
           ? profiles
           : [...profiles, created];
 
-      const nextProfiles = includeCreated(updatedProfiles, createdBusiness);
+      // Pitches belong exclusively to pitchBusinesses. Adding one here makes
+      // it appear in the main sidebar until the next server refetch.
+      const liveProfiles = updatedProfiles.filter((profile) => profile.IsPitch !== true);
+      const nextProfiles = formData.isPitch === true
+        ? liveProfiles.filter((profile) => profile.UniqueId !== createdBusiness.UniqueId)
+        : includeCreated(liveProfiles, createdBusiness);
       const { setBusinessProfiles } = useBusinessStore.getState();
       setBusinessProfiles(nextProfiles);
       queryClient.setQueryData(

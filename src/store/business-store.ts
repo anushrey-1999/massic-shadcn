@@ -55,6 +55,7 @@ export interface BusinessProfile {
   /** Set by the profile flow when the business explicitly has no physical locations. */
   NoLocationExist?: boolean;
   IsActive?: boolean;
+  IsPitch?: boolean;
   isWhitelisted?: boolean;
   GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;

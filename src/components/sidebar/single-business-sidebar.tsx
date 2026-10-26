@@ -392,7 +392,7 @@ export default function SingleBusinessSidebar() {
               isActive={isBusinessProfileRoute(pathname, business.UniqueId)}
               isCollapsed={isCollapsed}
             />
-            {!isCollapsed && (
+            {!isCollapsed && isBusinessProfileRoute(pathname, business.UniqueId) && (
               <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                 {[
                   { label: 'Profile', slug: 'profile' },

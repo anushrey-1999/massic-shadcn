@@ -84,6 +84,10 @@ export type CustomerAgentConfig = {
   site_id: string;
   business: CustomerAgentBusiness;
   appearance: AppearanceValues;
+  install: {
+    last_seen_at: string | null;
+    last_seen_origin: string | null;
+  };
 };
 
 export type CustomerAgentUpdate = {

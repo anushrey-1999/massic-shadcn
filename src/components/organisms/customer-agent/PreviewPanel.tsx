@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, MessageSquareText } from "lucide-react";
+import { Loader2, MessageSquareText, Monitor, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVisitorAgentInstall } from "@/hooks/use-customer-agent";
 import { cn } from "@/lib/utils";
@@ -43,8 +43,16 @@ export function PreviewPanel({
             value={layout}
             onChange={setLayout}
             options={[
-              { value: "panel", label: "Desktop" },
-              { value: "sheet", label: "Mobile" },
+              {
+                value: "panel",
+                label: <Monitor className="size-4" aria-hidden />,
+                ariaLabel: "Desktop preview",
+              },
+              {
+                value: "sheet",
+                label: <Smartphone className="size-4" aria-hidden />,
+                ariaLabel: "Mobile preview",
+              },
             ]}
           />
         </div>

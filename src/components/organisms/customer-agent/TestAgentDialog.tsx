@@ -29,7 +29,7 @@ function testPageContext(url: string) {
   return {
     url,
     canonical: null,
-    title: "Customer agent test",
+    title: "Customer Agent test",
     description: null,
     h1: null,
     lang: "en",

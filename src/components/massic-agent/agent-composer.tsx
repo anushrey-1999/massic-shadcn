@@ -24,6 +24,7 @@ export type AgentComposerProps = {
   sendDisabled?: boolean;
   focusKey: string;
   centered?: boolean;
+  hideKeyboardHint?: boolean;
   placeholder?: string;
   label?: string;
   context?: ReactNode;
@@ -144,7 +145,7 @@ export function AgentComposer(p: AgentComposerProps) {
         </div>
         {p.attachments}
       </div>
-      {!p.centered && (
+      {!p.centered && !p.hideKeyboardHint && (
         <p className="mt-1.5 hidden px-1 text-right text-[10px] leading-[1.5] text-general-muted-foreground sm:block">
           Enter to send · Shift + Enter for a new line
         </p>

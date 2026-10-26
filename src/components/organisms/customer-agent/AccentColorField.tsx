@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { accentContrast } from "@/lib/customer-agent";
 import { cn } from "@/lib/utils";
 
-const SWATCHES = ["#1A6B4A", "#2563EB", "#7C3AED", "#DB2777", "#DC2626", "#EA580C", "#0F766E", "#1C1917"];
+const SWATCHES = ["#0A0A0A", "#737373", "#FAFAFA"];
 const HEX = /^#[0-9A-F]{6}$/;
 const AA_CONTRAST = 4.5;
 
@@ -46,17 +46,17 @@ export function AccentColorField({ value, onChange, error }: AccentColorFieldPro
             className="flex size-7 items-center justify-center rounded-full border border-black/10 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             style={{ background: swatch }}
           >
-            {value === swatch && <Check className="size-3.5 text-white" />}
+            {value === swatch && (
+              <Check
+                className={cn(
+                  "size-3.5",
+                  swatch === "#FAFAFA" ? "text-general-foreground" : "text-white",
+                )}
+              />
+            )}
           </button>
         ))}
         <div className="flex items-center gap-2 pl-1">
-          <input
-            type="color"
-            value={HEX.test(value) ? value : "#000000"}
-            onChange={(event) => commit(event.target.value)}
-            aria-label="Pick a custom color"
-            className="size-7 cursor-pointer rounded-md border border-general-border bg-white p-0.5"
-          />
           <Input
             id={inputId}
             value={draft}

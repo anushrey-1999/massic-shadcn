@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { cn } from "@/lib/utils";
 
-type Choice<T extends string> = { value: T; label: string };
+type Choice<T extends string> = {
+  value: T;
+  label: ReactNode;
+  ariaLabel?: string;
+};
 
 /** Secondary button look from the style guide: white fill, #D4D4D4 border and shadow-xs, so it reads on white cards. */
 export const SECONDARY_BUTTON_CLASS = "border-general-border-three bg-white shadow-xs";
@@ -38,6 +42,7 @@ export function ChoiceGroup<T extends string>({
         <RadioGroupPrimitive.Item
           key={option.value}
           value={option.value}
+          aria-label={option.ariaLabel}
           className={cn(
             "h-7 cursor-pointer rounded-md px-3 text-sm text-general-muted-foreground transition-colors outline-none",
             "hover:text-general-foreground focus-visible:ring-2 focus-visible:ring-ring/50",

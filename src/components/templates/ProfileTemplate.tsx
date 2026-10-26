@@ -703,7 +703,7 @@ export default function ProfileTemplate({
                     )}
                     {checkingCustomerAgent
                       ? "Checking plan…"
-                      : "Customer agent"}
+                      : "Customer Agent"}
                   </Button>
                   {onAgentProfileRefresh && (
                     <ProfileAgentButton agent={profileAgent} />
@@ -800,7 +800,7 @@ export default function ProfileTemplate({
         alertSeverity="error"
         alertMessage={
           planPurpose === "customer-agent"
-            ? "Choose a Growth plan to use the Customer agent."
+            ? "Choose a Growth plan to use the Customer Agent."
             : planPurpose === "agent"
             ? "Choose a Core or Growth plan to use the Profile agent."
             : "Choose a Core or Growth plan to analyze this business."

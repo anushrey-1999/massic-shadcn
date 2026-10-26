@@ -20,6 +20,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -182,7 +185,6 @@ export default function SingleBusinessSidebar() {
     { label: 'Technical Audit', slug: 'technical-audit', icon: Wrench },
     { label: 'Social', slug: 'social', icon: Share2 },
     { label: 'Reviews', slug: 'reviews', icon: Star },
-    { label: 'Profile', slug: 'profile', icon: User },
   ]
 
   const isBusinessRoute = pathname.startsWith('/business/')
@@ -368,8 +370,6 @@ export default function SingleBusinessSidebar() {
             let isActive = false
             if (item.slug === 'analytics') {
               isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
-            } else if (item.slug === 'profile') {
-              isActive = isBusinessProfileRoute(pathname, business.UniqueId)
             } else {
               isActive = pathname.startsWith(itemBasePath)
             }
@@ -384,6 +384,36 @@ export default function SingleBusinessSidebar() {
               />
             )
           })}
+          <>
+            <NavItem
+              href={`/business/${business.UniqueId}/profile`}
+              icon={Settings}
+              label="Settings"
+              isActive={isBusinessProfileRoute(pathname, business.UniqueId)}
+              isCollapsed={isCollapsed}
+            />
+            {!isCollapsed && (
+              <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
+                {[
+                  { label: 'Profile', slug: 'profile' },
+                  { label: 'Agents', slug: 'customer-agent' },
+                ].map((item) => {
+                  const href = `/business/${business.UniqueId}/${item.slug}`
+                  return (
+                    <SidebarMenuSubItem key={item.slug}>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(href)}
+                        className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                      >
+                        <Link href={href}>{item.label}</Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )
+                })}
+              </SidebarMenuSub>
+            )}
+          </>
         </SidebarMenu>
       </div>
     )

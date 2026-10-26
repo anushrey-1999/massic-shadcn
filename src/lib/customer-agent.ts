@@ -28,7 +28,14 @@ export function accentContrast(accent: string): number {
 }
 
 export function pickAppearance({ appearance }: CustomerAgentConfig): AppearanceValues {
-  return appearance;
+  return {
+    ...appearance,
+    theme: {
+      ...appearance.theme,
+      mode: "auto",
+      show_powered_by: true,
+    },
+  };
 }
 
 /**

@@ -9,6 +9,7 @@ import type {
 } from "@/types/customer-agent";
 
 type ConfigResponse = { config: CustomerAgentConfig };
+type InstallResponse = { install: CustomerAgentConfig["install"] };
 
 const basePath = (businessId: string) => `/customer-agent/${businessId}`;
 const configKey = (businessId: string) => ["customerAgent", businessId, "config"];
@@ -74,6 +75,17 @@ export function useCustomerAgent(businessId: string) {
 
 export function useVisitorAgentInstall(businessId: string) {
   const queryClient = useQueryClient();
+  const registerSiteKey = async (key: string) => {
+    const response = await api.put<InstallResponse>(
+      `${basePath(businessId)}/site-key`,
+      "node",
+      { key },
+    );
+    queryClient.setQueryData<CustomerAgentConfig>(
+      configKey(businessId),
+      (current) => current ? { ...current, install: response.install } : current,
+    );
+  };
   const credits = useQuery<VisitorCredits>({
     queryKey: visitorCreditsKey(businessId),
     queryFn: () =>
@@ -87,17 +99,22 @@ export function useVisitorAgentInstall(businessId: string) {
   const siteKey = useQuery<VisitorSiteKey | null>({
     queryKey: visitorSiteKey(businessId),
     queryFn: async () => {
+      let next: VisitorSiteKey;
       try {
-        return await api.get<VisitorSiteKey>("/agent/visitor/site-key", "python", {
+        next = await api.get<VisitorSiteKey>("/agent/visitor/site-key", "python", {
           params: { business_id: businessId },
         });
       } catch (error) {
         if (errorStatus(error) === 404) return null;
         throw error;
       }
+      await registerSiteKey(next.key);
+      return next;
     },
     enabled: Boolean(businessId),
     retry: false,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
   });
   const grant = useMutation<VisitorCredits, Error, boolean>({
     mutationFn: (enabled) =>
@@ -110,7 +127,7 @@ export function useVisitorAgentInstall(businessId: string) {
     onSuccess: async (next) => {
       queryClient.setQueryData(visitorCreditsKey(businessId), next);
       await queryClient.invalidateQueries({ queryKey: visitorSiteKey(businessId) });
-      toast.success(next.enabled ? "Visitor agent enabled" : "Visitor agent disabled", {
+      toast.success(next.enabled ? "Customer agent enabled" : "Customer agent disabled", {
         description: next.enabled
           ? "Your site key is ready to install."
           : "Your site key is preserved for when you enable it again.",
@@ -118,22 +135,25 @@ export function useVisitorAgentInstall(businessId: string) {
     },
     onError: (error) => {
       const status = errorStatus(error);
-      toast.error("Couldn't update visitor access", {
+      toast.error("Couldn't update customer agent", {
         description:
           status === 409
-            ? "Complete the business profile before enabling the visitor agent."
+            ? "Complete the business profile before enabling the customer agent."
             : errorMessage(error),
       });
     },
   });
   const regenerate = useMutation<VisitorSiteKey, Error, void>({
-    mutationFn: () =>
-      api.post<VisitorSiteKey>(
+    mutationFn: async () => {
+      const next = await api.post<VisitorSiteKey>(
         "/agent/visitor/site-key/regenerate",
         "python",
         undefined,
         { params: { business_id: businessId } },
-      ),
+      );
+      await registerSiteKey(next.key);
+      return next;
+    },
     onSuccess: (next) => {
       queryClient.setQueryData(visitorSiteKey(businessId), next);
       toast.success("Site key regenerated", {

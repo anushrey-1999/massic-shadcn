@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { ChevronDown, KeyRound, Loader2 } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
 import { CodeSnippet } from "@/components/molecules/CodeSnippet";
 import {
   AlertDialog,
@@ -15,11 +15,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { useVisitorAgentInstall } from "@/hooks/use-customer-agent";
 import { installSnippet } from "@/lib/customer-agent";
@@ -43,7 +38,7 @@ function StatusPill({
   balance?: number;
 }) {
   const live = enabled && typeof balance === "number" && balance > 0;
-  const label = live ? "Live" : enabled ? "No credits" : "Off";
+  const label = live ? "Ready" : enabled ? "No credits" : "Off";
   return (
     <span
       className={cn(
@@ -64,6 +59,45 @@ function StatusPill({
       />
       {label}
     </span>
+  );
+}
+
+function EmbedStatus({
+  lastSeenAt,
+  origin,
+}: {
+  lastSeenAt: string | null;
+  origin: string | null;
+}) {
+  const seenAt = lastSeenAt ? new Date(lastSeenAt) : null;
+  const recent =
+    seenAt !== null &&
+    Number.isFinite(seenAt.getTime()) &&
+    Date.now() - seenAt.getTime() <= 15 * 60 * 1000;
+  const label = !seenAt
+    ? "Snippet not detected yet"
+    : recent
+      ? "Seen on your site recently"
+      : "Snippet has not been seen recently";
+
+  return (
+    <div className="mb-5 rounded-lg border border-general-border bg-general-secondary p-3">
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className={cn(
+            "size-2 rounded-full",
+            recent ? "bg-green-500" : seenAt ? "bg-amber-500" : "bg-gray-400",
+          )}
+        />
+        <p className="text-sm font-medium text-general-foreground">{label}</p>
+      </div>
+      <p className="mt-1 pl-4 text-xs text-general-muted-foreground">
+        {seenAt
+          ? `${origin ?? "Installed site"} · Last seen ${seenAt.toLocaleString()}`
+          : "Open a page with the snippet installed. Detection can take up to five minutes."}
+      </p>
+    </div>
   );
 }
 
@@ -138,6 +172,10 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
           </div>
         ) : credits ? (
           <>
+            <EmbedStatus
+              lastSeenAt={config.install?.last_seen_at ?? null}
+              origin={config.install?.last_seen_origin ?? null}
+            />
             <ol>
               <SetupStep
                 index={1}
@@ -169,7 +207,7 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
 
               <SetupStep
                 index={2}
-                done={Boolean(siteKey && credits.enabled)}
+                done={Boolean(config.install?.last_seen_at)}
                 title="Paste this code before </body>"
                 last
               >
@@ -208,26 +246,14 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
             </ol>
 
             {siteKey && (
-              <Collapsible className="mt-3 border-t border-general-border pt-2">
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="group -ml-2 text-general-muted-foreground"
-                  >
-                    Advanced
-                    <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-2">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm text-general-muted-foreground">
-                      Site key{" "}
-                      <code className="font-mono text-xs text-general-foreground">
-                        {siteKey.key}
-                      </code>
-                    </p>
-                    <AlertDialog>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-general-border pt-3">
+                <p className="min-w-0 truncate text-sm text-general-muted-foreground">
+                  Site key{" "}
+                  <code className="font-mono text-xs text-general-foreground">
+                    {siteKey.key}
+                  </code>
+                </p>
+                <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
                           variant="outline"
@@ -262,10 +288,8 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                </AlertDialog>
+              </div>
             )}
           </>
         ) : null}

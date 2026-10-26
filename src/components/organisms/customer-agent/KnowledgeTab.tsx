@@ -170,6 +170,7 @@ export function KnowledgeTab({ businessId }: { businessId: string }) {
             focusKey={chat.presentationKey}
             placeholder="Teach the trainer about your business"
             label="Message trainer"
+            hideKeyboardHint
             attachments={
               <AgentAttachmentControls
                 files={chat.draft.attachments}

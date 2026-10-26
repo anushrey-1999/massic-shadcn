@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +36,11 @@ function normalize(values: AppearanceValues): AppearanceValues {
   const clean = (items: string[]) => items.map((item) => item.trim()).filter(Boolean);
   return {
     ...values,
+    theme: {
+      ...values.theme,
+      mode: "auto",
+      show_powered_by: true,
+    },
     content: { ...values.content, suggested_questions: clean(values.content.suggested_questions) },
     visibility: {
       include_paths: clean(values.visibility.include_paths),
@@ -55,7 +59,6 @@ export function AppearanceTab({
   update,
 }: AppearanceTabProps) {
   const savedRef = useRef(pickAppearance(config));
-  const [moreOpen, setMoreOpen] = useState(false);
 
   const form = useForm({
     defaultValues: savedRef.current,
@@ -72,8 +75,6 @@ export function AppearanceTab({
       resetBaseline(next);
     },
     onSubmitInvalid: () => {
-      // The invalid field may sit inside the collapsed section.
-      setMoreOpen(true);
       toast.error("Fix the highlighted fields", { description: "Then save your changes again." });
     },
   });
@@ -219,32 +220,8 @@ export function AppearanceTab({
             </form.Field>
           </div>
 
-          <Collapsible open={moreOpen} onOpenChange={setMoreOpen} className="mt-5 border-t border-general-border pt-3">
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="group -ml-2 text-general-muted-foreground">
-                More options
-                <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-5 pt-3">
+          <div className="mt-5 space-y-5 border-t border-general-border pt-5">
               <div className="grid gap-5 sm:grid-cols-2">
-                <form.Field name="theme.mode">
-                  {(field) => (
-                    <FieldRow label="Color mode">
-                      <ChoiceGroup
-                        label="Color mode"
-                        value={field.state.value}
-                        onChange={field.handleChange}
-                        options={[
-                          { value: "light", label: "Light" },
-                          { value: "dark", label: "Dark" },
-                          { value: "auto", label: "Auto" },
-                        ]}
-                      />
-                    </FieldRow>
-                  )}
-                </form.Field>
-
                 <form.Field name="theme.launcher.style">
                   {(field) => (
                     <FieldRow
@@ -344,14 +321,6 @@ export function AppearanceTab({
                   )}
                 </form.Field>
 
-                <form.Field name="theme.show_powered_by">
-                  {(field) => (
-                    <label className="flex items-center gap-3 text-sm text-general-foreground">
-                      <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                      Show &ldquo;Powered by Massic&rdquo; in the chat footer
-                    </label>
-                  )}
-                </form.Field>
               </div>
 
               <div className="space-y-1">
@@ -390,8 +359,7 @@ export function AppearanceTab({
                   </form.Field>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+          </div>
         </Section>
 
         <SaveBar isDirty={isDirty} isSubmitting={isSubmitting} onReset={handleReset} />

@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
+import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -265,7 +265,9 @@ export default function AppSidebar() {
     { label: 'Social', slug: 'social' },
     { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
+    { label: 'Settings', slug: 'settings', heading: true },
     { label: 'Profile', slug: 'profile' },
+    { label: 'Agents', slug: 'customer-agent' },
   ]
 
   const filteredProfiles = useMemo(() => {
@@ -699,13 +701,21 @@ export default function AppSidebar() {
                               <CollapsibleContent>
                                 <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                                   {businessSubItems.map((subItem) => {
+                                    if (subItem.heading) {
+                                      return (
+                                        <li
+                                          key={subItem.slug}
+                                          className="px-2 pb-1 pt-3 text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground"
+                                        >
+                                          {subItem.label}
+                                        </li>
+                                      )
+                                    }
                                     const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                     const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
                                     let isActive = false
                                     if (subItem.slug === 'analytics') {
                                       isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
-                                    } else if (subItem.slug === 'profile') {
-                                      isActive = isBusinessProfileRoute(pathname, business.UniqueId)
                                     } else {
                                       isActive = pathname.startsWith(itemBasePath)
                                     }
@@ -788,12 +798,20 @@ export default function AppSidebar() {
               </div>
               <div className="h-px bg-general-border mx-2 mb-1 mt-1" />
               {businessSubItems.map((subItem) => {
+                if (subItem.heading) {
+                  return (
+                    <p
+                      key={subItem.slug}
+                      className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground"
+                    >
+                      {subItem.label}
+                    </p>
+                  )
+                }
                 const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                 let isActive = false
                 if (subItem.slug === 'analytics') {
                   isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
-                } else if (subItem.slug === 'profile') {
-                  isActive = isBusinessProfileRoute(pathname, business.UniqueId)
                 } else {
                   isActive = pathname.startsWith(subItemHref)
                 }

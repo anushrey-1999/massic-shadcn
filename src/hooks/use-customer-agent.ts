@@ -30,13 +30,17 @@ function errorStatus(error: unknown): number | undefined {
 export function useCustomerAgent(businessId: string) {
   const queryClient = useQueryClient();
   const queryKey = configKey(businessId);
+  const fetchConfig = async () => {
+    const response = await api.get<ConfigResponse>(
+      `${basePath(businessId)}/config`,
+      "node",
+    );
+    return response.config;
+  };
 
   const query = useQuery<CustomerAgentConfig>({
     queryKey,
-    queryFn: async () => {
-      const response = await api.get<ConfigResponse>(`${basePath(businessId)}/config`, "node");
-      return response.config;
-    },
+    queryFn: fetchConfig,
     enabled: Boolean(businessId),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
@@ -64,12 +68,22 @@ export function useCustomerAgent(businessId: string) {
     },
   });
 
+  const refreshInstallation = useMutation<CustomerAgentConfig, Error, void>({
+    mutationFn: fetchConfig,
+    onSuccess: (config) => {
+      queryClient.setQueryData<CustomerAgentConfig>(queryKey, (current) =>
+        current ? { ...current, install: config.install } : config,
+      );
+    },
+  });
+
   return {
     config: query.data,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
     update,
+    refreshInstallation,
   };
 }
 

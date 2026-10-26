@@ -89,7 +89,11 @@ export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgen
           ))}
         </TabsList>
         <TabsContent value="install" className="mt-4 min-h-0 flex-1 overflow-auto">
-          <InstallTab businessId={businessId} config={agent.config} />
+          <InstallTab
+            businessId={businessId}
+            config={agent.config}
+            onRefreshInstallation={() => agent.refreshInstallation.mutate()}
+          />
         </TabsContent>
         <TabsContent value="appearance" className="mt-4 min-h-0 flex-1 overflow-hidden">
           <AppearanceTab

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { KeyRound, Loader2 } from "lucide-react";
 import { CodeSnippet } from "@/components/molecules/CodeSnippet";
 import {
@@ -28,6 +28,7 @@ import { SetupStep } from "./SetupStep";
 interface InstallTabProps {
   businessId: string;
   config: CustomerAgentConfig;
+  onRefreshInstallation: () => void;
 }
 
 function StatusPill({
@@ -62,41 +63,33 @@ function StatusPill({
   );
 }
 
-function EmbedStatus({
+function InstallationStatus({
   lastSeenAt,
-  origin,
 }: {
   lastSeenAt: string | null;
-  origin: string | null;
 }) {
   const seenAt = lastSeenAt ? new Date(lastSeenAt) : null;
-  const recent =
-    seenAt !== null &&
-    Number.isFinite(seenAt.getTime()) &&
-    Date.now() - seenAt.getTime() <= 15 * 60 * 1000;
-  const label = !seenAt
-    ? "Snippet not detected yet"
-    : recent
-      ? "Seen on your site recently"
-      : "Snippet has not been seen recently";
+  const verified = seenAt !== null && Number.isFinite(seenAt.getTime());
 
   return (
-    <div className="mb-5 rounded-lg border border-general-border bg-general-secondary p-3">
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden
-          className={cn(
-            "size-2 rounded-full",
-            recent ? "bg-green-500" : seenAt ? "bg-amber-500" : "bg-gray-400",
-          )}
-        />
-        <p className="text-sm font-medium text-general-foreground">{label}</p>
+    <div className="mt-3 flex min-h-12 items-center rounded-lg border border-general-border bg-general-secondary px-3 py-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={cn(
+              "size-2 rounded-full",
+              verified ? "bg-green-500" : "bg-gray-400",
+            )}
+          />
+          <p className="text-sm font-medium text-general-foreground">
+            Installation status
+          </p>
+        </div>
+        <p className="mt-0.5 pl-4 text-xs text-general-muted-foreground">
+          {verified ? `Last seen ${seenAt.toLocaleString()}` : "Not detected"}
+        </p>
       </div>
-      <p className="mt-1 pl-4 text-xs text-general-muted-foreground">
-        {seenAt
-          ? `${origin ?? "Installed site"} · Last seen ${seenAt.toLocaleString()}`
-          : "Open a page with the snippet installed. Detection can take up to five minutes."}
-      </p>
     </div>
   );
 }
@@ -116,13 +109,23 @@ function requestError(error: unknown): string {
     : (error as Error)?.message || "Please try again.";
 }
 
-export function InstallTab({ businessId, config }: InstallTabProps) {
+export function InstallTab({
+  businessId,
+  config,
+  onRefreshInstallation,
+}: InstallTabProps) {
   const switchId = useId();
   const install = useVisitorAgentInstall(businessId);
   const credits = install.credits.data;
   const siteKey = install.siteKey.data;
   const snippet = siteKey ? installSnippet(config.site_id, siteKey.key) : "";
   const pending = install.grant.isPending || install.regenerate.isPending;
+
+  useEffect(() => {
+    if (!credits?.enabled) return;
+    window.addEventListener("focus", onRefreshInstallation);
+    return () => window.removeEventListener("focus", onRefreshInstallation);
+  }, [credits?.enabled, onRefreshInstallation]);
 
   return (
     <div className="max-w-[752px] pb-5">
@@ -172,10 +175,6 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
           </div>
         ) : credits ? (
           <>
-            <EmbedStatus
-              lastSeenAt={config.install?.last_seen_at ?? null}
-              origin={config.install?.last_seen_origin ?? null}
-            />
             <ol>
               <SetupStep
                 index={1}
@@ -290,6 +289,11 @@ export function InstallTab({ businessId, config }: InstallTabProps) {
                       </AlertDialogContent>
                 </AlertDialog>
               </div>
+            )}
+            {credits.enabled && (
+              <InstallationStatus
+                lastSeenAt={config.install?.last_seen_at ?? null}
+              />
             )}
           </>
         ) : null}

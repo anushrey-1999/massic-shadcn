@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
+import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -265,9 +265,6 @@ export default function AppSidebar() {
     { label: 'Social', slug: 'social' },
     { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
-    { label: 'Settings', slug: 'settings', heading: true },
-    { label: 'Profile', slug: 'profile' },
-    { label: 'Agents', slug: 'customer-agent' },
   ]
 
   const filteredProfiles = useMemo(() => {
@@ -702,16 +699,6 @@ export default function AppSidebar() {
                               <CollapsibleContent>
                                 <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                                   {businessSubItems.map((subItem) => {
-                                    if (subItem.heading) {
-                                      return (
-                                        <li
-                                          key={subItem.slug}
-                                          className="px-2 pb-1 pt-3 text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground"
-                                        >
-                                          {subItem.label}
-                                        </li>
-                                      )
-                                    }
                                     const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                     const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
                                     let isActive = false
@@ -735,6 +722,38 @@ export default function AppSidebar() {
                                       </SidebarMenuSubItem>
                                     )
                                   })}
+                                  <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton
+                                      asChild
+                                      isActive={isBusinessProfileRoute(pathname, business.UniqueId)}
+                                      className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                    >
+                                      <Link href={`/business/${business.UniqueId}/profile`}>
+                                        <span>Settings</span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                    {isBusinessProfileRoute(pathname, business.UniqueId) && (
+                                      <SidebarMenuSub className="ml-3 mt-0.5 border-l border-general-border">
+                                        {[
+                                          { label: 'Profile', slug: 'profile' },
+                                          { label: 'Agents', slug: 'customer-agent' },
+                                        ].map((item) => {
+                                          const href = `/business/${business.UniqueId}/${item.slug}`
+                                          return (
+                                            <SidebarMenuSubItem key={item.slug}>
+                                              <SidebarMenuSubButton
+                                                asChild
+                                                isActive={pathname.startsWith(href)}
+                                                className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                              >
+                                                <Link href={href}>{item.label}</Link>
+                                              </SidebarMenuSubButton>
+                                            </SidebarMenuSubItem>
+                                          )
+                                        })}
+                                      </SidebarMenuSub>
+                                    )}
+                                  </SidebarMenuSubItem>
                                 </SidebarMenuSub>
                               </CollapsibleContent>
                             )}
@@ -799,16 +818,6 @@ export default function AppSidebar() {
               </div>
               <div className="h-px bg-general-border mx-2 mb-1 mt-1" />
               {businessSubItems.map((subItem) => {
-                if (subItem.heading) {
-                  return (
-                    <p
-                      key={subItem.slug}
-                      className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground"
-                    >
-                      {subItem.label}
-                    </p>
-                  )
-                }
                 const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                 let isActive = false
                 if (subItem.slug === 'analytics') {
@@ -832,6 +841,43 @@ export default function AppSidebar() {
                   </Link>
                 )
               })}
+              <Link
+                href={`/business/${business.UniqueId}/profile`}
+                onClick={() => setFlyoutBusinessId(null)}
+                className={cn(
+                  'mx-1 flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm transition-colors',
+                  isBusinessProfileRoute(pathname, business.UniqueId)
+                    ? 'bg-general-border font-medium text-general-unofficial-foreground-alt'
+                    : 'text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt'
+                )}
+              >
+                <span>Settings</span>
+              </Link>
+              {isBusinessProfileRoute(pathname, business.UniqueId) && (
+                <div className="ml-4 border-l border-general-border pl-1">
+                  {[
+                    { label: 'Profile', slug: 'profile' },
+                    { label: 'Agents', slug: 'customer-agent' },
+                  ].map((item) => {
+                    const href = `/business/${business.UniqueId}/${item.slug}`
+                    return (
+                      <Link
+                        key={item.slug}
+                        href={href}
+                        onClick={() => setFlyoutBusinessId(null)}
+                        className={cn(
+                          'mx-1 flex cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors',
+                          pathname.startsWith(href)
+                            ? 'bg-general-border font-medium text-general-unofficial-foreground-alt'
+                            : 'text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt'
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })(),

@@ -1,17 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CodeSnippet } from "@/components/molecules/CodeSnippet";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { PlatformIcon, type PlatformKey } from "@/components/organisms/WebChannels/platform-icon";
+  PlatformIcon,
+  type PlatformKey,
+} from "@/components/organisms/WebChannels/platform-icon";
 import { cn } from "@/lib/utils";
 import { SECONDARY_BUTTON_CLASS } from "./controls";
 
@@ -23,8 +17,8 @@ const GUIDES: Guide[] = [
     name: "WordPress",
     steps: [
       "In WordPress admin, go to Appearance → Theme File Editor, or use a header and footer plugin such as WPCode.",
-      "Paste the snippet just before the closing </body> tag (in WPCode, add it to the Footer section).",
-      "Save, then open your site in a new tab to see the chat button.",
+      "Paste the code just before the closing </body> tag (in WPCode, add it to the Footer section).",
+      "Save, then open your website in a new tab to see the chat button.",
     ],
   },
   {
@@ -32,8 +26,8 @@ const GUIDES: Guide[] = [
     name: "Webflow",
     steps: [
       "Open Site settings → Custom code.",
-      "Paste the snippet in the Footer code box.",
-      "Save, then publish your site.",
+      "Paste the code in the Footer code box.",
+      "Save, then publish your website.",
     ],
   },
   {
@@ -41,7 +35,7 @@ const GUIDES: Guide[] = [
     name: "Wix",
     steps: [
       "Open Settings → Custom code (needs a Premium plan and a connected domain).",
-      "Click Add custom code, paste the snippet, and apply it to all pages.",
+      "Click Add custom code, paste the code, and apply it to all pages.",
       "Choose Body - end as the placement, then save and publish.",
     ],
   },
@@ -50,50 +44,56 @@ const GUIDES: Guide[] = [
     name: "Shopify",
     steps: [
       "In Shopify admin, go to Online Store → Themes, then choose Edit code on your live theme.",
-      "Open layout/theme.liquid and paste the snippet just before </body>.",
+      "Open layout/theme.liquid and paste the code just before </body>.",
       "Save, then visit your store to see the chat button.",
     ],
   },
 ];
 
-export function PlatformGuides({ snippet }: { snippet: string }) {
+/** Platform buttons; picking one shows its steps right below. Picking it again hides them. */
+export function PlatformGuides() {
   const [active, setActive] = useState<Guide | null>(null);
 
   return (
-    <>
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs text-general-muted-foreground">Guides</span>
-        {GUIDES.map((guide) => (
-          <Button
-            key={guide.platform}
-            type="button"
-            variant="outline"
-            onClick={() => setActive(guide)}
-            className={cn("h-7 gap-1.5 px-2 text-xs font-normal", SECONDARY_BUTTON_CLASS)}
-          >
-            <PlatformIcon platform={guide.platform} className="size-4 rounded-none border-none bg-transparent [&_img]:size-4" />
-            {guide.name}
-          </Button>
-        ))}
+        {GUIDES.map((guide) => {
+          const selected = active?.platform === guide.platform;
+          return (
+            <Button
+              key={guide.platform}
+              type="button"
+              variant="outline"
+              aria-pressed={selected}
+              onClick={() => setActive(selected ? null : guide)}
+              className={cn(
+                "h-7 gap-1.5 px-2 text-xs font-normal",
+                SECONDARY_BUTTON_CLASS,
+                selected && "border-general-border-three bg-muted",
+              )}
+            >
+              <PlatformIcon
+                platform={guide.platform}
+                className="size-4 rounded-none border-none bg-transparent [&_img]:size-4"
+              />
+              {guide.name}
+            </Button>
+          );
+        })}
       </div>
 
-      <Dialog open={active !== null} onOpenChange={(open) => !open && setActive(null)}>
-        <DialogContent className="grid-cols-1 sm:max-w-lg">
-          <DialogHeader className="pr-6">
-            <DialogTitle className="font-medium">Install on {active?.name}</DialogTitle>
-            <DialogDescription>Add the snippet once and it appears on every page.</DialogDescription>
-          </DialogHeader>
-          <ol className="list-decimal space-y-3 py-1 pl-5 text-sm text-general-foreground">
-            {active?.steps.map((step) => <li key={step}>{step}</li>)}
+      {active && (
+        <div className="rounded-lg bg-muted px-4 py-3 motion-safe:animate-in motion-safe:fade-in">
+          <p className="text-sm font-medium text-general-foreground">
+            On {active.name}
+          </p>
+          <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-sm text-general-muted-foreground">
+            {active.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
-          <CodeSnippet code={snippet} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActive(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      )}
+    </div>
   );
 }

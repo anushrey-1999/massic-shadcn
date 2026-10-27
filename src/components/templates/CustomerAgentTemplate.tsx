@@ -1,22 +1,25 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { PageHeader } from "@/components/molecules/PageHeader";
+import { AgentStatusCard } from "@/components/organisms/customer-agent/AgentStatusCard";
 import { AppearanceTab } from "@/components/organisms/customer-agent/AppearanceTab";
-import { InstallTab } from "@/components/organisms/customer-agent/InstallTab";
 import { KnowledgeTab } from "@/components/organisms/customer-agent/KnowledgeTab";
+import { CustomerAgentOnboarding } from "@/components/organisms/customer-agent/onboarding/CustomerAgentOnboarding";
+import { TestAgentDialog } from "@/components/organisms/customer-agent/TestAgentDialog";
 import { useUnsavedChangesContext } from "@/components/providers/unsaved-changes-provider";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCustomerAgent } from "@/hooks/use-customer-agent";
+import { useCustomerAgent, useVisitorAgentInstall } from "@/hooks/use-customer-agent";
+import { businessPageUrl, pickAppearance, previewConfig } from "@/lib/customer-agent";
+import type { CustomerAgentConfig } from "@/types/customer-agent";
 
 const TABS = [
-  { value: "install", label: "Install" },
-  { value: "appearance", label: "Appearance" },
   { value: "knowledge", label: "Knowledge" },
+  { value: "appearance", label: "Appearance" },
 ] as const;
 
 type TabValue = (typeof TABS)[number]["value"];
@@ -30,15 +33,25 @@ interface CustomerAgentTemplateProps {
   businessName: string;
 }
 
-export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgentTemplateProps) {
+interface ManageViewProps {
+  businessId: string;
+  config: CustomerAgentConfig;
+  update: ReturnType<typeof useCustomerAgent>["update"];
+  onRefreshInstallation: () => void;
+}
+
+/** After setup: status up top, then the settings that can change any time. */
+function ManageView({ businessId, config, update, onRefreshInstallation }: ManageViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { requestNavigation } = useUnsavedChangesContext();
-  const agent = useCustomerAgent(businessId);
+  const siteKey = useVisitorAgentInstall(businessId).siteKey.data;
+  const [testOpen, setTestOpen] = useState(false);
+  const testConfig = useMemo(() => previewConfig(config, pickAppearance(config)), [config]);
 
   const requestedTab = searchParams.get("tab");
-  const activeTab: TabValue = isTab(requestedTab) ? requestedTab : "install";
+  const activeTab: TabValue = isTab(requestedTab) ? requestedTab : "knowledge";
 
   const handleTabChange = useCallback(
     (value: string) => {
@@ -51,6 +64,50 @@ export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgen
     },
     [activeTab, pathname, requestNavigation, router, searchParams]
   );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="shrink-0">
+        <AgentStatusCard
+          businessId={businessId}
+          config={config}
+          onTest={() => setTestOpen(true)}
+          onRefreshInstallation={onRefreshInstallation}
+        />
+      </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="max-w-full shrink-0 justify-start overflow-x-auto">
+          {TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="knowledge" className="mt-4 min-h-0 flex-1 overflow-auto">
+          <KnowledgeTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="appearance" className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <AppearanceTab businessId={businessId} config={config} update={update} />
+        </TabsContent>
+      </Tabs>
+      {siteKey && (
+        <TestAgentDialog
+          open={testOpen}
+          onOpenChange={setTestOpen}
+          config={testConfig}
+          siteId={config.site_id}
+          siteKey={siteKey.key}
+          pageUrl={businessPageUrl(config.business.website)}
+        />
+      )}
+    </div>
+  );
+}
+
+export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgentTemplateProps) {
+  const agent = useCustomerAgent(businessId);
+  const refreshMutate = agent.refreshInstallation.mutate;
+  const refreshInstallation = useCallback(() => refreshMutate(), [refreshMutate]);
 
   const breadcrumbs = useMemo(
     () => [
@@ -79,33 +136,23 @@ export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgen
         />
       );
     }
+    if (!agent.config.onboarding.completed_at) {
+      return (
+        <CustomerAgentOnboarding
+          businessId={businessId}
+          config={agent.config}
+          agent={agent}
+          onRefreshInstallation={refreshInstallation}
+        />
+      );
+    }
     return (
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="max-w-full shrink-0 justify-start overflow-x-auto">
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value="install" className="mt-4 min-h-0 flex-1 overflow-auto">
-          <InstallTab
-            businessId={businessId}
-            config={agent.config}
-            onRefreshInstallation={() => agent.refreshInstallation.mutate()}
-          />
-        </TabsContent>
-        <TabsContent value="appearance" className="mt-4 min-h-0 flex-1 overflow-hidden">
-          <AppearanceTab
-            businessId={businessId}
-            config={agent.config}
-            update={agent.update}
-          />
-        </TabsContent>
-        <TabsContent value="knowledge" className="mt-4 min-h-0 flex-1 overflow-auto">
-          <KnowledgeTab businessId={businessId} />
-        </TabsContent>
-      </Tabs>
+      <ManageView
+        businessId={businessId}
+        config={agent.config}
+        update={agent.update}
+        onRefreshInstallation={refreshInstallation}
+      />
     );
   };
 

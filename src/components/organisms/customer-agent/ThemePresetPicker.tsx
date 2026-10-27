@@ -67,7 +67,7 @@ export function ThemePresetPicker({ value, accent, onChange }: ThemePresetPicker
             key={preset}
             value={preset}
             className={cn(
-              "flex flex-col gap-2 rounded-lg border border-general-border bg-white p-2 text-left transition-colors outline-none",
+              "flex cursor-pointer flex-col gap-2 rounded-lg border border-general-border bg-white p-2 text-left transition-colors outline-none",
               "hover:bg-general-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
               "data-[state=checked]:border-general-foreground data-[state=checked]:shadow-xs"
             )}

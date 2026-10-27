@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 
@@ -41,16 +42,20 @@ export function CodeSnippet({ code, className, copyLabel = "Copy code" }: CodeSn
       <pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap py-1 font-mono text-xs leading-5 text-general-foreground [overflow-wrap:anywhere]">
         <code>{code}</code>
       </pre>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        onClick={handleCopy}
-        aria-label={copied ? "Copied" : copyLabel}
-        title={copied ? "Copied" : copyLabel}
-      >
-        {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            onClick={handleCopy}
+            aria-label={copied ? "Copied" : copyLabel}
+          >
+            {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={6}>{copied ? "Copied" : copyLabel}</TooltipContent>
+      </Tooltip>
       <span className="sr-only" role="status">{copied ? "Code copied to clipboard" : ""}</span>
     </div>
   );

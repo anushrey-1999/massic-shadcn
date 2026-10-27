@@ -9,12 +9,15 @@ import { cn } from "@/lib/utils";
 
 export type PreviewView = "welcome" | "conversation";
 export type PreviewLayout = "panel" | "sheet";
+export type PreviewScheme = "light" | "dark";
 
 interface WidgetPreviewProps {
   /** Public widget config (already validated); the frame drops anything malformed. */
   config: unknown;
   view: PreviewView;
   layout: PreviewLayout;
+  /** Preview-only colour mode; customers on the live site follow their device. */
+  scheme: PreviewScheme;
 }
 
 const READY_TIMEOUT_MS = 10_000;
@@ -23,7 +26,7 @@ const SIZES: Record<PreviewLayout, string> = {
   sheet: "h-[640px] w-[340px]",
 };
 
-export function WidgetPreview({ config, view, layout }: WidgetPreviewProps) {
+export function WidgetPreview({ config, view, layout, scheme }: WidgetPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -46,13 +49,14 @@ export function WidgetPreview({ config, view, layout }: WidgetPreviewProps) {
 
   useEffect(() => {
     if (status !== "ready") return;
-    frameRef.current?.contentWindow?.postMessage(widgetMessage("preview", { config, view, layout }), WIDGET_ORIGIN);
-  }, [status, config, view, layout]);
+    frameRef.current?.contentWindow?.postMessage(widgetMessage("preview", { config, view, layout, scheme }), WIDGET_ORIGIN);
+  }, [status, config, view, layout, scheme]);
 
   return (
     <div
       className={cn(
-        "relative overflow-hidden border border-general-border bg-white shadow-xs transition-[width,height,border-radius] duration-200",
+        "relative overflow-hidden border border-general-border shadow-xs transition-[width,height,border-radius] duration-200",
+        scheme === "dark" ? "bg-neutral-900" : "bg-white",
         layout === "sheet" ? "rounded-[20px]" : "rounded-lg",
         SIZES[layout]
       )}

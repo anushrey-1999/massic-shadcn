@@ -80,6 +80,10 @@ export type CustomerAgentBusiness = {
   website?: string | null;
 };
 
+/** Guided setup order; mirrors ONBOARDING_STEPS in seedseo's customerAgentSchema. */
+export const ONBOARDING_STEPS = ["intro", "knowledge", "appearance", "test", "install"] as const;
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
 export type CustomerAgentConfig = {
   site_id: string;
   business: CustomerAgentBusiness;
@@ -88,6 +92,19 @@ export type CustomerAgentConfig = {
     last_seen_at: string | null;
     last_seen_origin: string | null;
   };
+  onboarding: {
+    step: OnboardingStep | null;
+    completed_at: string | null;
+  };
+  /** Credit allowance the business receives, used as the 100% mark for usage. */
+  credits: {
+    allowance_usd: number;
+  };
+};
+
+export type OnboardingUpdate = {
+  step?: OnboardingStep;
+  completed?: boolean;
 };
 
 export type CustomerAgentUpdate = {

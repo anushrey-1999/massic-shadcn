@@ -1,4 +1,65 @@
-import type { AppearanceValues, CustomerAgentConfig } from "@/types/customer-agent";
+import { formatDistanceToNowStrict } from "date-fns";
+import { businessDomain } from "@/lib/business-domain-match";
+import type { AppearanceValues, CustomerAgentConfig, VisitorCredits } from "@/types/customer-agent";
+
+/** Page the test chat pretends to run on; the profile website may be stored as a GSC property. */
+export function businessPageUrl(website: string | null | undefined): string {
+  const domain = businessDomain(website);
+  return domain ? `https://${domain}` : "https://example.com";
+}
+
+export type AgentStatusKind = "live" | "not_installed" | "not_seen" | "no_credits" | "off";
+
+export type AgentStatus = {
+  kind: AgentStatusKind;
+  badge: string;
+  text: string;
+};
+
+/** A site not seen for this long is treated as no longer installed. */
+const LIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+export function originHost(origin: string | null): string | null {
+  if (!origin) return null;
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
+}
+
+/** One status the whole page agrees on: switched off, out of credits, installed or not. */
+export function agentStatus(
+  credits: Pick<VisitorCredits, "enabled" | "balance_usd">,
+  install: CustomerAgentConfig["install"],
+  now: number = Date.now(),
+): AgentStatus {
+  if (!credits.enabled) return { kind: "off", badge: "Off", text: "Hidden from your website" };
+  if (!(credits.balance_usd > 0)) {
+    return { kind: "no_credits", badge: "Out of credits", text: "Hidden from your website" };
+  }
+  const seenAt = parseDate(install.last_seen_at);
+  if (!seenAt) return { kind: "not_installed", badge: "Not installed", text: "Add the code to your website" };
+  if (now - seenAt.getTime() > LIVE_WINDOW_MS) {
+    return { kind: "not_seen", badge: "Not detected", text: "Not seen on your website recently" };
+  }
+  const host = originHost(install.last_seen_origin);
+  const seen = `seen ${formatDistanceToNowStrict(seenAt, { addSuffix: true })}`;
+  return { kind: "live", badge: "Live", text: host ? `On ${host} · ${seen}` : `On your website · ${seen}` };
+}
+
+/** Share of the allowance still left, 0–100. Balances above the allowance count as 100% left. */
+export function creditsLeftPercent(balanceUsd: number, allowanceUsd: number): number {
+  if (!(allowanceUsd > 0) || !Number.isFinite(balanceUsd)) return balanceUsd > 0 ? 100 : 0;
+  const left = (balanceUsd / allowanceUsd) * 100;
+  return Math.round(Math.min(100, Math.max(0, left)));
+}
 
 /** Versioned widget base, e.g. https://widget.massic.io/v1. */
 const WIDGET_BASE_URL = (
@@ -34,6 +95,13 @@ export function pickAppearance({ appearance }: CustomerAgentConfig): AppearanceV
       ...appearance.theme,
       mode: "auto",
       show_powered_by: true,
+      launcher: {
+        ...appearance.theme.launcher,
+        style:
+          appearance.theme.launcher.style === "logo"
+            ? "icon"
+            : appearance.theme.launcher.style,
+      },
     },
   };
 }

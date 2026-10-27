@@ -4,6 +4,7 @@ import { api } from "@/hooks/use-api";
 import type {
   CustomerAgentConfig,
   CustomerAgentUpdate,
+  OnboardingUpdate,
   VisitorCredits,
   VisitorSiteKey,
 } from "@/types/customer-agent";
@@ -17,6 +18,20 @@ export const visitorCreditsKey = (businessId: string) =>
   ["massic-agent", businessId, "credits", "visitor"] as const;
 export const visitorSiteKey = (businessId: string) =>
   ["massic-agent", businessId, "site-key", "visitor"] as const;
+const playbookKey = (businessId: string) =>
+  ["massic-agent", businessId, "document", "receptionist_playbook"] as const;
+
+/** Turning the agent on creates a default playbook in the background; poll briefly until it lands. */
+const PLAYBOOK_POLL_MS = 2000;
+const PLAYBOOK_POLL_LIMIT = 30;
+
+export type Playbook = {
+  business_id?: string;
+  doc_type?: string;
+  content: string;
+  version: number;
+  updated_at?: string | null;
+};
 
 function errorMessage(error: unknown) {
   const apiMessage = (error as any)?.response?.data?.message;
@@ -68,6 +83,48 @@ export function useCustomerAgent(businessId: string) {
     },
   });
 
+  const saveOnboarding = useMutation<
+    CustomerAgentConfig,
+    Error,
+    OnboardingUpdate,
+    { previous?: CustomerAgentConfig }
+  >({
+    mutationFn: async (changes) => {
+      const response = await api.put<ConfigResponse>(
+        `${basePath(businessId)}/onboarding`,
+        "node",
+        changes,
+      );
+      return response.config;
+    },
+    onMutate: async (changes) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<CustomerAgentConfig>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<CustomerAgentConfig>(queryKey, {
+          ...previous,
+          onboarding: {
+            step: changes.step ?? previous.onboarding.step,
+            completed_at:
+              changes.completed === undefined
+                ? previous.onboarding.completed_at
+                : changes.completed
+                  ? previous.onboarding.completed_at ?? new Date().toISOString()
+                  : null,
+          },
+        });
+      }
+      return { previous };
+    },
+    onSuccess: (config) => {
+      queryClient.setQueryData(queryKey, config);
+    },
+    onError: (error, _changes, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      toast.error("Couldn't save your progress", { description: errorMessage(error) });
+    },
+  });
+
   const refreshInstallation = useMutation<CustomerAgentConfig, Error, void>({
     mutationFn: fetchConfig,
     onSuccess: (config) => {
@@ -83,6 +140,7 @@ export function useCustomerAgent(businessId: string) {
     error: query.error,
     refetch: query.refetch,
     update,
+    saveOnboarding,
     refreshInstallation,
   };
 }
@@ -140,11 +198,12 @@ export function useVisitorAgentInstall(businessId: string) {
       ),
     onSuccess: async (next) => {
       queryClient.setQueryData(visitorCreditsKey(businessId), next);
-      await queryClient.invalidateQueries({ queryKey: visitorSiteKey(businessId) });
-      toast.success(next.enabled ? "Customer agent enabled" : "Customer agent disabled", {
-        description: next.enabled
-          ? "Your site key is ready to install."
-          : "Your site key is preserved for when you enable it again.",
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: visitorSiteKey(businessId) }),
+        queryClient.invalidateQueries({ queryKey: playbookKey(businessId) }),
+      ]);
+      toast.success(next.enabled ? "Customer agent turned on" : "Customer agent turned off", {
+        description: next.enabled ? undefined : "Hidden from your website.",
       });
     },
     onError: (error) => {
@@ -152,7 +211,7 @@ export function useVisitorAgentInstall(businessId: string) {
       toast.error("Couldn't update customer agent", {
         description:
           status === 409
-            ? "Complete the business profile before enabling the customer agent."
+            ? "Complete your business profile first."
             : errorMessage(error),
       });
     },
@@ -170,12 +229,48 @@ export function useVisitorAgentInstall(businessId: string) {
     },
     onSuccess: (next) => {
       queryClient.setQueryData(visitorSiteKey(businessId), next);
-      toast.success("Site key regenerated", {
-        description: "Replace the old key in your website snippet.",
+      toast.success("New code ready", {
+        description: "Replace the code on your website.",
       });
     },
     onError: (error) =>
-      toast.error("Couldn't regenerate the site key", { description: errorMessage(error) }),
+      toast.error("Couldn't create new code", { description: errorMessage(error) }),
   });
   return { credits, siteKey, grant, regenerate };
+}
+
+async function getPlaybook(businessId: string): Promise<Playbook> {
+  try {
+    return await api.get<Playbook>("/agent/docs/receptionist_playbook", "python", {
+      params: { business_id: businessId },
+    });
+  } catch (error) {
+    if (errorStatus(error) === 404) return { content: "", version: 0 };
+    throw error;
+  }
+}
+
+/**
+ * The customer agent's playbook. While the agent is on but the playbook is still empty, the
+ * default is being created, so keep refetching for a short while and report `preparing`.
+ */
+export function usePlaybook(businessId: string) {
+  const queryClient = useQueryClient();
+  const agentOn = useVisitorAgentInstall(businessId).credits.data?.enabled === true;
+  const query = useQuery({
+    queryKey: playbookKey(businessId),
+    queryFn: () => getPlaybook(businessId),
+    enabled: Boolean(businessId),
+    retry: false,
+    refetchInterval: (current) =>
+      agentOn &&
+      !current.state.data?.content.trim() &&
+      current.state.dataUpdateCount < PLAYBOOK_POLL_LIMIT
+        ? PLAYBOOK_POLL_MS
+        : false,
+  });
+  const fetches = queryClient.getQueryState(playbookKey(businessId))?.dataUpdateCount ?? 0;
+  const preparing =
+    agentOn && !query.data?.content.trim() && !query.isError && fetches < PLAYBOOK_POLL_LIMIT;
+  return { ...query, preparing };
 }

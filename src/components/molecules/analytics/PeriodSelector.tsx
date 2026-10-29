@@ -12,7 +12,9 @@ import { ANALYTICS_TOOLBAR_BUTTON_CLASS } from "@/components/molecules/analytics
 import { cn } from "@/lib/utils"
 import type { AnalyticsGroupBy } from "@/utils/analytics-chart-grouping"
 import {
+  OPT_IN_TIME_PERIODS,
   PERIOD_SELECTOR_GROUPS,
+  type OptInTimePeriod,
   TimePeriodValue,
   clampAnalyticsDate,
   formatTimePeriodSummary,
@@ -47,7 +49,11 @@ interface PeriodSelectorProps {
   /** When true, only 7 days / 14 days / 3 months are selectable. */
   ingestionActive?: boolean
   disabled?: boolean
+  /** Extra presets for APIs that accept them, e.g. smart sitemap's 60 days. */
+  optInPeriods?: readonly OptInTimePeriod[]
 }
+
+const NO_OPT_IN_PERIODS: readonly OptInTimePeriod[] = []
 
 interface DraftRange {
   from?: Date
@@ -96,8 +102,22 @@ export function PeriodSelector({
   disabledGroupByOptions = [],
   ingestionActive = false,
   disabled = false,
+  optInPeriods = NO_OPT_IN_PERIODS,
 }: PeriodSelectorProps) {
   const [open, setOpen] = useState(false)
+  const periodGroups = useMemo(
+    () =>
+      PERIOD_SELECTOR_GROUPS.map((group) => ({
+        id: group.id,
+        options: [
+          ...group.options,
+          ...OPT_IN_TIME_PERIODS.filter(
+            (period) => period.group === group.id && optInPeriods.includes(period.value)
+          ),
+        ],
+      })),
+    [optInPeriods]
+  )
   const [customExpanded, setCustomExpanded] = useState(false)
   const [draftRange, setDraftRange] = useState<DraftRange | undefined>()
   const showGroupBySelector = Boolean(groupBy && onGroupByChange)
@@ -224,7 +244,7 @@ export function PeriodSelector({
             </>
           ) : null}
 
-          {PERIOD_SELECTOR_GROUPS.map((group, index) => (
+          {periodGroups.map((group, index) => (
             <div key={group.id}>
               {index > 0 ? <Separator /> : null}
               <div className="p-1">

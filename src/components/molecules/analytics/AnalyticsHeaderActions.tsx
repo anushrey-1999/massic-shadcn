@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, ListChecks, Megaphone, MoreVertical, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, FileStack, ListChecks, Megaphone, MoreVertical, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -73,9 +73,11 @@ interface AnalyticsNavigationMenuProps {
   onViewReports: () => void;
   onCampaignTracking: () => void;
   onIndexing: () => void;
+  onSmartSitemap: () => void;
   onContentGroups: () => void;
   reportsDisabled?: boolean;
   indexingDisabled?: boolean;
+  smartSitemapDisabled?: boolean;
   contentGroupsDisabled?: boolean;
 }
 
@@ -87,9 +89,11 @@ export function AnalyticsNavigationMenu({
   onViewReports,
   onCampaignTracking,
   onIndexing,
+  onSmartSitemap,
   onContentGroups,
   reportsDisabled = false,
   indexingDisabled = false,
+  smartSitemapDisabled = false,
   contentGroupsDisabled = false,
 }: AnalyticsNavigationMenuProps) {
   return (
@@ -119,6 +123,15 @@ export function AnalyticsNavigationMenu({
         >
           <ListChecks className="size-4 shrink-0" />
           <span className="flex-1">Indexing status</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="h-8 cursor-pointer gap-2"
+          onSelect={onSmartSitemap}
+          disabled={smartSitemapDisabled}
+        >
+          <FileStack className="size-4 shrink-0" />
+          <span className="flex-1">Sitemap</span>
           <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         </DropdownMenuItem>
         <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>

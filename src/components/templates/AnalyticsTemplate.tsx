@@ -621,6 +621,10 @@ export function AnalyticsTemplate() {
             if (!businessId) return;
             router.push(`/business/${businessId}/indexing`);
           }}
+          onSmartSitemap={() => {
+            if (!businessId) return;
+            router.push(`/business/${businessId}/analytics/pages`);
+          }}
           onContentGroups={() => {
             if (!businessId) return;
             setCustomContentGroupsOpen(true);
@@ -628,6 +632,7 @@ export function AnalyticsTemplate() {
           primaryDriversDisabled={!businessId}
           reportsDisabled={!businessId}
           indexingDisabled={!businessId}
+          smartSitemapDisabled={!businessId}
           contentGroupsDisabled={!businessId || isGa4DataBlocked || selectedTab === "ai-traffic"}
           keywordScope={keywordScope}
           onKeywordScopeChange={handleKeywordScopeChange}

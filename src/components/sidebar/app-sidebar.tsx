@@ -271,6 +271,7 @@ export default function AppSidebar() {
     const query = searchQuery.trim().toLowerCase()
 
     return profiles.filter(business => {
+      if (business.IsPitch === true) return false
       if (business.IsActive === false) return false
       if (!matchesTagVisibility(business.UniqueId)) return false
       if (!query) return true

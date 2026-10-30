@@ -24,6 +24,7 @@ export type AgentComposerProps = {
   sendDisabled?: boolean;
   focusKey: string;
   centered?: boolean;
+  hideKeyboardHint?: boolean;
   placeholder?: string;
   label?: string;
   context?: ReactNode;
@@ -80,7 +81,7 @@ export function AgentComposer(p: AgentComposerProps) {
   const busy = p.disabled || p.streaming || p.sendDisabled;
   return (
     <div className="w-full">
-      <div className="flex w-full flex-col rounded-xl border border-border bg-card shadow-sm transition-[border-color,box-shadow] hover:shadow-md focus-within:border-general-primary/40 focus-within:shadow-md">
+      <div className="flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-[border-color,box-shadow] hover:shadow-md focus-within:border-general-primary/40 focus-within:shadow-md">
         {p.context}
         <div className="relative">
           <Textarea
@@ -95,7 +96,7 @@ export function AgentComposer(p: AgentComposerProps) {
             placeholder={p.placeholder ?? "Ask Massic"}
             className={cn(
               styles.composerTextarea,
-              "min-h-0 max-h-[180px] resize-none overflow-y-hidden border-0 bg-transparent pr-14 pl-4 text-sm leading-5 shadow-none focus-visible:ring-0",
+              "min-h-0 max-h-[180px] resize-none overflow-y-hidden border-0 bg-transparent pr-14 pl-4 text-sm leading-5 shadow-none focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100",
               p.centered ? "py-4" : "py-3",
             )}
             onKeyDown={(e) => {
@@ -144,7 +145,7 @@ export function AgentComposer(p: AgentComposerProps) {
         </div>
         {p.attachments}
       </div>
-      {!p.centered && (
+      {!p.centered && !p.hideKeyboardHint && (
         <p className="mt-1.5 hidden px-1 text-right text-[10px] leading-[1.5] text-general-muted-foreground sm:block">
           Enter to send · Shift + Enter for a new line
         </p>

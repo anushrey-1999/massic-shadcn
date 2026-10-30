@@ -16,6 +16,7 @@ import {
   type AILandingPageSort,
   type AILandingPageSortKey,
   type AITrafficMeta,
+  type AIPageScope,
 } from "@/hooks/use-ai-traffic";
 import type { TimePeriodValue } from "@/utils/analytics-period";
 import {
@@ -255,6 +256,7 @@ interface AITrafficSectionProps {
   scopeRevision: number;
   onAvailableGroupingsChange: (options: AnalyticsGroupBy[]) => void;
   visibleLines: Record<string, boolean>;
+  pageScope?: AIPageScope;
 }
 
 export function AITrafficSection({
@@ -264,6 +266,7 @@ export function AITrafficSection({
   scopeRevision,
   onAvailableGroupingsChange,
   visibleLines,
+  pageScope,
 }: AITrafficSectionProps) {
   const [expanded, setExpanded] = useState<
     "sources" | "pages" | "goals" | null
@@ -298,6 +301,9 @@ export function AITrafficSection({
     aiSessions: visibleLines.clicks,
     organicSessions: visibleLines.sessions,
   };
+  const chartKeys: ("aiSessions" | "organicSessions")[] = pageScope
+    ? ["aiSessions"]
+    : ["aiSessions", "organicSessions"];
   const id = useId().replace(/:/g, "");
   const reports = useAITraffic(
     businessId,
@@ -307,6 +313,7 @@ export function AITrafficSection({
     pageSize,
     expanded === "pages",
     pageSort,
+    pageScope,
   );
   const { overview, sources, landingPages, expandedPages, goals, gate } =
     reports;
@@ -315,7 +322,7 @@ export function AITrafficSection({
   useEffect(() => {
     setPage(0);
     setExpanded(null);
-  }, [businessId, period, scopeRevision]);
+  }, [businessId, period, scopeRevision, pageScope?.pageId]);
   useEffect(() => {
     if (!data) return;
     onAvailableGroupingsChange(
@@ -378,7 +385,7 @@ export function AITrafficSection({
     goals: count(row.goals),
   }));
   const comparisonRows = data
-    ? (["ai", "organic"] as const).map((channel) => ({
+    ? (pageScope ? ["ai"] as const : ["ai", "organic"] as const).map((channel) => ({
         key: channel === "ai" ? "AI Assistant" : "Organic Search",
         sessions: metricCell(
           data.current[channel].sessions,
@@ -432,7 +439,9 @@ export function AITrafficSection({
           label: "Share of total traffic",
           value: percent(data.current.aiShare),
           ...metricChange(data.current.aiShare, data.previous.aiShare, true),
-          help: "AI sessions divided by all sessions in the same dates and GA4 page scope.",
+          help: pageScope
+            ? "AI sessions divided by all sessions that started on this page in the same dates."
+            : "AI sessions divided by all sessions in the same dates and GA4 page scope.",
         },
         {
           label: "AI goals",
@@ -467,7 +476,7 @@ export function AITrafficSection({
 
   return (
     <section
-      className="flex min-w-0 flex-col gap-3 p-7 pb-10"
+      className={pageScope ? "flex min-w-0 flex-col gap-4" : "flex min-w-0 flex-col gap-3 p-7 pb-10"}
       aria-label="AI Traffic"
     >
       {overview.isError && (
@@ -514,7 +523,7 @@ export function AITrafficSection({
                 </Tooltip>
               ))}
             </div>
-            {data.current.ai.sessions === 0 && (
+            {!pageScope && data.current.ai.sessions === 0 && (
               <Alert>
                 <Info className="size-4" />
                 <AlertDescription>
@@ -524,10 +533,12 @@ export function AITrafficSection({
             )}
             <div className="relative rounded-lg overflow-hidden bg-white border border-general-border min-h-[320px] p-3 pr-8 flex flex-col min-w-0">
               <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-2">
-                <ChartLegend
+                {pageScope ? (
+                  <h2 className="text-sm font-medium text-general-foreground">AI sessions</h2>
+                ) : <ChartLegend
                   variant="box"
                   showToggle={false}
-                  items={(["aiSessions", "organicSessions"] as const)
+                  items={chartKeys
                     .map((key) => {
                       const channel = key === "aiSessions" ? "ai" : "organic";
                       const label =
@@ -555,7 +566,7 @@ export function AITrafficSection({
                       };
                     })
                     .filter((item) => item.checked)}
-                />
+                />}
                 <ChartOverlayToggle
                   icon={ChartSpline}
                   label="7-day moving average"
@@ -590,7 +601,7 @@ export function AITrafficSection({
                     color: SESSION_COLORS.organicSessions,
                   },
                 }}
-                areas={(["aiSessions", "organicSessions"] as const)
+                areas={chartKeys
                   .filter((key) => lines[key])
                   .map((key) => ({
                     dataKey: key,
@@ -608,8 +619,8 @@ export function AITrafficSection({
       <div className="grid grid-cols-1 gap-3">
         <DataTable
           className="[&_table]:min-w-[540px] sm:[&_table]:min-w-0"
-          title="Channel comparison"
-          titleTooltip="GA4 session attribution for AI Assistant and Organic Search"
+          title={pageScope ? "AI performance" : "Channel comparison"}
+          titleTooltip={pageScope ? "GA4 sessions that started on this page from AI Assistant" : "GA4 session attribution for AI Assistant and Organic Search"}
           columns={METRIC_COLUMNS}
           data={comparisonRows}
           inlineHeader
@@ -617,7 +628,7 @@ export function AITrafficSection({
           hasData={comparisonRows.length > 0}
           emptyState={
             overview.isError ? (
-              <span>Channel comparison is unavailable.</span>
+              <span>{pageScope ? "AI performance is unavailable." : "Channel comparison is unavailable."}</span>
             ) : undefined
           }
         />
@@ -635,20 +646,22 @@ export function AITrafficSection({
         />
       </div>
       <div className="grid grid-cols-1 gap-3">
-        <ReportTable
-          title="AI landing pages"
-          icon={<FileText className="size-5" />}
-          columns={PAGE_COLUMNS}
-          rows={pageRows}
-          query={landingPages}
-          onExpand={() => {
-            setPage(0);
-            setExpanded("pages");
-          }}
-          sortConfig={pageSortConfig}
-          onSort={sortPages}
-          fixedLayout
-        />
+        {!pageScope && (
+          <ReportTable
+            title="AI landing pages"
+            icon={<FileText className="size-5" />}
+            columns={PAGE_COLUMNS}
+            rows={pageRows}
+            query={landingPages}
+            onExpand={() => {
+              setPage(0);
+              setExpanded("pages");
+            }}
+            sortConfig={pageSortConfig}
+            onSort={sortPages}
+            fixedLayout
+          />
+        )}
         <ReportTable
           title="AI goal events"
           icon={<Target className="size-5" />}

@@ -1,8 +1,8 @@
 import type { AgentAttachment } from "./agent-uploads";
 
 export type AgentChatMode = "planner" | "analytics" | "general";
-export type AgentId = "planner" | "analytics" | "profile" | "main";
-export type AgentThreadTag = "chat" | "analytics" | "main" | "profile.update" | "profile.build" | "profile.manual_update";
+export type AgentId = "planner" | "analytics" | "profile" | "main" | "trainer";
+export type AgentThreadTag = "chat" | "analytics" | "main" | "trainer" | "profile.update" | "profile.build" | "profile.manual_update";
 export type PlanSurface = "webpages" | "social_channels";
 export type ResourceType = "webpage_plan" | "social_channels_plan";
 export type ResourceRef = { type: ResourceType; id: number | string };
@@ -16,13 +16,21 @@ export type ChatRequest = {
   metadata?: ChatMetadata;
   attachments?: string[];
 };
-export type WidgetPart = {
-  kind: "widget";
-  widget: "resource_table";
-  schema_version: 1;
-  resource: ResourceRef;
-  source?: { tool_call_id?: string; tool_name?: string };
-};
+export type WidgetPart =
+  | {
+      kind: "widget";
+      widget: "resource_table";
+      schema_version: 1;
+      resource: ResourceRef;
+      source?: { tool_call_id?: string; tool_name?: string };
+    }
+  | {
+      kind: "widget";
+      widget: "document";
+      schema_version: 1;
+      resource: { type: string; id: number | string };
+      source?: { tool_call_id?: string; tool_name?: string };
+    };
 export type CitationSource = {
   source_id: string;
   label?: string;
@@ -245,9 +253,10 @@ export type AgentEvent = Envelope &
 export type TurnTraceResponse = { events: AgentEvent[] };
 export type AgentCreditsResponse = {
   business_id: string;
+  audience: string;
   balance_usd: number;
-  total_purchased_usd: number;
   total_spent_usd: number;
+  enabled: boolean;
   created_at: string;
   updated_at: string;
 };

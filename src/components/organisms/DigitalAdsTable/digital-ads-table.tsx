@@ -10,6 +10,7 @@ import type { DigitalAdsRow } from "@/types/digital-ads-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getDigitalAdsTableColumns } from "./digital-ads-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface DigitalAdsTableProps {
   data: DigitalAdsRow[];
@@ -21,6 +22,7 @@ interface DigitalAdsTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: DigitalAdsRow) => void;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function DigitalAdsTable({
@@ -33,6 +35,7 @@ export function DigitalAdsTable({
   search = "",
   onSearchChange,
   onRowClick,
+  onDownloadCsv,
 }: DigitalAdsTableProps) {
   const enableAdvancedFilter = true;
 
@@ -96,6 +99,9 @@ export function DigitalAdsTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
+            {onDownloadCsv && (
+              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+            )}
           </div>
         </div>
       </DataTable>

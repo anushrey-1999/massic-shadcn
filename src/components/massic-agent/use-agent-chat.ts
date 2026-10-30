@@ -40,6 +40,8 @@ export type ChatDraft = { input: string; attachments: PendingAttachment[] };
 type Options = {
   agentId: AgentId;
   tag: AgentThreadTag;
+  /** Thread tags shown in the conversation list; defaults to `tag`. */
+  listTags?: AgentThreadTag[];
   threadId: string | null;
   enabled?: boolean;
   confirmedThread?: string;
@@ -99,26 +101,31 @@ export function useAgentChat(business: string, options: Options) {
   const [creditWarning, setCreditWarning] = useState(false);
   const running = useRef<Running | null>(null);
   const mounted = useRef(true);
+  const listTags = options.listTags ?? [options.tag];
+  const listTagsKey = [...listTags].sort().join(",");
   const history = useAgentHistory(
     business,
     threadId,
     options.tag,
     options.enabled ?? true,
     localThreads[threadId ?? ""] ? threadId! : options.confirmedThread,
+    listTags,
   );
   const conversations = useMemo(() => {
+    const visible = new Set<string>(listTagsKey.split(","));
     const all = new Map<string, AgentConversation>();
     for (const t of history.threads.data?.pages.flatMap((p) => p.threads) ?? [])
-      if (t.tag === options.tag)
+      if (visible.has(t.tag))
         all.set(t.thread_id, {
           id: t.thread_id,
           title: t.title ?? "New chat",
           updatedAt: Date.parse(t.updated_at),
+          tag: t.tag,
         });
     for (const t of Object.values(localThreads))
       all.set(t.id, { ...all.get(t.id), ...t });
     return [...all.values()].sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [history.threads.data, localThreads, options.tag]);
+  }, [history.threads.data, localThreads, listTagsKey]);
   const conversation = conversations.find((c) => c.id === activeKey);
   const draft = drafts[activeKey] ?? emptyDraft();
   const messages = useMemo(
@@ -425,6 +432,7 @@ export function useAgentChat(business: string, options: Options) {
                   : conversation?.title) ??
                 "New chat",
               updatedAt: now,
+              tag: optionsRef.current.tag,
             },
           }));
           if (run.stopRequested)
@@ -443,6 +451,7 @@ export function useAgentChat(business: string, options: Options) {
               id: event.thread_id,
               title: event.title,
               updatedAt: now,
+              tag: prev[event.thread_id]?.tag ?? optionsRef.current.tag,
             },
           }));
         if (event.type === "error" && (event.depth ?? 0) === 0) {
@@ -532,7 +541,10 @@ export function useAgentChat(business: string, options: Options) {
             startedAt: now,
           });
         void queryClient.invalidateQueries({
-          queryKey: agentKeys.threads(business, [optionsRef.current.tag]),
+          queryKey: agentKeys.threads(
+            business,
+            optionsRef.current.listTags ?? [optionsRef.current.tag],
+          ),
         });
         if (run.thread)
           void queryClient.invalidateQueries({
@@ -598,6 +610,7 @@ export function useAgentChat(business: string, options: Options) {
             id: thread,
             title: recovery.message.slice(0, 80),
             updatedAt: recovery.startedAt,
+            tag: options.tag,
           },
         }));
         updateDraftAt(

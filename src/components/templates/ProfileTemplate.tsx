@@ -572,7 +572,6 @@ export default function ProfileTemplate({
           { label: business?.Name ?? "Business" },
           { label: "Profile" },
         ]}
-        showAskMassic={Boolean(jobDetails?.job_id)}
       />
       <div className="flex min-h-0 min-w-0 w-full max-w-[1224px] flex-1 p-5">
         <ProfileLoadingBoundary

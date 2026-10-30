@@ -13,9 +13,9 @@ import {
   useAdConceptWriterContentQuery,
   type AdConceptWriterResponse,
 } from "@/hooks/use-ad-concept-writer";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
-import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
 
 function getStatusLowercase(value: unknown): string {
@@ -194,8 +194,8 @@ export function TvRadioAdExampleCard({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
-  const { creditsBalance, purchaseCredits } = useExecutionCredits();
   const guardGenerateAd = useFeatureActionGuard("ads.generate");
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
   const solutionTitle = row.solution_head_term || "";

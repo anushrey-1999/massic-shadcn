@@ -11,6 +11,8 @@ import { useTvRadioAds } from "@/hooks/use-tv-radio-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { TvRadioAdConceptRow, TvRadioAdsMetrics } from "@/types/tv-radio-ads-types";
 import type { TvRadioApiFilter } from "@/types/tv-radio-ads-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface TvRadioAdsTableClientProps {
   businessId: string;
@@ -262,6 +264,21 @@ export function TvRadioAdsTableClient({ businessId, onMetricsChange }: TvRadioAd
     setSelectedRowId(null);
   }, []);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<TvRadioAdConceptRow>((csvPage, csvPerPage) =>
+      fetchTvRadioAds({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+      })
+    );
+    downloadRowsAsCsv(rows, "tv-radio-ad-concepts.csv");
+  }, [businessId, fetchTvRadioAds, filters, joinOperator, search, sort]);
+
   const handleLeftTableRowSelect = React.useCallback((rowId: string) => {
     setSelectedRowId(rowId);
   }, []);
@@ -292,6 +309,7 @@ export function TvRadioAdsTableClient({ businessId, onMetricsChange }: TvRadioAd
         search={search}
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

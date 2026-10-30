@@ -112,6 +112,7 @@ export type AgentConversation = {
   id: string;
   title: string;
   updatedAt: number;
+  tag: string;
 };
 export type ThreadMessage = {
   turn_id: string;

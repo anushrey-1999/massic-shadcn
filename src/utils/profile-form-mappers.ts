@@ -51,6 +51,7 @@ export const profileFormDefaults: BusinessInfoFormData = {
   offeringsList: [],
   usps: "",
   ctas: [],
+  calendarEvents: [],
   brandTerms: [],
   stakeholders: [],
   locations: [],
@@ -379,6 +380,13 @@ export function mapProfileDataToFormValues(
     offeringsList,
     usps,
     ctas: ctasList,
+    calendarEvents: parseArrayField<any>(profileAny.CalendarEvents).map(
+      (event) => ({
+        eventName: String(event?.eventName ?? ""),
+        startDate: event?.startDate ? String(event.startDate) : null,
+        endDate: event?.endDate ? String(event.endDate) : null,
+      }),
+    ),
     brandTerms: normalizeStringArray(
       profileAny.BrandTerms ?? profileAny.brand_terms ?? jobAny?.brand_terms,
     ),
@@ -508,6 +516,13 @@ export function buildBusinessProfilePayload(
     USPs: formUsps.length > 0 ? formUsps : null,
     SellingPoints: formUsps.length > 0 ? formUsps : null,
     CTAs: ctasPayload,
+    CalendarEvents: (values.calendarEvents ?? [])
+      .filter((event) => event.eventName?.trim() || event.startDate?.trim())
+      .map((event) => ({
+        eventName: event.eventName?.trim() || "",
+        startDate: event.startDate?.trim() || null,
+        endDate: event.endDate?.trim() || null,
+      })),
     CustomerPersonas: (values.stakeholders || []).map((stakeholder) => ({
       personName: stakeholder.name || "",
       personDescription: stakeholder.title || "",

@@ -10,6 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { AgentModeTag, agentModeLabel } from "./agent-mode-tag";
 import type { AgentConversation } from "./types";
 
 type Props = {
@@ -68,7 +69,7 @@ export function AgentSearchDialog({
           {sorted.map((c) => (
             <CommandItem
               key={c.id}
-              value={`${c.title} ${c.id}`}
+              value={`${c.title} ${agentModeLabel(c.tag) ?? ""} ${c.id}`}
               onSelect={() => handlePick(c.id)}
               className="group flex cursor-pointer items-center gap-3 px-3 py-2.5 data-[selected=true]:bg-muted"
             >
@@ -76,6 +77,7 @@ export function AgentSearchDialog({
               <span className="flex-1 truncate text-sm text-foreground">
                 {c.title}
               </span>
+              <AgentModeTag tag={c.tag} />
               <span className="text-xs text-muted-foreground group-data-[selected=true]:hidden">
                 {formatRelative(c.updatedAt)}
               </span>

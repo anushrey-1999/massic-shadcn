@@ -22,9 +22,9 @@ import {
   useSocialActions,
   type SocialActionResponse,
 } from "@/hooks/use-social-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
-import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
 
 function getCampaignClusterId(row: TacticRow): string | null {
@@ -80,9 +80,9 @@ export function SocialActionCell({
   strategyType?: SocialStrategyType;
 }) {
   const queryClient = useQueryClient();
-  const { creditsBalance, purchaseCredits } = useExecutionCredits();
   const { startGeneration } = useSocialActions(strategyType);
   const guardGenerate = useFeatureActionGuard("social.generate");
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
   const tacticsChannel = React.useMemo(

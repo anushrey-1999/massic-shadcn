@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryState } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { agentKeys } from "./agent-api";
-import { AGENT_CHAT_MODES } from "./agent-modes";
+import { AGENT_CHAT_MODE_TAGS, AGENT_CHAT_MODES } from "./agent-modes";
 import {
   buildChatRequest,
   lastMatchingPlan,
@@ -32,6 +32,7 @@ export function usePlannerChat(
   const chat = useAgentChat(business, {
     agentId,
     tag,
+    listTags: AGENT_CHAT_MODE_TAGS,
     threadId,
     onThreadChange: (thread, previousKey) => {
       if (supportsPlans && thread && previousKey)

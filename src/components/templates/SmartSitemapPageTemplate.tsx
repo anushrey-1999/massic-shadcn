@@ -9,6 +9,7 @@ import { PeriodSelector } from "@/components/molecules/analytics/PeriodSelector"
 import { ANALYTICS_TOOLBAR_BUTTON_CLASS } from "@/components/molecules/analytics/AnalyticsHeaderActions";
 import { SmartSitemapSourceTags } from "@/components/organisms/smart-sitemap/SmartSitemapCells";
 import { SmartSitemapEngagementCard } from "@/components/organisms/smart-sitemap/SmartSitemapEngagementCard";
+import { SmartSitemapAISection } from "@/components/organisms/smart-sitemap/SmartSitemapAISection";
 import { SmartSitemapIndexingPanel } from "@/components/organisms/smart-sitemap/SmartSitemapIndexingPanel";
 import { SmartSitemapKeywordsPanel } from "@/components/organisms/smart-sitemap/SmartSitemapKeywordsPanel";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
@@ -57,9 +58,9 @@ const KPI_KEYS: DetailMetricKey[] = [
   "keyEvents",
 ];
 const TAB_TRIGGER_CLASS =
-  "text-general-foreground h-auto min-h-8 min-w-[125px] flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-none";
+  "text-general-foreground h-auto min-h-8 min-w-0 sm:min-w-[125px] flex-1 gap-2 rounded-[10px] px-3 sm:px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-none";
 
-type DetailTab = "performance" | "indexing";
+type DetailTab = "performance" | "indexing" | "ai";
 
 function readPeriod(value: string | null): TimePeriodValue {
   return value && resolveTimePeriodRange(value as TimePeriodValue)
@@ -83,8 +84,9 @@ export function SmartSitemapPageTemplate({
   const website = profileData?.Website ?? null;
 
   const period = readPeriod(searchParams.get("period"));
+  const requestedTab = searchParams.get("tab");
   const tab: DetailTab =
-    searchParams.get("tab") === "indexing" ? "indexing" : "performance";
+    requestedTab === "ai" || requestedTab === "indexing" ? requestedTab : "performance";
   const updateParams = useCallback(
     (changes: Record<string, string | null>) => {
       const next = new URLSearchParams(searchParams.toString());
@@ -349,12 +351,15 @@ export function SmartSitemapPageTemplate({
                 updateParams({ tab: value === "performance" ? null : value })
               }
             >
-              <TabsList className="h-auto rounded-[12px] bg-general-border p-1">
+              <TabsList className="h-auto w-full rounded-[12px] bg-general-border p-1 sm:w-fit">
                 <TabsTrigger value="performance" className={TAB_TRIGGER_CLASS}>
                   Performance
                 </TabsTrigger>
                 <TabsTrigger value="indexing" className={TAB_TRIGGER_CLASS}>
                   Indexing
+                </TabsTrigger>
+                <TabsTrigger value="ai" className={TAB_TRIGGER_CLASS}>
+                  AI
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -395,6 +400,20 @@ export function SmartSitemapPageTemplate({
                     <Skeleton className="h-[200px] w-full rounded-lg" />
                   </div>
                 </div>
+              )
+            ) : tab === "ai" ? (
+              data && !pageQuery.isPlaceholderData ? (
+                <SmartSitemapAISection
+                  key={`${businessId}-${pageId}-${period}`}
+                  businessId={businessId}
+                  period={period}
+                  scopeRevision={Number(
+                    (profileData as { Ga4ScopeRevision?: number } | null)?.Ga4ScopeRevision || 0,
+                  )}
+                  pageScope={{ pageId, from: data.meta.range.from, to: data.meta.range.to }}
+                />
+              ) : (
+                <Skeleton className="h-[400px] w-full rounded-lg" />
               )
             ) : (
               <SmartSitemapIndexingPanel

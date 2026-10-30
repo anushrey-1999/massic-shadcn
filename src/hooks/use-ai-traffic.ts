@@ -81,6 +81,12 @@ export interface AILandingPageSort {
   sortDirection: "asc" | "desc";
 }
 
+export interface AIPageScope {
+  pageId: string;
+  from: string;
+  to: string;
+}
+
 function useAIReport<S extends keyof AIReports>(
   section: S,
   businessUniqueId: string | null,
@@ -88,6 +94,7 @@ function useAIReport<S extends keyof AIReports>(
   scopeRevision: number,
   enabled: boolean,
   pagination?: { offset: number; limit: number } & Partial<AILandingPageSort>,
+  pageScope?: AIPageScope,
 ) {
   return useQuery<AIResponse<AIReports[S]>, Error>({
     queryKey: [
@@ -97,12 +104,18 @@ function useAIReport<S extends keyof AIReports>(
       scopeRevision,
       section,
       pagination,
+      pageScope,
     ],
     queryFn: async () => {
       const response = await api.post<AIResponse<AIReports[S]>>(
         "/analytics/ga4/ai-traffic",
         "node",
-        { businessUniqueId, period, section, ...pagination },
+        {
+          businessUniqueId,
+          ...(pageScope ? pageScope : { period }),
+          section,
+          ...pagination,
+        },
       );
       if (!response.success)
         throw new Error(response.error || "Unable to load AI Traffic");
@@ -127,6 +140,7 @@ export function useAITraffic(
   pageSize: number,
   pagesOpen: boolean,
   pageSort: AILandingPageSort,
+  pageScope?: AIPageScope,
 ) {
   const gate = useGoogleDataGate(businessUniqueId, "ga4");
   const overview = useAIReport(
@@ -135,6 +149,8 @@ export function useAITraffic(
     period,
     scopeRevision,
     gate.enabled,
+    undefined,
+    pageScope,
   );
   const sources = useAIReport(
     "sources",
@@ -142,13 +158,15 @@ export function useAITraffic(
     period,
     scopeRevision,
     gate.enabled,
+    undefined,
+    pageScope,
   );
   const landingPages = useAIReport(
     "landing_pages",
     businessUniqueId,
     period,
     scopeRevision,
-    gate.enabled,
+    gate.enabled && !pageScope,
     { offset: 0, limit: 10, ...pageSort },
   );
   const expandedPages = useAIReport(
@@ -156,7 +174,7 @@ export function useAITraffic(
     businessUniqueId,
     period,
     scopeRevision,
-    gate.enabled && pagesOpen,
+    gate.enabled && pagesOpen && !pageScope,
     { offset: page * pageSize, limit: pageSize, ...pageSort },
   );
   const goals = useAIReport(
@@ -165,6 +183,8 @@ export function useAITraffic(
     period,
     scopeRevision,
     gate.enabled,
+    undefined,
+    pageScope,
   );
   return { gate, overview, sources, landingPages, expandedPages, goals };
 }

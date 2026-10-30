@@ -49,6 +49,10 @@ export function errorMessage(error: unknown): string {
 export function streamErrorMessage(code: string, fallback: string): string {
   if (code === "credit_exhausted")
     return "This business has run out of Agent credits. Add credits before trying again.";
+  if (code === "credit_disabled")
+    return "This agent is disabled for this audience. Enable access before trying again.";
+  if (code === "wallet_missing")
+    return "Credits have not been set up for this audience. Contact support before trying again.";
   if (code === "thread_not_found")
     return "This conversation is no longer available. Start a new chat to continue.";
   if (code === "business_not_found")
@@ -75,7 +79,8 @@ export const agentKeys = {
     ["massic-agent", business, "citations", thread, ids] as const,
   trace: (business: string, turn: string) =>
     ["massic-agent", business, "trace", turn] as const,
-  credits: (business: string) => ["massic-agent", business, "credits"] as const,
+  credits: (business: string, audience = "owner") =>
+    ["massic-agent", business, "credits", audience] as const,
   plans: (business: string, type?: ResourceType) =>
     type
       ? (["massic-agent", business, "plans", type] as const)
@@ -130,9 +135,9 @@ export async function getLatestThread(
   } while (!signal?.aborted);
   throw new DOMException("Thread lookup cancelled.", "AbortError");
 }
-export const getAgentCredits = (business: string, signal?: AbortSignal) =>
+export const getAgentCredits = (business: string, signal?: AbortSignal, audience = "owner") =>
   api.get<AgentCreditsResponse>("/agent/admin/credits", "python", {
-    params: tenant(business),
+    params: { ...tenant(business), audience },
     signal,
   });
 export const getMessages = (

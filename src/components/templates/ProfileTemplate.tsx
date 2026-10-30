@@ -229,21 +229,26 @@ export default function ProfileTemplate({
     isOrchestrationActive(jobDetails);
   const checkPlanAccess = async (purpose: "analysis" | "agent") => {
     if (isWhitelisted) return true;
+    const hasRequiredAccess = hasPlanAccess;
     const showPlans = () => {
       setPlanPurpose(purpose);
       setPlanOpen(true);
       return false;
     };
     // Missing or failed reads must be checked, not treated as no plan.
-    if (!hasPlanAccess && subscription.data !== undefined && !subscription.error)
+    if (
+      !hasRequiredAccess &&
+      subscription.data !== undefined &&
+      !subscription.error
+    )
       return showPlans();
     try {
       const latest = await subscription.refetchData();
-      return (
-        hasActiveCoreOrGrowthPlan(
-          resolveBusinessSubscription(latest, businessSubscription),
-        ) || showPlans()
+      const resolved = resolveBusinessSubscription(
+        latest,
+        businessSubscription,
       );
+      return hasActiveCoreOrGrowthPlan(resolved) || showPlans();
     } catch (error) {
       toast.error("Couldn't check the business plan", {
         description: apiErrorMessage(error),
@@ -650,10 +655,9 @@ export default function ProfileTemplate({
             busyReason="Wait for the current business operation to finish."
             initialFieldsLocked={Boolean(jobDetails?.job_id)}
             customHeaderActions={
-              jobDetails?.job_id &&
-              onAgentProfileRefresh && (
+              jobDetails?.job_id && onAgentProfileRefresh ? (
                 <ProfileAgentButton agent={profileAgent} />
-              )
+              ) : undefined
             }
             trailingHeaderActions={
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>

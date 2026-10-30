@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { WebUnifiedPagesTableClient } from '@/components/organisms/WebUnifiedPagesTable'
+import { WebsiteArchitectureTableClient } from '@/components/organisms/WebsiteArchitectureTable/website-architecture-table-client'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { ContentUsageInfo } from '@/components/molecules/content-usage'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
@@ -14,7 +15,7 @@ import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { useQueryClient } from '@tanstack/react-query'
 import { useUnifiedWebOptimization } from '@/hooks/use-unified-web-optimization'
 import { cn } from '@/lib/utils'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { parseAsString, parseAsStringEnum, useQueryStates } from 'nuqs'
 import { Typography } from '@/components/ui/typography'
 import { formatVolume } from '@/lib/format'
 import type { WebPageMetrics } from '@/types/web-page-types'
@@ -42,47 +43,32 @@ function WebNewPagesTab({
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"new-pages" | "optimize" | "all-pages" | "settings">("new-pages")
+  const [{ tab: activeTab, integrations }, setWebQuery] = useQueryStates({
+    tab: parseAsStringEnum(["new-pages", "web-pages-v2", "optimize", "all-pages", "settings"]).withDefault("new-pages"),
+    integrations: parseAsString,
+  })
   const [newPagesMetrics, setNewPagesMetrics] = React.useState<WebPageMetrics | null>(null)
 
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
   React.useEffect(() => {
-    const tab = (searchParams.get("tab") || "").toLowerCase();
-    if (tab === "new-pages" || tab === "optimize" || tab === "settings") {
-      setActiveTab(tab);
-      if (tab !== "optimize") {
-        setIsOptimizeSplitView(false);
-      }
-    }
-  }, [searchParams]);
+    if (activeTab !== "optimize") setIsOptimizeSplitView(false)
+  }, [activeTab]);
 
   // Navigate to Settings tab when opening with ?integrations=1 (e.g. from "Connect WordPress" flows)
   React.useEffect(() => {
-    if (searchParams.get("integrations") === "1") {
-      setActiveTab("settings");
-      const nextParams = new URLSearchParams(searchParams.toString());
-      nextParams.delete("integrations");
-      nextParams.set("tab", "settings");
-      const newSearch = nextParams.toString();
-      router.replace(`${pathname}?${newSearch}`);
+    if (integrations === "1") {
+      void setWebQuery({ tab: "settings", integrations: null });
     }
-  }, [pathname, router, searchParams]);
+  }, [integrations, setWebQuery]);
 
   const handleTabChange = React.useCallback(
     (value: string) => {
-      const nextTab = value as "new-pages" | "optimize" | "all-pages" | "settings"
-      setActiveTab(nextTab)
+      const nextTab = value as "new-pages" | "web-pages-v2" | "optimize" | "all-pages" | "settings"
+      void setWebQuery({ tab: nextTab })
       if (nextTab !== "optimize") {
         setIsOptimizeSplitView(false)
       }
-      const nextParams = new URLSearchParams(searchParams.toString())
-      nextParams.set("tab", nextTab)
-      router.replace(`${pathname}?${nextParams.toString()}`)
     },
-    [router, pathname, searchParams]
+    [setWebQuery]
   )
 
   const newPagesMetricsText = React.useMemo(() => {
@@ -166,8 +152,9 @@ export default function BusinessWebPage({ params }: PageProps) {
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
             {!hideTabs && (
               <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <TabsList>
+                <TabsList className="max-w-full justify-start overflow-x-auto">
                   <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+                  <TabsTrigger value="web-pages-v2">Web Pages v2</TabsTrigger>
                   <TabsTrigger value="optimize">Optimize</TabsTrigger>
                   <TabsTrigger value="all-pages">All Pages</TabsTrigger>
                 </TabsList>
@@ -208,6 +195,9 @@ export default function BusinessWebPage({ params }: PageProps) {
                   emptyStateHeight="min-h-[calc(100vh-16rem)]"
                 />
               )}
+            </TabsContent>
+            <TabsContent value="web-pages-v2" className="mt-4 flex flex-1 min-h-0 min-w-0 overflow-hidden flex-col">
+              <WebsiteArchitectureTableClient key={businessId} businessId={businessId} />
             </TabsContent>
             <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
               <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>

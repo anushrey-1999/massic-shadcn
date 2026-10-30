@@ -10,10 +10,6 @@ import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { WebPageMetrics, WebPageRow } from "@/types/web-page-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
-import {
-  WEB_PAGE_BLOG_TYPE,
-  WEB_PAGE_OTHER_TYPE_VALUES,
-} from "./web-page-table-columns";
 
 interface WebPageTableClientProps {
   businessId: string;
@@ -25,55 +21,6 @@ type WebPageFilter = ExtendedColumnFilter<WebPageRow> & {
   id?: string;
   filterId?: string;
   variant?: string;
-};
-
-type QuickTypeFilterValue = "all" | "blog" | "other" | "custom";
-
-const PAGE_TYPE_FIELD = "page_type";
-
-const getFilterField = (filter: Partial<WebPageFilter>) => {
-  return filter.field || filter.id || filter.filterId;
-};
-
-const getFilterValues = (value: string | string[]) => {
-  return Array.isArray(value) ? value : [value];
-};
-
-const isPageTypeFilter = (filter: Partial<WebPageFilter>) => {
-  return getFilterField(filter) === PAGE_TYPE_FIELD;
-};
-
-const createPageTypeFilter = (values: string[]): WebPageFilter => ({
-  field: PAGE_TYPE_FIELD,
-  id: PAGE_TYPE_FIELD,
-  filterId: PAGE_TYPE_FIELD,
-  value: values,
-  variant: "multiSelect",
-  operator: "inArray",
-});
-
-const blogPageTypeFilter = createPageTypeFilter([WEB_PAGE_BLOG_TYPE]);
-
-const getQuickTypeFilterValue = (filters: WebPageFilter[]): QuickTypeFilterValue => {
-  const pageTypeFilter = filters.find(isPageTypeFilter);
-
-  if (!pageTypeFilter) return "all";
-
-  const values = getFilterValues(pageTypeFilter.value);
-  if (
-    pageTypeFilter.operator === "inArray" &&
-    values.length === 1 &&
-    values[0] === WEB_PAGE_BLOG_TYPE
-  ) {
-    return "blog";
-  }
-  if (values.length > 0 && !values.includes(WEB_PAGE_BLOG_TYPE)) return "other";
-
-  return "custom";
-};
-
-const withoutPageTypeFilter = (filters: WebPageFilter[]) => {
-  return filters.filter((filter) => !isPageTypeFilter(filter));
 };
 
 export function WebPageTableClient({
@@ -93,7 +40,7 @@ export function WebPageTableClient({
       return null;
     }).withDefault([])
   );
-  const [filters, setFilters] = useQueryState(
+  const [filters] = useQueryState(
     "filters",
     parseAsJson<WebPageFilter[]>((value) => {
       if (Array.isArray(value)) {
@@ -107,71 +54,11 @@ export function WebPageTableClient({
     parseAsString.withDefault("and")
   );
 
-  const [filtersWereCleared, setFiltersWereCleared] = React.useState(false);
-  const previousFiltersRef = React.useRef<WebPageFilter[] | null>(null);
-  const defaultPageTypeSyncedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    const currentFilters = filters || [];
-    const previousFilters = previousFiltersRef.current;
-
-    if (previousFilters && previousFilters.length > 0 && currentFilters.length === 0) {
-      setFiltersWereCleared(true);
-    }
-
-    previousFiltersRef.current = currentFilters;
-  }, [filters]);
-
-  React.useEffect(() => {
-    const currentFilters = filters || [];
-
-    if (
-      defaultPageTypeSyncedRef.current ||
-      filtersWereCleared ||
-      currentFilters.some(isPageTypeFilter)
-    ) {
-      return;
-    }
-
-    defaultPageTypeSyncedRef.current = true;
-    void setFilters([...currentFilters, blogPageTypeFilter]);
-  }, [filters, filtersWereCleared, setFilters]);
-
-  const shouldUseDefaultBlogFilter = React.useMemo(() => {
-    return !filtersWereCleared && !(filters || []).some(isPageTypeFilter);
-  }, [filters, filtersWereCleared]);
-
-  const effectiveFilters = React.useMemo(() => {
-    const currentFilters = filters || [];
-    return shouldUseDefaultBlogFilter
-      ? [...currentFilters, blogPageTypeFilter]
-      : currentFilters;
-  }, [filters, shouldUseDefaultBlogFilter]);
-
-  const quickTypeFilter = React.useMemo(
-    () => getQuickTypeFilterValue(effectiveFilters),
-    [effectiveFilters]
-  );
-
   const hasActiveSearchOrFilters = React.useMemo(() => {
     const hasSearch = (search || "").trim().length > 0;
-    const hasFilters = effectiveFilters.length > 0;
+    const hasFilters = filters.length > 0;
     return hasSearch || hasFilters;
-  }, [search, effectiveFilters]);
-
-  const handleQuickTypeFilterChange = React.useCallback(
-    (value: "blog" | "other") => {
-      const nextPageTypeFilter =
-        value === "blog"
-          ? blogPageTypeFilter
-          : createPageTypeFilter([...WEB_PAGE_OTHER_TYPE_VALUES]);
-
-      void setPage(1);
-      setFiltersWereCleared(false);
-      void setFilters([...withoutPageTypeFilter(filters || []), nextPageTypeFilter]);
-    },
-    [filters, setFilters, setPage]
-  );
+  }, [search, filters]);
 
   const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
@@ -212,10 +99,10 @@ export function WebPageTableClient({
       perPage,
       search || "",
       JSON.stringify(sort),
-      JSON.stringify(effectiveFilters),
+      JSON.stringify(filters),
       joinOperator,
     ],
-    [businessId, page, perPage, search, sort, effectiveFilters, joinOperator]
+    [businessId, page, perPage, search, sort, filters, joinOperator]
   );
 
   const {
@@ -234,7 +121,7 @@ export function WebPageTableClient({
         perPage,
         search: search || undefined,
         sort: sort || [],
-        filters: effectiveFilters,
+        filters,
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
       onMetricsChange?.(result?.metrics ?? null);
@@ -271,7 +158,7 @@ export function WebPageTableClient({
           perPage,
           search || "",
           JSON.stringify(sort),
-          JSON.stringify(effectiveFilters),
+          JSON.stringify(filters),
           joinOperator,
         ];
 
@@ -286,7 +173,7 @@ export function WebPageTableClient({
                 perPage,
                 search: search || undefined,
                 sort: sort || [],
-                filters: effectiveFilters,
+                filters,
                 joinOperator: (joinOperator || "and") as "and" | "or",
               });
             },
@@ -309,7 +196,7 @@ export function WebPageTableClient({
           perPage,
           search || "",
           JSON.stringify(sort),
-          JSON.stringify(effectiveFilters),
+          JSON.stringify(filters),
           joinOperator,
         ];
 
@@ -325,7 +212,7 @@ export function WebPageTableClient({
               perPage,
               search: search || undefined,
               sort: sort || [],
-              filters: effectiveFilters,
+              filters,
               joinOperator: (joinOperator || "and") as "and" | "or",
             });
           },
@@ -336,7 +223,7 @@ export function WebPageTableClient({
     };
 
     prefetchPages();
-  }, [webPageData, page, perPage, search, sort, effectiveFilters, joinOperator, businessId, queryClient, fetchWebPages, jobExists, hasActiveSearchOrFilters]);
+  }, [webPageData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchWebPages, jobExists, hasActiveSearchOrFilters]);
 
   const {
     data: countsData,
@@ -404,8 +291,6 @@ export function WebPageTableClient({
         isFetching={webPageFetching}
         search={search}
         onSearchChange={setSearch}
-        quickTypeFilter={quickTypeFilter}
-        onQuickTypeFilterChange={handleQuickTypeFilterChange}
         hideActions={hideActions}
       />
     </div>

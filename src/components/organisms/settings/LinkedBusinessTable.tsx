@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,9 @@ import {
   hasRequiredGscAccess,
 } from "@/utils/gsc-permissions";
 import { Ga4ScopeControl } from "@/components/organisms/settings/Ga4ScopeControl";
+import { useLinkedBusinessAcceptance } from "@/hooks/use-linked-business-acceptance";
+import { MergeBusinessConfirmDialog } from "@/components/create-business/MergeBusinessConfirmDialog";
+import { apiErrorMessage } from "@/lib/api-error";
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -407,6 +410,7 @@ interface LinkedBusinessTableProps {
 }
 
 export default function LinkedBusinessTable({ readOnly = false }: LinkedBusinessTableProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const permissions = usePermissions();
   const isReadOnly = readOnly || !permissions.canManageLinkedBusinesses;
@@ -424,6 +428,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     useState<ExistingBusinessSummary | null>(null);
   const [stickySummaryTopPx, setStickySummaryTopPx] = useState(0);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const acceptanceInFlight = useRef(false);
 
   // API hooks
   const {
@@ -432,6 +437,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     isFetching,
   } = useFetchBusinesses();
   const createBusinessMutation = useCreateAgencyBusiness();
+  const acceptance = useLinkedBusinessAcceptance();
   const linkPropertyMutation = useLinkPropertyId();
   const toggleStatusMutation = useToggleBusinessStatus();
 
@@ -653,6 +659,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
   };
 
   const handleAccept = async (row: LinkedBusiness) => {
+    if (acceptanceInFlight.current || createBusinessMutation.isPending) return;
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
@@ -663,37 +670,55 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       });
       return;
     }
+    acceptanceInFlight.current = true;
     try {
-      await createBusinessMutation.mutateAsync({
-        businesses: [row],
-        suppressDuplicateToast: true,
-      });
-    } catch (error) {
-      if (error instanceof CreateBusinessConflictError) {
+      const result = await acceptance.mutateAsync(row);
+      if (result.kind === "merge") {
         setMergeConfirmRow(row);
-        setMergeTarget(error.conflict.existingBusiness);
+        setMergeTarget(result.business);
         setMergeConfirmOpen(true);
-        return;
+      } else {
+        router.push(`/create-business?draft=${result.draft.id}`);
       }
+    } catch (error) {
+      toast.error("Couldn't continue business setup", {
+        description: apiErrorMessage(error),
+      });
+    } finally {
+      acceptanceInFlight.current = false;
     }
   };
 
   const handleConfirmMerge = async () => {
+    if (acceptanceInFlight.current) return;
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
     }
     if (!mergeConfirmRow || !mergeTarget?.UniqueId) return;
 
-    await createBusinessMutation.mutateAsync({
-      businesses: [mergeConfirmRow],
-      mergeExisting: true,
-      mergeTargetUniqueId: mergeTarget.UniqueId,
-    });
+    acceptanceInFlight.current = true;
+    try {
+      const [connectedBusiness] = await createBusinessMutation.mutateAsync({
+        businesses: [mergeConfirmRow],
+        mergeExisting: true,
+        mergeTargetUniqueId: mergeTarget.UniqueId,
+      });
 
-    setMergeConfirmOpen(false);
-    setMergeConfirmRow(null);
-    setMergeTarget(null);
+      setMergeConfirmOpen(false);
+      setMergeConfirmRow(null);
+      setMergeTarget(null);
+      if (connectedBusiness?.businessId) {
+        router.push(`/business/${connectedBusiness.businessId}/profile`);
+      }
+    } catch (error) {
+      if (error instanceof CreateBusinessConflictError) {
+        setMergeTarget(error.conflict.existingBusiness);
+      }
+      // The merge mutation owns its error toast; keep the confirmation available.
+    } finally {
+      acceptanceInFlight.current = false;
+    }
   };
 
   const handleSaveChanges = async (row: LinkedBusiness) => {
@@ -734,25 +759,8 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     setConfirmToggleRow(null);
   };
 
-  const handleAcceptAll = async () => {
-    if (isReadOnly) {
-      toast.error(ANALYST_RESTRICTED_MESSAGE);
-      return;
-    }
-    const businessesToAccept = filteredData.filter(
-      (b) =>
-        !b.businessProfile?.Id &&
-        (b.siteUrl || b.displayName) &&
-        hasRequiredGscAccess(b.permissionLevel)
-    );
-    if (businessesToAccept.length > 0) {
-      await createBusinessMutation.mutateAsync({
-        businesses: businessesToAccept,
-      });
-    }
-  };
-
   const isMutating =
+    acceptance.isPending ||
     createBusinessMutation.isPending ||
     linkPropertyMutation.isPending ||
     toggleStatusMutation.isPending;
@@ -1187,27 +1195,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
         enableSorting: false,
         cell: ({ row }) => {
           if ((row.original as any).isSummary) {
-            // temporarily hidden – accept all button
             return null;
-            // return (
-            //   <Button
-            //     onClick={handleAcceptAll}
-            //     value={'default'}
-            //     disabled={
-            //       filter === "unmatched" ||
-            //       filteredData.length === 0 ||
-            //       isMutating
-            //     }
-            //     className="w-full"
-            //   >
-            //     {createBusinessMutation.isPending ? (
-            //       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            //     ) : (
-            //       <Check className="h-4 w-4 mr-2" />
-            //     )}
-            //     Accept all
-            //   </Button>
-            // );
           }
           const rowData = row.original;
           const hasBusinessProfile = !!rowData.businessProfile?.Id;
@@ -1323,15 +1311,15 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               <Button
                 variant="outline"
                 onClick={() => handleAccept(rowData)}
-                disabled={createBusinessMutation.isPending}
+                disabled={acceptance.isPending || createBusinessMutation.isPending}
                 className="w-full"
               >
-                {createBusinessMutation.isPending ? (
+                {acceptance.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
-                {createBusinessMutation.isPending ? "Connecting…" : "Accept"}
+                {acceptance.isPending ? "Checking…" : "Accept"}
               </Button>
             );
           }
@@ -1348,6 +1336,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       isReadOnly,
       ga4ScopeBusinessId,
       createBusinessMutation.isPending,
+      acceptance.isPending,
     ]
   );
 
@@ -1575,40 +1564,16 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
         </div>
       </CardContent>
 
-      <AlertDialog
-        open={mergeConfirmOpen}
-        onOpenChange={(open) => {
-          setMergeConfirmOpen(open);
-          if (!open) {
-            setMergeConfirmRow(null);
-            setMergeTarget(null);
-          }
+      <MergeBusinessConfirmDialog
+        business={mergeConfirmOpen ? mergeTarget : null}
+        pending={createBusinessMutation.isPending}
+        onCancel={() => {
+          setMergeConfirmOpen(false);
+          setMergeConfirmRow(null);
+          setMergeTarget(null);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Merge business?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {mergeTarget?.IsPitch
-                ? "Existing pitch found. Merge and link it?"
-                : "Existing business found. Merge and link it?"}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={createBusinessMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <Button
-                onClick={handleConfirmMerge}
-                disabled={createBusinessMutation.isPending || !mergeTarget?.UniqueId}
-              >
-                {createBusinessMutation.isPending ? "Merging..." : "Merge"}
-              </Button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={() => void handleConfirmMerge()}
+      />
 
       {/* Confirm link/unlink (mirrors old UI warning) */}
       <AlertDialog

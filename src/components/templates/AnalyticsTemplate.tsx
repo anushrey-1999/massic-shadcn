@@ -7,7 +7,8 @@ import { AlertCircle, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import {
   OrganicPerformanceSection,
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
-import { AnalyticsToolbar } from "@/components/organisms/analytics/AnalyticsToolbar";
+import { AnalyticsToolbar, type AnalyticsScope } from "@/components/organisms/analytics/AnalyticsToolbar";
+import { AITrafficSection } from "@/components/organisms/analytics/AITrafficSection";
 import {
   MonitoringSheet,
   PeriodSelector,
@@ -211,9 +212,10 @@ export function AnalyticsTemplate() {
   const searchParams = useSearchParams();
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
-  const [selectedTab, setSelectedTab] = useState<"all" | "organic">(
-    searchParams.get("tab") === "organic" ? "organic" : "all"
+  const [selectedTab, setSelectedTab] = useState<AnalyticsScope>(
+    searchParams.get("tab") === "ai-traffic" ? "ai-traffic" : searchParams.get("tab") === "organic" ? "organic" : "all"
   );
+  const ga4TrafficScope = selectedTab === "organic" ? "organic" : "all";
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
@@ -234,6 +236,14 @@ export function AnalyticsTemplate() {
     selectedTab === "all"
       ? { impressions: false, clicks: false, sessions: true, goals: true }
       : visibleLines;
+
+  const [aiVisibleLines, setAiVisibleLines] = useState<Record<string, boolean>>({ clicks: true, sessions: false });
+  const handleAILineToggle = useCallback((key: string, checked: boolean) => {
+    setAiVisibleLines((current) => {
+      if (!checked && Object.values(current).filter(Boolean).length <= 1) return current;
+      return { ...current, [key]: checked };
+    });
+  }, []);
 
   const handleChartLineToggle = useCallback((key: string, checked: boolean) => {
     setVisibleLines((prev) => {
@@ -298,7 +308,7 @@ export function AnalyticsTemplate() {
   const { fetchStrategyTopicKeywords } = useStrategy(businessId || "");
   const urlTopicName = searchParams.get("topicName")?.trim() || "";
   const hasLegacyQueryTerms = searchParams.getAll("query_term").length > 0;
-  const shouldResolveTopicKeywords = urlTopicName.length > 0 && !hasLegacyQueryTerms;
+  const shouldResolveTopicKeywords = selectedTab !== "ai-traffic" && urlTopicName.length > 0 && !hasLegacyQueryTerms;
 
   const {
     data: topicKeywords = [],
@@ -319,6 +329,7 @@ export function AnalyticsTemplate() {
   useEffect(() => {
     if (
       businessId &&
+      selectedTab !== "ai-traffic" &&
       !isGa4DataBlocked &&
       !profileDataLoading &&
       !ga4ScopeQuery.isLoading
@@ -333,6 +344,7 @@ export function AnalyticsTemplate() {
     }
   }, [
     businessId,
+    selectedTab,
     ga4ScopeQuery.isLoading,
     isGa4DataBlocked,
     prefetchPage1,
@@ -405,7 +417,6 @@ export function AnalyticsTemplate() {
     filtersForApi,
     addFilter,
     removeFilter,
-    clearAllFilters,
     keywordScopeFilter,
   } = useOrganicDeepdiveFilters(brandTerms, topicQueryFilter);
   const keywordScope = (keywordScopeFilter?.expression ??
@@ -424,9 +435,8 @@ export function AnalyticsTemplate() {
     topicKeywords.length === 0;
 
   useEffect(() => {
-    if (searchParams.get("tab") === "organic") {
-      setSelectedTab("organic");
-    }
+    const tab = searchParams.get("tab");
+    setSelectedTab(tab === "ai-traffic" ? "ai-traffic" : tab === "organic" ? "organic" : "all");
     // Lets a specific business be handed over as a URL with the sheet already open.
     if (searchParams.get("monitoring") === "1") {
       setMonitoringOpen(true);
@@ -455,17 +465,21 @@ export function AnalyticsTemplate() {
 
   const handleTabChange = useCallback(
     (value: string) => {
-      const nextTab = value as "all" | "organic";
+      if (!["all", "organic", "ai-traffic"].includes(value)) return;
+      const nextTab = value as AnalyticsScope;
 
       if (nextTab === selectedTab) return;
 
       setSelectedTab(nextTab);
 
-      if (filters.length > 0) {
-        clearAllFilters();
-      }
+      const params = new URLSearchParams(searchParams.toString());
+      for (const key of ["query", "query_term", "query_label", "topicName", "page", "content_group", "content_group_type", "keyword_scope"]) params.delete(key);
+      if (nextTab === "all") params.delete("tab");
+      else params.set("tab", nextTab);
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    [clearAllFilters, filters.length, selectedTab]
+    [selectedTab, searchParams, router, pathname]
   );
 
   useEffect(() => {
@@ -488,12 +502,12 @@ export function AnalyticsTemplate() {
     "3 months",
   ] as const;
   useEffect(() => {
-    if (!isGscIngestionActive) return;
+    if (!isGscIngestionActive || selectedTab === "ai-traffic") return;
     if (!INGESTION_ALLOWED_PERIODS.includes(selectedPeriod as any)) {
       setSelectedPeriod("3 months");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGscIngestionActive]);
+  }, [isGscIngestionActive, selectedTab]);
 
   useEffect(() => {
     setShowDeferredSections(false);
@@ -583,12 +597,12 @@ export function AnalyticsTemplate() {
                 (option) => !availableGroupByOptions.includes(option)
               )}
               className="w-auto cursor-pointer"
-              ingestionActive={isGscIngestionActive}
+              ingestionActive={selectedTab !== "ai-traffic" && isGscIngestionActive}
               disabled={isGa4DataBlocked}
             />
           }
           filterChips={
-            filters.length > 0 ? (
+            selectedTab !== "ai-traffic" && filters.length > 0 ? (
               <OrganicDeepdiveHeader
                 filters={filters}
                 onRemoveFilter={removeFilter}
@@ -627,14 +641,15 @@ export function AnalyticsTemplate() {
           monitoringDisabled={!businessId}
           reportsDisabled={!businessId}
           indexingDisabled={!businessId}
-          contentGroupsDisabled={!businessId || isGa4DataBlocked}
+          contentGroupsDisabled={!businessId || isGa4DataBlocked || selectedTab === "ai-traffic"}
           keywordScope={keywordScope}
           onKeywordScopeChange={handleKeywordScopeChange}
           showKeywordScope={selectedTab === "organic"}
-          metricKeys={headerMetricKeys}
-          visibleLines={visibleLines}
-          onLineToggle={handleChartLineToggle}
-          isIngestionActive={isToolbarDataBlocked}
+          metricKeys={selectedTab === "ai-traffic" ? ["clicks", "sessions"] : headerMetricKeys}
+          metricLabels={selectedTab === "ai-traffic" ? { clicks: "AI Assistant sessions", sessions: "Organic Search sessions" } : undefined}
+          visibleLines={selectedTab === "ai-traffic" ? aiVisibleLines : visibleLines}
+          onLineToggle={selectedTab === "ai-traffic" ? handleAILineToggle : handleChartLineToggle}
+          isIngestionActive={selectedTab === "ai-traffic" ? isGa4DataBlocked : isToolbarDataBlocked}
           isDataBlocked={isGa4DataBlocked}
         />
       </div>
@@ -674,6 +689,15 @@ export function AnalyticsTemplate() {
               );
             }}
           />
+        ) : selectedTab === "ai-traffic" ? (
+          <AITrafficSection
+            businessId={businessId}
+            period={selectedPeriod}
+            groupBy={groupBy}
+            scopeRevision={desiredGa4ScopeRevision}
+            visibleLines={aiVisibleLines}
+            onAvailableGroupingsChange={setAvailableGroupByOptions}
+          />
         ) : topicKeywordLookupPending ? (
           <div className="p-7">
             <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
@@ -708,7 +732,7 @@ export function AnalyticsTemplate() {
                 onLegendToggle={handleChartLineToggle}
                 filters={filtersForApi}
                 funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
-                ga4TrafficScope={selectedTab}
+                ga4TrafficScope={ga4TrafficScope}
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
                 isIngestionActive={isGscIngestionActive}
@@ -722,7 +746,7 @@ export function AnalyticsTemplate() {
               onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
               hideTopQueries={selectedTab === "all"}
               hideHowYouRank={selectedTab === "all"}
-              ga4TrafficScope={selectedTab}
+              ga4TrafficScope={ga4TrafficScope}
               isIngestionActive={isGscIngestionActive}
             />
             {showDeferredSections ? (
@@ -730,14 +754,14 @@ export function AnalyticsTemplate() {
                 <SourcesSection
                   period={selectedPeriod}
                   hideChannelsChart={selectedTab === "organic"}
-                  ga4TrafficScope={selectedTab}
+                  ga4TrafficScope={ga4TrafficScope}
                 />
                 {selectedTab === "all" ? (
                   <ConversionOverviewSection period={selectedPeriod} />
                 ) : null}
                 <ConversionSection
                   period={selectedPeriod}
-                  ga4TrafficScope={selectedTab}
+                  ga4TrafficScope={ga4TrafficScope}
                 />
                 <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
               </>
@@ -752,7 +776,7 @@ export function AnalyticsTemplate() {
         businessUniqueId={businessId}
         siteUrl={businessProfile?.Website || null}
         period={selectedPeriod}
-        trafficScope={selectedTab}
+        trafficScope={ga4TrafficScope}
       />
 
       <PrimaryDriversSheet

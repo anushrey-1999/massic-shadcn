@@ -1,82 +1,226 @@
-import type { AgentMessage, ChatRequest, IntentKind, PlanIntent, PlanItem, ResourceRef, ResourceType, Surface, ThreadMessage, WidgetPart } from "./types";
+import type {
+  AgentId,
+  AgentMessage,
+  ChatEntry,
+  ChatRequest,
+  PlanItem,
+  PlanSurface,
+  ResourceRef,
+  ResourceType,
+  SummaryMarker,
+  ThreadItem,
+  ThreadMessage,
+  TraceMetadata,
+  WidgetPart,
+} from "./types";
+import type { AgentAttachment } from "./agent-uploads";
 
-export const SURFACES: Record<Surface, { label: string; resource: ResourceType | null }> = {
-  global: { label: "Global", resource: null }, webpages: { label: "Web", resource: "webpage_plan" }, social_channels: { label: "Social", resource: "social_channels_plan" },
+export const PLAN_SURFACES: Record<
+  PlanSurface,
+  { label: string; resource: ResourceType }
+> = {
+  webpages: { label: "Web", resource: "webpage_plan" },
+  social_channels: { label: "Social", resource: "social_channels_plan" },
 };
-export const resourceSurface = (type: ResourceType): Exclude<Surface, "global"> => type === "webpage_plan" ? "webpages" : "social_channels";
-export const resourceKey = (resource: ResourceRef) => `${resource.type}:${resource.id}`;
-export const planItemId = (item: PlanItem, type: ResourceType) => String((type === "webpage_plan" ? item.page_id : item.campaign_cluster_id) ?? "");
-export const allPlanIds = (items: PlanItem[], type: ResourceType) => [...new Set(items.map(item => planItemId(item, type)).filter(Boolean))];
-export function intentFor(action: "create" | "refine" | "activate", surface: Exclude<Surface, "global">): IntentKind {
-  return `${action}_${surface}_plan`;
+export const resourcePlanSurface = (type: ResourceType): PlanSurface =>
+  type === "webpage_plan" ? "webpages" : "social_channels";
+export const resourceKey = (resource: ResourceRef) =>
+  `${resource.type}:${resource.id}`;
+export const planItemId = (item: PlanItem, type: ResourceType) =>
+  String(
+    (type === "webpage_plan" ? item.page_id : item.campaign_cluster_id) ?? "",
+  );
+export const allPlanIds = (items: PlanItem[], type: ResourceType) => [
+  ...new Set(items.map((item) => planItemId(item, type)).filter(Boolean)),
+];
+export function planActionMessage(
+  action: "create" | "refine" | "activate",
+  type: ResourceType,
+): string {
+  if (action === "refine") return "Refine this plan";
+  if (action === "activate") return "Activate this plan";
+  return type === "webpage_plan"
+    ? "Create a webpage plan"
+    : "Create a social channels plan";
 }
-export function intentLabel(kind: IntentKind): string {
-  const action = kind.startsWith("create") ? "Create" : kind.startsWith("refine") ? "Refine" : "Activate";
-  return `${action} ${kind.includes("social_channels") ? "social" : "web"} plan`;
-}
-export function buildChatRequest(args: { threadId?: string | null; surface: Surface; message?: string; resource?: ResourceRef | null; selectedIds?: string[]; intent?: PlanIntent }): ChatRequest {
-  const { threadId, surface, resource, intent } = args;
-  const message = args.message?.trim();
-  if (!message && !intent) throw new Error("Write a message or choose an action.");
-  if (resource && SURFACES[surface].resource !== resource.type) throw new Error("Open this plan in its matching conversation.");
-  if (args.selectedIds?.length && !resource) throw new Error("Open a plan before selecting items.");
-  if (intent && surface !== "global" && !intent.kind.includes(`_${surface}_`)) throw new Error("This action belongs to a different plan type.");
-  if (intent?.kind.startsWith("refine") && !resource) throw new Error("Open a plan to refine it.");
+export function buildChatRequest(args: {
+  agentId?: AgentId;
+  attachments?: string[];
+  threadId?: string | null;
+  message: string;
+  resource?: ResourceRef | null;
+  selectedIds?: string[];
+  omitView?: boolean;
+}): ChatRequest {
+  const message = args.message.trim();
+  if (!message) throw new Error("Write a message to send.");
+  if (args.selectedIds?.length && !args.resource && !args.omitView)
+    throw new Error("Open a plan before selecting items.");
   const metadata: NonNullable<ChatRequest["metadata"]> = {};
-  if (resource) metadata.view = { resource, selected_item_ids: [...new Set(args.selectedIds ?? [])] };
-  if (intent) {
-    metadata.intent = { kind: intent.kind, payload: {} };
-    if (intent.kind.startsWith("activate")) {
-      const id = Number(intent.payload?.plan_id ?? resource?.id);
-      if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Open a valid plan to activate it.");
-      metadata.intent.payload = { plan_id: id };
-    }
-    // v1 deliberately uses the server's default 20-item create size.
-  }
-  return { ...(threadId ? { thread_id: threadId } : { surface }), ...(message ? { message } : {}), ...(Object.keys(metadata).length ? { metadata } : {}) };
+  if (args.resource && !args.omitView)
+    metadata.view = {
+      resource: args.resource,
+      selected_item_ids: [...new Set(args.selectedIds ?? [])],
+    };
+  return {
+    agent_id: args.agentId ?? "planner",
+    ...(args.threadId ? { thread_id: args.threadId } : {}),
+    message,
+    ...(args.attachments?.length ? { attachments: args.attachments } : {}),
+    ...(Object.keys(metadata).length && args.agentId !== "profile"
+      ? { metadata }
+      : {}),
+  };
 }
 export function widgetParts(raw: unknown): WidgetPart[] {
   if (!Array.isArray(raw)) return [];
   const result = new Map<string, WidgetPart>();
   for (const value of raw) {
-    if (!value || value.kind !== "widget" || value.widget !== "resource_table" || value.schema_version !== 1) continue;
-    const r = value.resource;
-    if (!r || !["webpage_plan", "social_channels_plan"].includes(r.type) || !["number", "string"].includes(typeof r.id)) continue;
-    result.set(resourceKey(r), value as WidgetPart);
+    if (!value || value.kind !== "widget" || value.schema_version !== 1) continue;
+    if (value.widget === "resource_table") {
+      const r = value.resource;
+      if (
+        !r ||
+        !["webpage_plan", "social_channels_plan"].includes(r.type) ||
+        !["number", "string"].includes(typeof r.id)
+      )
+        continue;
+      result.set(resourceKey(r), value as WidgetPart);
+    }
+    if (
+      value.widget === "document" &&
+      value.resource &&
+      typeof value.resource.type === "string" &&
+      ["number", "string"].includes(typeof value.resource.id)
+    )
+      result.set(`document:${value.resource.type}`, value as WidgetPart);
   }
   return [...result.values()];
 }
-export function lastMatchingPlan(parts: WidgetPart[], surface: Surface): ResourceRef | null {
-  return [...parts].reverse().find(p => surface === "global" || p.resource.type === SURFACES[surface].resource)?.resource ?? null;
+export function lastMatchingPlan(parts: WidgetPart[]): ResourceRef | null {
+  const part = [...parts]
+    .reverse()
+    .find((candidate): candidate is Extract<WidgetPart, { widget: "resource_table" }> =>
+      candidate.widget === "resource_table",
+    );
+  return part?.resource ?? null;
 }
-export function cleanContent(content: string, role: "user" | "assistant"): string {
+export function isSummaryMarker(item: ThreadItem): item is SummaryMarker {
+  return (item as SummaryMarker).type === "summary";
+}
+export function cleanContent(
+  content: string,
+  role: "user" | "assistant",
+  hasAttachments = false,
+): string {
   // Server annotations have a reserved syntax; preserve ordinary brackets and code.
   const blocks = content.split(/(```[\s\S]*?(?:```|$))/g);
-  return blocks.map((block, i) => i % 2 ? block : role === "user"
-    ? block.replace(/\n\[(?:viewing|intent|view\.scope)\][^\n]*/g, "")
-    : block.replace(/\n?[ \t]*\[(?:shown:\s*resource_table\s+(?:webpage_plan|social_channels_plan):[^\]\n]+|action:\s*(?:create|refine|activate)_(?:webpages|social_channels)_plan)\][ \t]*/g, "")
-  ).join("").trim();
+  return blocks
+    .map((block, i) =>
+      i % 2
+        ? block
+        : role === "user"
+          ? (hasAttachments
+              ? block.replace(/(?:^|\n)[ \t]*\[attachments\][\s\S]*$/g, "")
+              : block
+            ).replace(/(?:\s*\[(?:viewing|intent|view\.scope)\][^\n]*)+$/g, "")
+          : block.replace(
+              /\n?[ \t]*\[(?:shown:\s*resource_table\s+(?:webpage_plan|social_channels_plan):[^\]\n]+|action:\s*(?:create|refine|activate)_(?:webpages|social_channels)_plan)\][ \t]*/g,
+              "",
+            ),
+    )
+    .join("")
+    .trim();
 }
 export function hydrateMessage(turn: ThreadMessage): AgentMessage {
   const metadata = turn.metadata ?? {};
-  return { id: `${turn.turn_id}-${turn.role}`, turnId: turn.turn_id, role: turn.role,
-    content: cleanContent(turn.content, turn.role), createdAt: Date.parse(turn.created_at), status: turn.status,
-    partial: turn.status === "cancelled", widgetParts: widgetParts(metadata.parts),
-    intent: (metadata.intent ?? (metadata.synthetic && typeof metadata.action === "string" ? { kind: metadata.action } : undefined)) as PlanIntent | undefined,
+  return {
+    id: `${turn.turn_id}-${turn.role}`,
+    turnId: turn.turn_id,
+    role: turn.role,
+    content: cleanContent(
+      turn.content,
+      turn.role,
+      Array.isArray(metadata.attachments) && metadata.attachments.length > 0,
+    ),
+    createdAt: Date.parse(turn.created_at),
+    status: turn.status,
+    partial: turn.status === "cancelled",
+    widgetParts: widgetParts(metadata.parts),
     view: metadata.view as AgentMessage["view"],
+    trace: metadata.trace as TraceMetadata | undefined,
+    attachments: metadata.attachments as AgentAttachment[] | undefined,
   };
 }
+export function hydrateThreadItem(item: ThreadItem): ChatEntry {
+  if (isSummaryMarker(item)) {
+    return {
+      kind: "summary",
+      id: `summary:${item.event_id}`,
+      eventId: item.event_id,
+      summaryText: item.summary_text,
+    };
+  }
+  return { kind: "message", message: hydrateMessage(item) };
+}
+
+/** Recover a request whose connection ended before thread_meta reached the client. */
+export function findAcceptedTurn(
+  items: ThreadItem[],
+  message: string,
+  fileIds: string[],
+  startedAt: number,
+): string | undefined {
+  return items.find((item): item is ThreadMessage => {
+    if (
+      isSummaryMarker(item) ||
+      item.role !== "user" ||
+      Date.parse(item.created_at) < startedAt - 5_000
+    )
+      return false;
+    const attachments = item.metadata?.attachments as
+      AgentAttachment[] | undefined;
+    const storedIds = (attachments ?? []).map((file) => file.file_id).sort();
+    return (
+      cleanContent(item.content, "user", !!attachments?.length) === message &&
+      JSON.stringify(storedIds) === JSON.stringify([...fileIds].sort())
+    );
+  })?.turn_id;
+}
 const mergedMessageCache = new WeakMap<AgentMessage, AgentMessage>();
-export function mergeMessages(history: AgentMessage[], live: AgentMessage[]): AgentMessage[] {
-  const byId = new Map(history.map(m => [m.id, m]));
-  for (const message of live) {
-    const citations = byId.get(message.id)?.citations;
-    if (message.citations || !citations) byId.set(message.id, message);
+export function mergeMessages(
+  history: ChatEntry[],
+  live: AgentMessage[],
+): ChatEntry[] {
+  const liveById = new Map(live.map((message) => [message.id, message]));
+  const used = new Set<string>();
+  const result: ChatEntry[] = [];
+  for (const entry of history) {
+    if (entry.kind === "summary") {
+      result.push(entry);
+      continue;
+    }
+    const incoming = liveById.get(entry.message.id);
+    if (!incoming) {
+      result.push(entry);
+      continue;
+    }
+    used.add(incoming.id);
+    const citations = incoming.citations ?? entry.message.citations;
+    if (incoming.citations || !citations)
+      result.push({ kind: "message", message: incoming });
     else {
-      let merged = mergedMessageCache.get(message);
-      if (!merged || merged.citations !== citations) { merged = { ...message, citations }; mergedMessageCache.set(message, merged); }
-      byId.set(message.id, merged);
+      let merged = mergedMessageCache.get(incoming);
+      if (!merged || merged.citations !== citations) {
+        merged = { ...incoming, citations };
+        mergedMessageCache.set(incoming, merged);
+      }
+      result.push({ kind: "message", message: merged });
     }
   }
-  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || (a.role === "user" ? -1 : 1));
+  for (const message of live) {
+    if (used.has(message.id)) continue;
+    result.push({ kind: "message", message });
+  }
+  return result;
 }

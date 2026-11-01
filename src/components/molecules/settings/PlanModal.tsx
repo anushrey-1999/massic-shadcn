@@ -37,6 +37,7 @@ interface PlanModalProps {
   isDescription?: boolean;
   loading?: boolean;
   selectionResetKey?: number;
+  showDismissButton?: boolean;
 }
 
 const defaultPlansData: PlanData[] = [
@@ -113,6 +114,7 @@ export function PlanModal({
   alertSeverity = "info",
   loading = false,
   selectionResetKey,
+  showDismissButton = false,
 }: PlanModalProps) {
   const plans = plansData || defaultPlansData;
   const [selectedPlanName, setSelectedPlanName] = React.useState<string | null>(null);
@@ -139,7 +141,9 @@ export function PlanModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen) onClose();
+    }}>
       <DialogContent 
         className="bg-transparent border-none p-0 gap-3 shadow-none"
         showCloseButton={false}
@@ -149,7 +153,7 @@ export function PlanModal({
         }}
       >
         <DialogTitle className="sr-only">Select a Plan</DialogTitle>
-        <div className="flex">
+        <div className="flex items-center justify-between">
           <Button
             variant="outline"
             className="bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-md flex items-center gap-2"
@@ -158,6 +162,18 @@ export function PlanModal({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
+          {showDismissButton && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="bg-background"
+              aria-label="Close plan selection"
+              onClick={onClose}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          )}
         </div>
 
         {showAlertBar && alertMessage && (

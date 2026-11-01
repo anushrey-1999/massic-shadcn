@@ -19,6 +19,8 @@ import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useStrategy } from "@/hooks/use-strategy";
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
 import type { QueryKeys } from "@/types/data-table-types";
+import { ProfileStrategyGate } from "@/components/molecules/ProfileStrategyGate";
+import { getProfileStrategyGate } from "@/utils/profile-strategy-gate";
 
 interface PageProps {
   params: Promise<{
@@ -405,6 +407,7 @@ export default function BusinessStrategyTopicPage({ params }: PageProps) {
 
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const showMainContent = coreStatus === "success";
+  const profileGate = getProfileStrategyGate(jobDetails);
   const isWebReady = showMainContent && isWorkflowSuccess(jobDetails, "webpages");
   const isSocialReady = showMainContent && isWorkflowSuccess(jobDetails, "social_channels");
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
@@ -433,6 +436,7 @@ export default function BusinessStrategyTopicPage({ params }: PageProps) {
     enabled:
       !!businessId &&
       !jobDetailsLoading &&
+      !profileGate.blocked &&
       showMainContent &&
       normalizedTopicName.length > 0,
     staleTime: 1000 * 60 * 5,
@@ -459,7 +463,11 @@ export default function BusinessStrategyTopicPage({ params }: PageProps) {
     );
   }
 
-  const content = !jobDetailsLoading && showMainContent ? (
+  const content = !jobDetailsLoading && profileGate.blocked ? (
+    <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+      <ProfileStrategyGate businessId={businessId} job={jobDetails} />
+    </div>
+  ) : !jobDetailsLoading && showMainContent ? (
     <StrategyTopicContent
       businessId={businessId}
       topicName={normalizedTopicName}

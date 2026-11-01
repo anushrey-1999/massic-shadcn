@@ -17,7 +17,6 @@ export type FeatureActionKey =
   | "actions.refinePlan"
   | "actions.regeneratePlan"
   | "actions.acceptPlan"
-  | "actions.autofillProfile"
   | "actions.activatePlan"
   | "profile.save"
   | "profile.fetchOfferings"

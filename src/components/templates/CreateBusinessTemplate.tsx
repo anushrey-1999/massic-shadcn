@@ -1,212 +1,114 @@
 "use client";
 
-import React from "react";
 import { useStore } from "@tanstack/react-form";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import PageHeader from "@/components/molecules/PageHeader";
-import { LoaderOverlay } from "@/components/ui/loader";
-import { cn } from "@/lib/utils";
-import { ArrowRight, Loader2 } from "lucide-react";
-import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
-import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
-
-type FormData = {
-  website: string;
-  businessName: string;
-  businessCategory?: string;
-  primaryLocation: string;
-  serviceAreaType?: string;
-  serviceAreas?: string[];
-  serviceType: string;
-  offerings: string;
-};
-
-type LocationOption = {
-  value: string;
-  label: string;
-  disabled?: boolean;
-};
-
-interface CreateBusinessTemplateProps {
-  form: any; // FormApi type is complex, using any for flexibility
-  locationOptions: LocationOption[];
-  locationsLoading: boolean;
-  isSubmitting: boolean;
-  isPending: boolean;
-  isAutofillLoading: boolean;
-  offeringsExtractor?: any;
-  hasAutofilledProfile: boolean;
-  onAutofillProfile: () => void;
-  onSubmitCreate: () => void;
-  onCancel: () => void;
-}
+import { ProfileIdentityFields } from "@/components/organisms/profile/ProfileIdentityFields";
+import { isValidWebsiteUrl } from "@/utils/utils";
 
 export function CreateBusinessTemplate({
   form,
-  locationOptions,
   locationsLoading,
   isSubmitting,
-  isPending,
-  isAutofillLoading,
-  offeringsExtractor,
-  hasAutofilledProfile,
-  onAutofillProfile,
   onSubmitCreate,
   onCancel,
-}: CreateBusinessTemplateProps) {
-  const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
-
-  const formValues = useStore(form.store, (state: any) => state.values) as FormData;
-  const isOfferingsExtracting = Boolean(offeringsExtractor?.isExtracting);
-  const isLoading = Boolean(isSubmitting || isPending || isAutofillLoading);
-  const isAutofillDisabled =
-    isAutofillLoading ||
+  isPitch = false,
+  initialFieldsLocked = false,
+  websiteLocked = false,
+}: {
+  form: any;
+  locationsLoading: boolean;
+  isSubmitting: boolean;
+  onSubmitCreate: () => void;
+  onCancel: () => void;
+  isPitch?: boolean;
+  initialFieldsLocked?: boolean;
+  websiteLocked?: boolean;
+}) {
+  const values = useStore(form.store, (state: any) => state.values);
+  const disabled =
+    isSubmitting ||
     locationsLoading ||
-    !String(formValues?.website ?? "").trim() ||
-    !String(formValues?.primaryLocation ?? "").trim() ||
-    !String(formValues?.serviceAreaType ?? "").trim();
-
-  const renderAutofillButton = ({
-    className,
-    variant,
-  }: {
-    className?: string;
-    variant?: "outline";
-  } = {}) => (
-    <Button
-      type="button"
-      variant={variant}
-      onClick={onAutofillProfile}
-      disabled={isAutofillDisabled}
-      className={cn(
-        "gap-2",
-        variant
-          ? "border-general-border-three text-general-foreground"
-          : "bg-general-primary text-general-primary-foreground hover:bg-general-primary/90",
-        className
-      )}
-    >
-      {isAutofillLoading ? (
-        <>
-          <Loader2 className="size-4 animate-spin" />
-          Autofilling...
-        </>
-      ) : (
-        <>
-          Autofill Profile
-          <ArrowRight className="size-4 shrink-0" />
-        </>
-      )}
-    </Button>
-  );
+    !isValidWebsiteUrl(values.website) ||
+    !values.businessName?.trim() ||
+    !values.primaryLocation?.trim() ||
+    !values.serviceAreaType;
 
   return (
-    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden")}>
-      <LoaderOverlay
-        isLoading={isLoading}
-        message={
-          isAutofillLoading
-            ? "Autofilling profile..."
-            : isPending
-              ? "Creating business..."
-              : undefined
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <PageHeader
+        breadcrumbs={
+          isPitch
+            ? [
+                { label: "Home", href: "/" },
+                { label: "Pitches", href: "/pitches" },
+                { label: "Create pitch" },
+              ]
+            : [
+                { label: "Home", href: "/" },
+                { label: "Create business" },
+              ]
         }
-      >
-        <div className="flex flex-col flex-1 min-h-0 min-w-0">
-          <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
-          </div>
-
-          <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div
-              className={cn(
-                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
-                !hasAutofilledProfile && "justify-center items-center"
-              )}
-            >
-              <form
-                id="create-business-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onSubmitCreate();
-                }}
-                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
-              >
-                {!hasAutofilledProfile ? (
-                  <ProfileGateCard
-                    title="Add a business"
-                    description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
-                    className="w-full max-w-[490px] self-center"
-                  >
-                    <div className="mx-auto w-full max-w-[442px]">
-                      <BusinessInfoForm
-                        form={form}
-                        embedded
-                        embeddedVariant="autofillGate"
-                        disableWebsiteLock
-                        primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
-                      />
-                    </div>
-                  </ProfileGateCard>
-                ) : null}
-                {hasAutofilledProfile && (
-                  <ProfileAutofillReviewTemplate
-                    form={form}
-                    businessId={null}
-                    leftTitle="Create Business"
-                    extractionController={offeringsExtractor}
-                    onSaveChanges={() => {}}
-                    onSaveAndUpdateStrategy={() => {}}
-                    onAutofillProfile={onAutofillProfile}
-                    autofillDisabled={isAutofillDisabled}
-                    autofillLoading={isAutofillLoading}
-                    showUnlinkBusiness={false}
-                    showDefaultActions={false}
-                    customHeaderActions={
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-general-border-three text-general-foreground"
-                          onClick={onCancel}
-                          disabled={isSubmitting}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          form="create-business-form"
-                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                          disabled={
-                            isSubmitting ||
-                            isPending ||
-                            isAutofillLoading ||
-                            isOfferingsExtracting
-                          }
-                        >
-                          {isSubmitting || isPending ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" />
-                              Creating...
-                            </>
-                          ) : isOfferingsExtracting ? (
-                            "Extracting offerings..."
-                          ) : (
-                            "Create"
-                          )}
-                        </Button>
-                      </>
-                    }
-                    className="flex-1"
-                  />
-                )}
-              </form>
+        showAskMassic={false}
+      />
+      <div className="flex min-h-0 flex-1 overflow-y-auto p-5">
+        <Card className="mx-auto my-auto w-full max-w-[490px] shrink-0 gap-0 py-0 shadow-none">
+          <form
+            className="flex flex-col"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!disabled) onSubmitCreate();
+            }}
+          >
+            <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+              <h1 className="text-2xl font-medium">
+                {isPitch ? "Create pitch" : "Add a business"}
+              </h1>
+              <p className="mt-2 text-sm text-general-muted-foreground">
+                Add the basics. You can fill in offerings and competitors
+                next.
+              </p>
             </div>
-          </div>
-        </div>
-      </LoaderOverlay>
+            <fieldset
+              disabled={isSubmitting}
+              className="min-w-0 px-5 py-5 sm:px-6"
+            >
+              <ProfileIdentityFields
+                form={form}
+                disabled={isSubmitting}
+                deriveName
+                initialFieldsLocked={initialFieldsLocked}
+                websiteLocked={websiteLocked}
+              />
+            </fieldset>
+            <div className="flex gap-2 px-5 pb-5 sm:px-6 sm:pb-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={onCancel}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 gap-2"
+                disabled={disabled}
+              >
+                {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+                {isSubmitting
+                  ? "Creating…"
+                  : isPitch
+                    ? "Create pitch"
+                    : "Create business"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 }
-

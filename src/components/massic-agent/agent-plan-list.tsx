@@ -8,6 +8,7 @@ import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { cn } from "@/lib/utils";
 import { allPlanIds, planItemId } from "./agent-model";
 import { PlanMetaField, PlanTypeSlot } from "./agent-plan-item-meta";
+import { StalePlanEmptyState } from "./stale-plan-empty-state";
 import type { AgentPlan, PlanItem, ResourceType } from "./types";
 
 type AgentPlanListProps = {
@@ -15,6 +16,7 @@ type AgentPlanListProps = {
   type: ResourceType;
   selectedIds: string[];
   onSelection: (ids: string[]) => void;
+  onCreateNewPlan: () => void;
   className?: string;
 };
 
@@ -70,13 +72,17 @@ function PlanListRow({ item, type, selected, expanded, onToggleSelected, onToggl
   </li>;
 }
 
-export function AgentPlanList({ plan, type, selectedIds, onSelection, className }: AgentPlanListProps) {
+export function AgentPlanList({ plan, type, selectedIds, onSelection, onCreateNewPlan, className }: AgentPlanListProps) {
   const rows = plan.plan_json ?? [];
   const ids = allPlanIds(rows, type);
   const allSelected = ids.length > 0 && ids.every(id => selectedIds.includes(id));
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   React.useEffect(() => setExpandedId(null), [plan.id, type]);
+
+  if (plan.valid === false) {
+    return <StalePlanEmptyState onCreateNewPlan={onCreateNewPlan} className={className} />;
+  }
 
   const toggleSelected = (id: string) => {
     if (!id) return;
@@ -92,7 +98,6 @@ export function AgentPlanList({ plan, type, selectedIds, onSelection, className 
         {allSelected ? "Deselect all" : "Select all"}
       </Button>
     </div>
-    {plan.valid === false && <p role="alert" className="shrink-0 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">Some items are no longer in your strategy. Replace them before activating this plan.</p>}
     {rows.length
       ? <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto">
           {rows.map((item, index) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useProfileEditingDisabled } from "@/components/organisms/profile/profile-editing-context";
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ export function TagsInput({
   className,
   maxItems,
 }: TagsInputProps) {
+  const profileDisabled = useProfileEditingDisabled();
+  disabled = disabled || profileDisabled;
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -91,7 +94,7 @@ export function TagsInput({
         <Badge
           key={`${t.toLowerCase()}-${idx}`}
           variant="outline"
-          className="gap-1 rounded-full px-2 py-1 text-xs"
+          className="gap-1 rounded-full bg-white px-2 py-1 text-xs font-normal text-general-foreground"
         >
           <span className="max-w-60 truncate">{t}</span>
           <button

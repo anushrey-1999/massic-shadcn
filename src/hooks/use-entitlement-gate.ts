@@ -15,6 +15,8 @@ export type EntitlementKey =
   | "content"
   | "reviews"
   | "aiChat"
+  | "massicAgent"
+  | "customerAgent"
   | "actions";
 
 type UseEntitlementGateArgs = {
@@ -94,6 +96,8 @@ export function useEntitlementGate({
         aiChat: true,
         content: true,
         reviews: true,
+        massicAgent: true,
+        customerAgent: true,
         actions: true,
       };
     }
@@ -108,6 +112,8 @@ export function useEntitlementGate({
         aiChat: false,
         content: false,
         reviews: false,
+        massicAgent: false,
+        customerAgent: false,
         actions: false,
       };
     }
@@ -130,6 +136,8 @@ export function useEntitlementGate({
       aiChat: level >= 2,
       content: level >= 3,
       reviews: level >= 3,
+      massicAgent: level >= 3,
+      customerAgent: level >= 3,
       actions: level >= 3,
     };
   }, [planType]);

@@ -20,6 +20,8 @@ export interface AnalyticsChartPointLike {
   clicks: number;
   sessions?: number;
   goals?: number;
+  gscAvailable?: boolean;
+  ga4Available?: boolean;
 }
 
 export interface AnalyticsChartRange {
@@ -280,6 +282,8 @@ export function groupAnalyticsChartData<T extends AnalyticsChartPointLike>(
         clicks: point.clicks ?? 0,
         sessions: point.sessions ?? 0,
         goals: point.goals ?? 0,
+        gscAvailable: point.gscAvailable ?? true,
+        ga4Available: point.ga4Available ?? true,
       });
       continue;
     }
@@ -288,6 +292,8 @@ export function groupAnalyticsChartData<T extends AnalyticsChartPointLike>(
     existing.clicks += point.clicks ?? 0;
     existing.sessions = (existing.sessions ?? 0) + (point.sessions ?? 0);
     existing.goals = (existing.goals ?? 0) + (point.goals ?? 0);
+    existing.gscAvailable = Boolean(existing.gscAvailable && (point.gscAvailable ?? true));
+    existing.ga4Available = Boolean(existing.ga4Available && (point.ga4Available ?? true));
   }
 
   return Array.from(grouped.values()).sort((a, b) => a.bucketStart.localeCompare(b.bucketStart));

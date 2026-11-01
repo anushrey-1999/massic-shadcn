@@ -54,6 +54,7 @@ export interface BusinessProfile {
   /** Set by the profile flow when the business explicitly has no physical locations. */
   NoLocationExist?: boolean;
   IsActive?: boolean;
+  IsPitch?: boolean;
   isWhitelisted?: boolean;
   GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
@@ -64,14 +65,13 @@ export interface BusinessProfile {
 
 // Profile form table row types
 export type OfferingRow = {
+  /** Stable identity within the form only; job payloads omit it. */
+  clientId?: string;
   name: string;
   description: string;
   link: string;
-  pricePositioning?: string;
   offeringType?: string;
-  priceRange?: string;
-  duration?: string;
-  inclusions?: string[] | string;
+  existingUrls?: string[];
 };
 
 export type CTARow = {
@@ -82,7 +82,7 @@ export type CTARow = {
 export type StakeholderRow = {
   name: string;
   title: string;
-  bio?: string;
+  role?: string;
 };
 
 export type LocationRow = {

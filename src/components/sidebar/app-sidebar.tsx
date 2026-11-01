@@ -7,11 +7,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfileById, useBusinessProfiles } from '@/hooks/use-business-profiles'
+import { useDashboardTags } from '@/hooks/use-dashboard-tags'
+import { useDashboardTagVisibility } from '@/hooks/use-dashboard-tag-visibility'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
+import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -45,6 +47,7 @@ import { Input } from '@/components/ui/input'
 import { normalizeDomainForFavicon } from '@/utils/utils'
 import { useCan } from '@/hooks/use-permissions'
 import { useAppSidebarCollapsed } from './use-app-sidebar-collapsed'
+import { DashboardTagFilterMenu } from '@/components/molecules/home/DashboardTagFilterMenu'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -205,6 +208,13 @@ export default function AppSidebar() {
     sidebarDataLoading,
     expandedBusinessId,
   } = useBusinessProfiles()
+  const dashboardTags = useDashboardTags()
+  const tagVisibility = useDashboardTagVisibility(dashboardTags, profiles, sidebarDataLoading)
+  const {
+    matchesTagVisibility,
+    hasTagVisibilityFilter,
+    isTagVisibilityLoading,
+  } = tagVisibility
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
   useEffect(() => {
@@ -255,17 +265,23 @@ export default function AppSidebar() {
     { label: 'Social', slug: 'social' },
     { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
-    { label: 'Profile', slug: 'profile' },
   ]
 
   const filteredProfiles = useMemo(() => {
-    if (!searchQuery.trim()) return profiles
+    const query = searchQuery.trim().toLowerCase()
 
-    return profiles.filter(business =>
-      (business.Name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (business.DisplayName?.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
-  }, [profiles, searchQuery])
+    return profiles.filter(business => {
+      if (business.IsPitch === true) return false
+      if (business.IsActive === false) return false
+      if (!matchesTagVisibility(business.UniqueId)) return false
+      if (!query) return true
+
+      return (
+        business.Name?.toLowerCase().includes(query) ||
+        business.DisplayName?.toLowerCase().includes(query)
+      )
+    })
+  }, [matchesTagVisibility, profiles, searchQuery])
 
   const isBusinessRoute = pathname.startsWith('/business/')
   const pitchBusinessId = useMemo(() => {
@@ -281,9 +297,6 @@ export default function AppSidebar() {
 
   const pitchBusinessSubItems = [
     { label: 'Reports', slug: 'reports' },
-    { label: 'Strategy', slug: 'strategy' },
-    { label: 'Web', slug: 'web' },
-    { label: 'Social', slug: 'social' },
     { label: 'Profile', slug: 'profile' },
   ] as const
 
@@ -584,6 +597,12 @@ export default function AppSidebar() {
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       )}
+                      <DashboardTagFilterMenu
+                        tagVisibility={tagVisibility}
+                        profiles={profiles}
+                        dashboardTags={dashboardTags}
+                        variant="sidebar"
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
@@ -604,7 +623,7 @@ export default function AppSidebar() {
                 onScroll={handleScroll}
               >
                 <SidebarMenu className={cn('gap-1 pb-3', isCollapsed ? 'px-1' : 'px-4')}>
-                  {sidebarDataLoading ? (
+                  {sidebarDataLoading || isTagVisibilityLoading ? (
                     <>
                       {[1, 2, 3].map((i) => (
                         <SidebarMenuItem key={i}>
@@ -619,7 +638,11 @@ export default function AppSidebar() {
                     !isCollapsed ? (
                       <SidebarMenuItem>
                         <div className="text-sm text-muted-foreground">
-                          {searchQuery ? 'No matching businesses found' : 'No businesses found'}
+                          {searchQuery
+                            ? 'No matching businesses found'
+                            : hasTagVisibilityFilter
+                              ? 'No businesses match selected tags'
+                              : 'No active businesses found'}
                         </div>
                       </SidebarMenuItem>
                     ) : null
@@ -681,8 +704,6 @@ export default function AppSidebar() {
                                     let isActive = false
                                     if (subItem.slug === 'analytics') {
                                       isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
-                                    } else if (subItem.slug === 'profile') {
-                                      isActive = pathname === subItemHref
                                     } else {
                                       isActive = pathname.startsWith(itemBasePath)
                                     }
@@ -701,6 +722,38 @@ export default function AppSidebar() {
                                       </SidebarMenuSubItem>
                                     )
                                   })}
+                                  <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton
+                                      asChild
+                                      isActive={isBusinessProfileRoute(pathname, business.UniqueId)}
+                                      className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                    >
+                                      <Link href={`/business/${business.UniqueId}/profile`}>
+                                        <span>Settings</span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                    {isBusinessProfileRoute(pathname, business.UniqueId) && (
+                                      <SidebarMenuSub className="ml-3 mt-0.5 border-l border-general-border">
+                                        {[
+                                          { label: 'Profile', slug: 'profile' },
+                                          { label: 'Agents', slug: 'customer-agent' },
+                                        ].map((item) => {
+                                          const href = `/business/${business.UniqueId}/${item.slug}`
+                                          return (
+                                            <SidebarMenuSubItem key={item.slug}>
+                                              <SidebarMenuSubButton
+                                                asChild
+                                                isActive={pathname.startsWith(href)}
+                                                className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                              >
+                                                <Link href={href}>{item.label}</Link>
+                                              </SidebarMenuSubButton>
+                                            </SidebarMenuSubItem>
+                                          )
+                                        })}
+                                      </SidebarMenuSub>
+                                    )}
+                                  </SidebarMenuSubItem>
                                 </SidebarMenuSub>
                               </CollapsibleContent>
                             )}
@@ -748,7 +801,7 @@ export default function AppSidebar() {
 
       {isCollapsed && flyoutBusinessId && typeof document !== 'undefined' && createPortal(
         (() => {
-          const business = profiles.find((b) => b.UniqueId === flyoutBusinessId)
+          const business = filteredProfiles.find((b) => b.UniqueId === flyoutBusinessId)
           if (!business) return null
           return (
             <div
@@ -769,8 +822,6 @@ export default function AppSidebar() {
                 let isActive = false
                 if (subItem.slug === 'analytics') {
                   isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
-                } else if (subItem.slug === 'profile') {
-                  isActive = pathname === subItemHref
                 } else {
                   isActive = pathname.startsWith(subItemHref)
                 }
@@ -790,6 +841,43 @@ export default function AppSidebar() {
                   </Link>
                 )
               })}
+              <Link
+                href={`/business/${business.UniqueId}/profile`}
+                onClick={() => setFlyoutBusinessId(null)}
+                className={cn(
+                  'mx-1 flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm transition-colors',
+                  isBusinessProfileRoute(pathname, business.UniqueId)
+                    ? 'bg-general-border font-medium text-general-unofficial-foreground-alt'
+                    : 'text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt'
+                )}
+              >
+                <span>Settings</span>
+              </Link>
+              {isBusinessProfileRoute(pathname, business.UniqueId) && (
+                <div className="ml-4 border-l border-general-border pl-1">
+                  {[
+                    { label: 'Profile', slug: 'profile' },
+                    { label: 'Agents', slug: 'customer-agent' },
+                  ].map((item) => {
+                    const href = `/business/${business.UniqueId}/${item.slug}`
+                    return (
+                      <Link
+                        key={item.slug}
+                        href={href}
+                        onClick={() => setFlyoutBusinessId(null)}
+                        className={cn(
+                          'mx-1 flex cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors',
+                          pathname.startsWith(href)
+                            ? 'bg-general-border font-medium text-general-unofficial-foreground-alt'
+                            : 'text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt'
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })(),

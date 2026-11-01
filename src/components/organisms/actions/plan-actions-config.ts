@@ -1,8 +1,8 @@
-import type { ResourceType, Surface } from "@/components/massic-agent/types";
+import type { PlanSurface, ResourceType } from "@/components/massic-agent/types";
 
 export type PlanActionsConfig = {
   type: ResourceType;
-  surface: Exclude<Surface, "global">;
+  surface: PlanSurface;
   title: "Web" | "Social";
   itemLabel: "pages" | "tactics";
   workflow: "webpages" | "social_channels";

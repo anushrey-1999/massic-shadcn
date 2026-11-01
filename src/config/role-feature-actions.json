@@ -64,12 +64,6 @@
       "blockedFor": ["ANALYST"],
       "visibleWhenRestricted": true
     },
-    "autofillProfile": {
-      "label": "Autofill business profile",
-      "permission": "canGenerateContent",
-      "blockedFor": ["ANALYST"],
-      "visibleWhenRestricted": true
-    },
     "activatePlan": {
       "label": "Make plan active",
       "permission": "canGenerateContent",

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
@@ -85,7 +86,7 @@ export function useUpdateBusinessStatus() {
     onError: (error, variables) => {
       const action = variables.softDelete ? "delete" : "unlink";
       toast.error(`Failed to ${action} business`, {
-        description: error.message || "Please try again later.",
+        description: apiErrorMessage(error),
       });
     },
   });
@@ -127,7 +128,7 @@ export function useConvertPitchToBusiness() {
       if (response.err === true) {
         const conflictError = parseCreateBusinessConflict(response);
         if (conflictError) throw conflictError;
-        throw new Error(response.message || "Failed to convert business");
+        throw new Error(apiErrorMessage({ response: { data: response } }, "Failed to convert business"));
       }
 
       return response;
@@ -180,7 +181,7 @@ export function useConvertPitchToBusiness() {
       }
 
       toast.error("Failed to convert to business", {
-        description: error.message || "Please try again later.",
+        description: apiErrorMessage(error),
       });
     },
   });
@@ -206,7 +207,7 @@ export function useReactivateBusiness() {
       }>(`/business/reactivate/${businessId}`, "node");
 
       if (response.err === true) {
-        throw new Error(response.message || "Failed to reactivate business");
+        throw new Error(apiErrorMessage({ response: { data: response } }, "Failed to reactivate business"));
       }
 
       return response;
@@ -237,7 +238,7 @@ export function useReactivateBusiness() {
       }
 
       toast.error("Failed to reactivate business", {
-        description: error.message || "Please try again later.",
+        description: apiErrorMessage(error),
       });
     },
   });

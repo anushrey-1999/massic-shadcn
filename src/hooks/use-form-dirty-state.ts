@@ -28,6 +28,8 @@ export type FormDirtyState = {
    * Call this after a successful save or when server data repopulates the form.
    */
   resetBaseline: (values?: unknown) => void;
+  /** Move the server baseline without marking remaining local edits clean. */
+  rebaseBaseline: (values: unknown) => void;
   /** Drops the baseline, so nothing is considered dirty until one is set again. */
   clearBaseline: () => void;
 };
@@ -61,10 +63,10 @@ export function useFormDirtyState<TValues>(options: {
   const values = React.useSyncExternalStore(
     React.useCallback(
       (onStoreChange: () => void) => form.store.subscribe(onStoreChange),
-      [form]
+      [form],
     ),
     () => form.store.state.values,
-    () => form.store.state.values
+    () => form.store.state.values,
   );
 
   const markClean = React.useCallback(() => {
@@ -98,7 +100,7 @@ export function useFormDirtyState<TValues>(options: {
         markClean();
       });
     },
-    [form, markClean]
+    [form, markClean],
   );
 
   const clearBaseline = React.useCallback(() => {
@@ -106,11 +108,29 @@ export function useFormDirtyState<TValues>(options: {
     markClean();
   }, [markClean]);
 
+  const rebaseBaseline = React.useCallback(
+    (nextValues: unknown) => {
+      if (captureFrameRef.current !== null) {
+        cancelAnimationFrame(captureFrameRef.current);
+        captureFrameRef.current = null;
+      }
+      if (compareFrameRef.current !== null) {
+        cancelAnimationFrame(compareFrameRef.current);
+        compareFrameRef.current = null;
+      }
+      baselineRef.current = stableStringify(nextValues);
+      const dirty = stableStringify(form.state.values) !== baselineRef.current;
+      isDirtyRef.current = dirty;
+      setIsDirty(dirty);
+    },
+    [form],
+  );
+
   const hasBaseline = React.useCallback(() => baselineRef.current !== null, []);
 
   const serializedBaseline = React.useMemo(
     () => (baseline === undefined ? null : stableStringify(baseline)),
-    [baseline]
+    [baseline],
   );
 
   // Establish the initial baseline: the caller-provided one when available,
@@ -158,8 +178,8 @@ export function useFormDirtyState<TValues>(options: {
         captureFrameRef.current = null;
       }
     },
-    []
+    [],
   );
 
-  return { isDirty, hasBaseline, resetBaseline, clearBaseline };
+  return { isDirty, hasBaseline, resetBaseline, rebaseBaseline, clearBaseline };
 }

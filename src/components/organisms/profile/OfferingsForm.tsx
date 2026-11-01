@@ -1,329 +1,194 @@
 "use client";
 
-import React, { useMemo, useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useStore } from "@tanstack/react-form";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { GenericInput } from "@/components/ui/generic-input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import {
-  CustomAddRowTable,
-  Column,
-} from "@/components/organisms/CustomAddRowTable";
 import { OfferingRow } from "@/store/business-store";
-import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
-import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
-import { useApplyExtractedOfferings } from "@/hooks/use-apply-extracted-offerings";
-import { toast } from "sonner";
-import { AlertCircle, Boxes, Handshake, Loader2, PackageSearch, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useBusinessStore } from "@/store/business-store";
 import {
-  formatPrimaryLocationApiValue,
-  parsePrimaryLocationForPayload,
-} from "@/utils/primary-location";
-import { normalizeProfileCountry } from "@/utils/profile-result";
+  ProfileItemLink,
+  ProfileListEditor,
+  useProfileItemEditor,
+  type ProfileListField,
+} from "@/components/organisms/profile/ProfileListEditor";
+import { Loader2, PackageSearch, Plus } from "lucide-react";
+import type { OfferingExtractionStatus } from "@/types/profile-v2";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useFeatureActionGuard } from "@/hooks/use-permissions";
-
-type BusinessInfoFormData = {
-  website: string;
-  businessName: string;
-  businessDescription: string;
-  primaryLocation: string;
-  serviceType: "physical" | "online" | "both";
-  lifetimeValue: string;
-  offerings: "products" | "services" | "both";
-  offeringsList?: Array<{
-    name: string;
-    description: string;
-    link: string;
-    pricePositioning?: string;
-    offeringType?: string;
-    priceRange?: string;
-    duration?: string;
-    inclusions?: string[] | string;
-  }>;
-  offeringsSavedIndices?: number[];
-};
+  commitOfferingDraft,
+  newOfferingClientId,
+} from "@/utils/profile-form-reconciliation";
 
 interface OfferingsFormProps {
   form: any; // TanStack Form instance
-  businessId?: string | null; // Business ID for offerings extraction
   embedded?: boolean;
   disabled?: boolean;
-  extractionController?: ReturnType<typeof useOfferingsExtractor>;
-  restrictFetchOfferings?: boolean;
+  validationMessage?: string;
+  required?: boolean;
+  extractionStatus?: OfferingExtractionStatus;
+  onEditorOpenChange?: (open: boolean) => void;
+}
+
+const OFFERING_FIELDS: ProfileListField<OfferingRow>[] = [
+  {
+    key: "name",
+    label: "Name",
+    placeholder: "E.g. Emergency plumbing repair",
+    validation: { required: true },
+  },
+  {
+    key: "offeringType",
+    label: "Category",
+    placeholder: "E.g. Plumbing services",
+  },
+  {
+    key: "description",
+    label: "Description",
+    placeholder: "What it is, who it's for, and what makes it worth buying",
+    multiline: true,
+    rows: 5,
+  },
+  {
+    key: "link",
+    label: "Link",
+    placeholder: "https://example.com/services/repair",
+    inputMode: "url",
+    validation: { url: true },
+  },
+];
+
+const emptyOffering = (): OfferingRow => ({
+  clientId: newOfferingClientId(),
+  name: "",
+  description: "",
+  link: "",
+  offeringType: "",
+});
+
+function OfferingSummary({ offering }: { offering: OfferingRow }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium text-general-foreground">
+          {offering.name}
+        </p>
+      </div>
+      {offering.description?.trim() ? (
+        <p className="whitespace-pre-line text-sm leading-6 text-general-muted-foreground">
+          {offering.description}
+        </p>
+      ) : null}
+      {offering.link?.trim() ? <ProfileItemLink href={offering.link} /> : null}
+    </div>
+  );
 }
 
 export const OfferingsForm = ({
   form,
-  businessId,
   embedded = false,
   disabled = false,
-  extractionController,
-  restrictFetchOfferings = false,
+  validationMessage,
+  required = true,
+  extractionStatus,
+  onEditorOpenChange,
 }: OfferingsFormProps) => {
-  // Subscribe only to specific fields this component cares about
-  // Component will only re-render when these fields change
-  const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
-  const website = useStore(form.store, (state: any) => state.values?.website || "");
-  const primaryLocation = useStore(form.store, (state: any) => state.values?.primaryLocation || "");
-  const locationOptions = useBusinessStore((state) => state.profileForm.locationOptions);
+  const offeringsData = useStore(
+    form.store,
+    (state: any) => (state.values?.offeringsList || []) as OfferingRow[],
+  );
+  const editor = useProfileItemEditor();
+  useEffect(() => {
+    onEditorOpenChange?.(editor.state !== null);
+  }, [editor.state, onEditorOpenChange]);
 
-  const hasAnyOffering = useMemo(() => {
-    return (offeringsData || []).some((o) =>
-      Boolean(
-        String(o?.name ?? "").trim() ||
-          String(o?.description ?? "").trim() ||
-          String(o?.link ?? "").trim()
-      )
-    );
-  }, [offeringsData]);
-
-  // Track offerings validation errors
-  const [hasOfferingsErrors, setHasOfferingsErrors] = React.useState(false);
-
-  // Update form field when offerings validation errors change
-  React.useEffect(() => {
-    form.setFieldMeta('offeringsList', (prev: any) => ({
-      ...prev,
-      hasValidationErrors: hasOfferingsErrors,
-    }));
-  }, [hasOfferingsErrors, form]);
-
-  // Offerings extractor hook (optionally controlled by parent)
-  const internalExtractor = useOfferingsExtractor(businessId || null);
-  const {
-    startExtraction,
-    isExtracting,
-    extractionError,
-    clearExtraction,
-  } = extractionController ?? internalExtractor;
-  const guardFetchOfferings = useFeatureActionGuard("profile.fetchOfferings");
-
-  // Only own the merge when this form owns the extractor. When a parent supplies
-  // the controller it also applies the results, so they land even while this
-  // section is unmounted.
-  useApplyExtractedOfferings({
-    form,
-    extractionController: internalExtractor,
-    enabled: !extractionController,
-  });
-
-  // Own column definitions
-  const offeringsColumns: Column<OfferingRow>[] = useMemo(() => [
-    { key: "name", label: "Name", validation: { required: true } },
-    { key: "description", label: "Description", validation: { required: false } },
-    { key: "link", label: "Link", validation: { required: false, url: true } },
-    { key: "pricePositioning", label: "Price Positioning", validation: { required: false } },
-  ], []);
-
-  // Own handlers - encapsulated logic
-  const {
-    handleAddRow,
-    handleRowChange,
-    handleDeleteRow,
-  } = useAddRowTableState<OfferingRow>({
-    data: offeringsData,
-    formFieldName: "offeringsList",
-    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({
-      name: "",
-      description: "",
-      link: "",
-      pricePositioning: "",
-    }),
-  });
-
-  // Handle fetch offerings from website
-  const handleFetchOfferings = useCallback(async () => {
-    if (disabled) return;
-    if (restrictFetchOfferings && !guardFetchOfferings()) return;
-    if (!website) {
-      toast.error("Please enter a website URL first");
-      return;
-    }
-
-    const trimmedPrimaryLocation = String(primaryLocation || "").trim();
-    const context = trimmedPrimaryLocation
-      ? (() => {
-          const payload = parsePrimaryLocationForPayload(
-            trimmedPrimaryLocation,
-            locationOptions
-          );
-          return {
-            country: normalizeProfileCountry(payload.Country),
-            location: formatPrimaryLocationApiValue(payload),
-          };
-        })()
-      : undefined;
-
-    await startExtraction(website, context);
-  }, [
-    disabled,
-    guardFetchOfferings,
-    locationOptions,
-    primaryLocation,
-    restrictFetchOfferings,
-    website,
-    startExtraction,
-  ]);
-
-  const offeringsTypeInput = (
-    <div className="w-1/2">
-      <GenericInput<BusinessInfoFormData>
-        form={form as any}
-        fieldName="offerings"
-        type="radio-cards"
-        label="What type of offerings do you provide your customers?"
-        required={true}
-        orientation="horizontal"
-        disabled={disabled}
-        radioCardSize="sm"
-        radioCardIcons={{
-          products: <PackageSearch className="size-7" strokeWidth={1.5} />,
-          services: <Handshake className="size-7" strokeWidth={1.5} />,
-          both: <Boxes className="size-7" strokeWidth={1.5} />,
-        }}
-        options={[
-          { value: "products", label: "Products" },
-          { value: "services", label: "Services" },
-          { value: "both", label: "Both" },
-        ]}
-      />
-    </div>
+  const handleValidationChange = useCallback(
+    (hasErrors: boolean) => {
+      form.setFieldMeta("offeringsList", (prev: any) => ({
+        ...prev,
+        hasValidationErrors: hasErrors,
+      }));
+    },
+    [form],
   );
 
   const innerContent = (
-    <div className="space-y-7">
-        {embedded ? (
-          offeringsTypeInput
-        ) : (
-          <Card variant="noBorderShadowCard">
-            <CardContent>{offeringsTypeInput}</CardContent>
-          </Card>
-        )}
-        <Card variant="noBorderShadowCard">
-          <CardHeader className="">
-            <div className="flex items-center justify-between">
-              <CardTitle>
-                <FieldLabel className="gap-0">
+    <div id="offeringsList" tabIndex={-1} className="space-y-3 outline-none">
+      {extractionStatus === "processing" ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 text-xs text-general-muted-foreground"
+        >
+          <Loader2
+            className="size-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
+          <span>Fetching offerings for this business…</span>
+        </div>
+      ) : extractionStatus === "error" ? (
+        <p role="alert" className="text-xs text-general-muted-foreground">
+          We couldn’t fetch offerings automatically. You can add them manually.
+        </p>
+      ) : null}
+      <Card variant="noBorderShadowCard">
+        <CardHeader className={embedded ? "px-0 pt-0 pb-2" : ""}>
+          <div className="flex items-center">
+            <CardTitle className="text-sm font-medium leading-normal">
+              <FieldLabel className="gap-0 text-sm font-medium leading-normal">
+                {required ? (
                   <span className="text-destructive mr-0.5">*</span>
-                  What products and services does your business sell?
-                </FieldLabel>
-              </CardTitle>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-block">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleFetchOfferings}
-                      disabled={disabled || isExtracting || !website}
-                      className="min-w-[200px]"
-                    >
-                      {isExtracting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Extracting...
-                        </>
-                      ) : hasAnyOffering ? (
-                        "Fetch more from Website"
-                      ) : (
-                        "Fetch Offerings from Website"
-                      )}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {(isExtracting || !website) && (
-                  <TooltipContent>
-                    Fill website URL to fetch offerings
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="w-full md:w-3/4">
-            {isExtracting ? (
-              <div className="rounded-lg border border-general-border-three bg-white px-6 py-8">
-                <div className="flex flex-col items-center justify-center gap-3 text-center">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-6 w-6 animate-spin text-general-primary" />
-                    <Typography variant="h6" className="text-general-foreground">
-                      Extracting offerings
-                    </Typography>
-                  </div>
-                  <Typography
-                    variant="small"
-                    className="text-general-muted-foreground/70 max-w-[420px]"
-                  >
-                    We’re pulling your products/services from the website in the background.
-                    You can continue to the next steps while this runs.
-                  </Typography>
-                </div>
-              </div>
-            ) : (
-              <>
-                {extractionError ? (
-                  <div className="flex items-center justify-between gap-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
-                      <Typography variant="small" className="text-destructive">
-                        {extractionError}
-                      </Typography>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={clearExtraction}
-                      className="shrink-0"
-                    >
-                      <X className="mr-1.5 h-4 w-4" />
-                      Dismiss
-                    </Button>
-                  </div>
                 ) : null}
-                <CustomAddRowTable
-                  columns={offeringsColumns}
-                  data={offeringsData}
-                  onAddRow={() => {
-                    if (!disabled) handleAddRow();
-                  }}
-                  onRowChange={(rowIndex, field, value) => {
-                    if (!disabled) handleRowChange(rowIndex, field, value);
-                  }}
-                  onDeleteRow={(rowIndex) => {
-                    if (!disabled) handleDeleteRow(rowIndex);
-                  }}
-                  addButtonText="Add Product/Service"
-                  onValidationChange={setHasOfferingsErrors}
-                  showErrorsWithoutTouch={hasOfferingsErrors}
-                  variant="card"
-                  disabled={disabled}
-                />
-              </>
-            )}
-            </div>
-          </CardContent>
-        </Card>
+                What products and services does your business sell?
+              </FieldLabel>
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className={embedded ? "p-0" : "space-y-4"}>
+          <ProfileListEditor
+            editor={editor}
+            items={offeringsData}
+            fields={OFFERING_FIELDS}
+            itemLabel="offering"
+            emptyItem={emptyOffering}
+            onChange={(next) => form.setFieldValue("offeringsList", next)}
+            renderItem={(offering) => <OfferingSummary offering={offering} />}
+            getItemTitle={(offering) => offering.name || "offering"}
+            emptyMessage="No offerings yet. Add the products or services you sell."
+            showAddButton={!embedded}
+            showEmptyError={Boolean(validationMessage)}
+            onValidationChange={handleValidationChange}
+            disabled={disabled}
+            getItemKey={(item, index) => item.clientId ?? index}
+            commitDraft={commitOfferingDraft}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 
   if (embedded) {
-    return <div id="offerings-section">{innerContent}</div>;
+    return (
+      <div id="offerings-section" className="space-y-3">
+        <div className="sticky -top-4 z-20 -mx-4 -mt-4 flex items-center justify-between gap-3 border-b border-general-border/30 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
+          <h2 className="text-base font-medium text-general-foreground">
+            Offerings
+          </h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={editor.openAdd}
+            disabled={disabled}
+            className="h-8 shrink-0 gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add offering
+          </Button>
+        </div>
+        {innerContent}
+      </div>
+    );
   }
 
   return (
@@ -334,21 +199,27 @@ export const OfferingsForm = ({
     >
       <CardHeader className="pb-4">
         <div className="flex items-center gap-2">
-          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <PackageSearch
+            className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]"
+            strokeWidth={1}
+          />
           <div className="space-y-0">
             <CardTitle>
-              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
+              <Typography variant="h4" className="text-2xl!">
+                Offerings
+              </Typography>
             </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Defines what you actually sell so recommendations focus on revenue-driving products and services.
+            <Typography
+              variant="muted"
+              className="text-xs text-general-muted-foreground"
+            >
+              Defines what you actually sell so recommendations focus on
+              revenue-driving products and services.
             </Typography>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-7">
-        {innerContent}
-      </CardContent>
+      <CardContent className="space-y-7">{innerContent}</CardContent>
     </Card>
   );
 };
-

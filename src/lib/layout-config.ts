@@ -22,7 +22,12 @@ export const routePrefixesWithoutSidebar: string[] = [
 ]
 
 const AGENT_PATH = /^\/business\/[^/]+\/agent\/?$/
+const BUSINESS_PROFILE_PATH = /^\/business\/[^/]+\/profile\/?$/
 
 export function isAgentRoute(pathname: string) {
   return AGENT_PATH.test(pathname)
+}
+
+export function isBusinessProfileRoute(pathname: string) {
+  return BUSINESS_PROFILE_PATH.test(pathname)
 }

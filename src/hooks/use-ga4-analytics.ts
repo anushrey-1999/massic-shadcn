@@ -129,13 +129,14 @@ function formatPercent(value: number): string {
 
 function formatDate(dateString: string): string {
   if (!dateString) return ""
-  try {
-    const date = new Date(dateString)
-    if (Number.isNaN(date.getTime())) return dateString
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-  } catch {
-    return dateString
-  }
+  const match = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(dateString)
+  if (!match) return dateString
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
 }
 
 function normalizeDateKey(value: string): string | null {

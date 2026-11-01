@@ -146,7 +146,7 @@ const defaultFeatures: PlanFeature[] = [
     text: "Identify topics, channels, and audiences worth selling",
   },
   {
-    text: "Run strategy without onboarding a client",
+    text: "Generate pitch reports before onboarding a client",
   },
 ];
 

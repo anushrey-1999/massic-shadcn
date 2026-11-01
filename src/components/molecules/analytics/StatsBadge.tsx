@@ -9,14 +9,17 @@ interface StatsBadgeProps {
   valueClassName?: string
   showIcon?: boolean
   variant?: "pill" | "plain" | "small" | "big"
+  unit?: "%" | "pp"
+  label?: string
 }
 
-function formatValue(value: number): React.ReactNode {
+function formatValue(value: number, unit: "%" | "pp", label?: string): React.ReactNode {
+  if (label) return label
   if (!Number.isFinite(value)) return <span className="inline-flex items-center"><span className="text-[1.4em] leading-none">∞</span>%</span>
-  return `${Math.abs(value)}%`
+  return `${Math.abs(value)}${unit === "pp" ? " pp" : "%"}`
 }
 
-export function StatsBadge({ value, className, valueClassName, showIcon = true, variant = "pill" }: StatsBadgeProps) {
+export function StatsBadge({ value, className, valueClassName, showIcon = true, variant = "pill", unit = "%", label }: StatsBadgeProps) {
   const isPositive = value > 0
   const isNegative = value < 0
   const isNeutral = value === 0
@@ -44,7 +47,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
           className
         )}
       >
-        {showIcon && !isNeutral &&
+        {showIcon && !label && !isNeutral &&
           (isPositive ? (
             <Plus className={cn(iconSizeClassName, "mr-0.5 self-center stroke-2", iconColor)} />
           ) : (
@@ -61,7 +64,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
             valueClassName
           )}
         >
-          {formatValue(value)}
+          {formatValue(value, unit, label)}
         </span>
       </span>
     )
@@ -74,7 +77,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
         className
       )}
     >
-      {showIcon && !isNeutral &&
+      {showIcon && !label && !isNeutral &&
         (isPositive ? (
           <Plus className="mr-0.5 h-2.5 w-2.5 self-baseline text-green-600" />
         ) : (
@@ -91,7 +94,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
           valueClassName
         )}
       >
-        {formatValue(value)}
+        {formatValue(value, unit, label)}
       </span>
     </span>
   )

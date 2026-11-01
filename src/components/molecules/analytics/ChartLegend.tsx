@@ -12,6 +12,8 @@ interface ChartLegendItem {
   change: number;
   color?: string;
   checked?: boolean;
+  changeLabel?: string;
+  disabled?: boolean;
 }
 
 interface ChartLegendProps {
@@ -46,6 +48,8 @@ export function ChartLegend({
               {showToggle && (
                 <Checkbox
                   checked={checked}
+                  disabled={item.disabled}
+                  aria-label={item.label || item.key}
                   onCheckedChange={(nextChecked) =>
                     onToggle?.(item.key, nextChecked as boolean)
                   }
@@ -66,6 +70,7 @@ export function ChartLegend({
               </span>
               <StatsBadge
                 value={item.change}
+                label={item.changeLabel}
                 variant="big"
                 className="flex items-baseline"
               />

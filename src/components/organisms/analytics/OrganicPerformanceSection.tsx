@@ -24,10 +24,11 @@ import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet"
 import { CampaignImpactReportSheet } from "@/components/organisms/campaign-impact/CampaignImpactReportSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
+import { AnalyticsChartTooltip } from "@/components/molecules/analytics/AnalyticsChartTooltip";
 import { ChartOverlayToggle } from "@/components/molecules/analytics/ChartOverlayToggle";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
 import { NoGSCMetricsSelected } from "@/components/molecules/analytics/NoGSCMetricsSelected";
-import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
+import { ANALYTICS_CHART_STYLE, CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
 import {
   AreaChart,
   Area,
@@ -519,19 +520,21 @@ export function OrganicPerformanceSection({
   const normalizedGroupedChartData = useMemo(() => {
     if (groupedChartData.length === 0) return []
 
-    const impressionsValues = groupedChartData.map((d) => d.impressions || 0)
-    const clicksValues = groupedChartData.map((d) => d.clicks || 0)
-    const sessionsValues = groupedChartData.map((d) => d.sessions || 0)
-    const goalsValues = groupedChartData.map((d) => d.goals || 0)
+    const gscPoints = groupedChartData.filter((d) => d.gscAvailable !== false)
+    const ga4Points = groupedChartData.filter((d) => d.ga4Available !== false)
+    const impressionsValues = gscPoints.map((d) => d.impressions || 0)
+    const clicksValues = gscPoints.map((d) => d.clicks || 0)
+    const sessionsValues = ga4Points.map((d) => d.sessions || 0)
+    const goalsValues = ga4Points.map((d) => d.goals || 0)
 
-    const minImpressions = Math.min(...impressionsValues)
-    const maxImpressions = Math.max(...impressionsValues)
-    const minClicks = Math.min(...clicksValues)
-    const maxClicks = Math.max(...clicksValues)
-    const minSessions = Math.min(...sessionsValues)
-    const maxSessions = Math.max(...sessionsValues)
-    const minGoals = Math.min(...goalsValues)
-    const maxGoals = Math.max(...goalsValues)
+    const minImpressions = impressionsValues.length ? Math.min(...impressionsValues) : 0
+    const maxImpressions = impressionsValues.length ? Math.max(...impressionsValues) : 0
+    const minClicks = clicksValues.length ? Math.min(...clicksValues) : 0
+    const maxClicks = clicksValues.length ? Math.max(...clicksValues) : 0
+    const minSessions = sessionsValues.length ? Math.min(...sessionsValues) : 0
+    const maxSessions = sessionsValues.length ? Math.max(...sessionsValues) : 0
+    const minGoals = goalsValues.length ? Math.min(...goalsValues) : 0
+    const maxGoals = goalsValues.length ? Math.max(...goalsValues) : 0
 
     const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
       const numericValue = Number(value) || 0
@@ -549,16 +552,29 @@ export function OrganicPerformanceSection({
       const goalsNormRaw = normalizeToZeroHundred(point.goals || 0, minGoals, maxGoals)
       return {
         ...point,
-        impressionsNorm: normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
-        clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
-        sessionsNorm: normalizeToZeroHundred(point.sessions || 0, minSessions, maxSessions),
-        goalsNorm: (goalsNormRaw / 100) * goalsMaxNorm,
+        impressionsDisplay: point.gscAvailable === false ? null : point.impressions,
+        clicksDisplay: point.gscAvailable === false ? null : point.clicks,
+        sessionsDisplay: point.ga4Available === false ? null : (point.sessions || 0),
+        goalsDisplay: point.ga4Available === false ? null : (point.goals || 0),
+        impressionsNorm: point.gscAvailable === false
+          ? null
+          : normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
+        clicksNorm: point.gscAvailable === false
+          ? null
+          : normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
+        sessionsNorm: point.ga4Available === false
+          ? null
+          : normalizeToZeroHundred(point.sessions || 0, minSessions, maxSessions),
+        goalsNorm: point.ga4Available === false ? null : (goalsNormRaw / 100) * goalsMaxNorm,
       }
     })
   }, [groupedChartData])
 
   const useNormalizedKeys = normalizedGroupedChartData.length > 0 && !singleMetricMode;
-  const chartDataToRender = useNormalizedKeys ? normalizedGroupedChartData : groupedChartData;
+  const chartDataToRender =
+    normalizedGroupedChartData.length > 0
+      ? normalizedGroupedChartData
+      : groupedChartData;
   const anomalyDatesFrom = useMemo(
     () => shiftDateKey(chartRanges.currentStart, -1),
     [chartRanges.currentStart]
@@ -614,7 +630,11 @@ export function OrganicPerformanceSection({
   const singleMetricYDomain = useMemo(() => {
     if (!singleMetricMode || groupedChartData.length === 0) return undefined;
     const key = CHART_METRIC_KEYS.find((metricKey) => visibleLines[metricKey]) ?? "impressions";
-    const values = groupedChartData.map((d) => Number(d[key as keyof typeof d]) || 0);
+    const isGscMetric = key === "impressions" || key === "clicks";
+    const values = groupedChartData
+      .filter((point) => (isGscMetric ? point.gscAvailable : point.ga4Available) !== false)
+      .map((d) => Number(d[key as keyof typeof d]) || 0);
+    if (values.length === 0) return undefined;
     const min = Math.min(...values);
     const max = Math.max(...values);
     const pad = (max - min) * 0.05 || 1;
@@ -961,8 +981,8 @@ export function OrganicPerformanceSection({
         ? findAnomalyRunForBucket(anomalyDaysByMetric.traffic, bucketStart, bucketEnd)
         : null;
 
-      if (goalMatch && visibleLines.goals) {
-        const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goals"]);
+      if (goalMatch && visibleLines.goals && point.ga4Available !== false) {
+        const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goalsDisplay"]);
         if (Number.isFinite(y)) {
           markers.push({
             key: `goal-${goalMatch.startDate}-${goalMatch.lastAsOfDate}-${point.bucketKey || point.dateKey || point.date}`,
@@ -978,9 +998,13 @@ export function OrganicPerformanceSection({
         }
       }
 
-      if (trafficMatch && (visibleLines.clicks || visibleLines.impressions)) {
+      if (
+        trafficMatch &&
+        point.gscAvailable !== false &&
+        (visibleLines.clicks || visibleLines.impressions)
+      ) {
         const metricKey = visibleLines.clicks ? "clicks" : "impressions";
-        const y = Number(pointValues[useNormalizedKeys ? `${metricKey}Norm` : metricKey]);
+        const y = Number(pointValues[useNormalizedKeys ? `${metricKey}Norm` : `${metricKey}Display`]);
         const yAxisId =
           metricKey === "impressions" && !useNormalizedKeys && !singleMetricMode
             ? "right"
@@ -1342,12 +1366,12 @@ export function OrganicPerformanceSection({
                   </div>
                   <ChartContainer
                     config={chartConfig}
-                    className="h-full w-full flex-col justify-end items-stretch aspect-auto"
+                    className={ANALYTICS_CHART_STYLE.containerClassName}
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={chartDataToRender}
-                        margin={{ top: 12, right: 8, left: 8, bottom: 0 }}
+                        margin={ANALYTICS_CHART_STYLE.margin}
                       >
                         <defs>
                           <linearGradient
@@ -1424,8 +1448,8 @@ export function OrganicPerformanceSection({
                           </linearGradient>
                         </defs>
                         <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="#e5e7eb"
+                          strokeDasharray={ANALYTICS_CHART_STYLE.gridDasharray}
+                          stroke={ANALYTICS_CHART_STYLE.gridStroke}
                           vertical={false}
                         />
                         <XAxis
@@ -1433,8 +1457,8 @@ export function OrganicPerformanceSection({
                           tickFormatter={(value) => xAxisTickLabels.get(String(value)) || String(value)}
                           tickLine={false}
                           axisLine={false}
-                          tick={{ fontSize: 12, fill: "#9ca3af" }}
-                          tickMargin={8}
+                          tick={ANALYTICS_CHART_STYLE.tick}
+                          tickMargin={ANALYTICS_CHART_STYLE.tickMargin}
                           ticks={xAxisTicks12Months}
                           interval={
                             xAxisTicks12Months
@@ -1504,16 +1528,10 @@ export function OrganicPerformanceSection({
                               )
                             );
                             return (
-                              <div className="min-w-[196px] rounded-lg border border-border bg-background px-3 py-2.5 shadow-md">
-                                {data?.rangeContextLabel ? (
-                                  <p className="text-[11px] font-medium tracking-[0.12px] text-muted-foreground">
-                                    {data.rangeContextLabel}
-                                  </p>
-                                ) : null}
-                                <div className="mb-2 flex items-center justify-between gap-3">
-                                  <p className="text-base font-medium leading-5 text-general-foreground">
-                                    {data?.rangeLabel || label}
-                                  </p>
+                              <AnalyticsChartTooltip
+                                label={data?.rangeLabel || label}
+                                context={data?.rangeContextLabel}
+                                badges={<>
                                   {showMovingAverage && (
                                     <span className="shrink-0 rounded-sm bg-general-secondary px-2 py-0.5 text-[10px] font-medium leading-4 text-general-muted-foreground">
                                       7-day average
@@ -1524,100 +1542,101 @@ export function OrganicPerformanceSection({
                                       Click to view anomaly
                                     </span>
                                   )}
-                                </div>
-                                <div className="space-y-1.5 text-sm">
-                                  {visibleLines.impressions && (
+                                </>}
+                              >
+                                {visibleLines.impressions && data?.gscAvailable !== false && (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <p className="flex items-center gap-2 text-[#6b7280]">
+                                      <span className="h-2 w-2 rounded-full bg-[#6b7280]" />
+                                      Impressions
+                                    </p>
+                                    <span className="font-medium text-general-foreground">
+                                      {formatChartMetricValue(data?.impressions)}
+                                    </span>
+                                  </div>
+                                )}
+                                {visibleLines.clicks && data?.gscAvailable !== false && (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <p className="flex items-center gap-2 text-[#2563eb]">
+                                      <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
+                                      Clicks
+                                    </p>
+                                    <span className="font-medium text-general-foreground">
+                                      {formatChartMetricValue(data?.clicks)}
+                                    </span>
+                                  </div>
+                                )}
+                                {visibleLines.sessions &&
+                                  data?.ga4Available !== false &&
+                                  data?.sessions !== undefined && (
                                     <div className="flex items-center justify-between gap-4">
-                                      <p className="flex items-center gap-2 text-[#6b7280]">
-                                        <span className="h-2 w-2 rounded-full bg-[#6b7280]" />
-                                        Impressions
+                                      <p className="flex items-center gap-2 text-[#ea580c]">
+                                        <span className="h-2 w-2 rounded-full bg-[#ea580c]" />
+                                        Sessions
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.impressions)}
+                                        {formatChartMetricValue(data?.sessions)}
                                       </span>
                                     </div>
                                   )}
-                                  {visibleLines.clicks && (
+                                {visibleLines.goals &&
+                                  data?.ga4Available !== false &&
+                                  data?.goals !== undefined && (
                                     <div className="flex items-center justify-between gap-4">
-                                      <p className="flex items-center gap-2 text-[#2563eb]">
-                                        <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
-                                        Clicks
+                                      <p className="flex items-center gap-2 text-[#059669]">
+                                        <span className="h-2 w-2 rounded-full bg-[#059669]" />
+                                        Goals
                                       </p>
                                       <span className="font-medium text-general-foreground">
-                                        {formatChartMetricValue(data?.clicks)}
+                                        {formatChartMetricValue(data?.goals)}
                                       </span>
                                     </div>
                                   )}
-                                  {visibleLines.sessions &&
-                                    data?.sessions !== undefined && (
-                                      <div className="flex items-center justify-between gap-4">
-                                        <p className="flex items-center gap-2 text-[#ea580c]">
-                                          <span className="h-2 w-2 rounded-full bg-[#ea580c]" />
-                                          Sessions
-                                        </p>
-                                        <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.sessions)}
-                                        </span>
-                                      </div>
-                                    )}
-                                  {visibleLines.goals &&
-                                    data?.goals !== undefined && (
-                                      <div className="flex items-center justify-between gap-4">
-                                        <p className="flex items-center gap-2 text-[#059669]">
-                                          <span className="h-2 w-2 rounded-full bg-[#059669]" />
-                                          Goals
-                                        </p>
-                                        <span className="font-medium text-general-foreground">
-                                          {formatChartMetricValue(data?.goals)}
-                                        </span>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
+                              </AnalyticsChartTooltip>
                             );
                           }}
                         />
                         {visibleLines.impressions && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"}
+                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressionsDisplay"}
                             yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Impressions (7-day average)" : "Impressions"}
                           />
                         )}
                         {visibleLines.clicks && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"}
+                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicksDisplay"}
                             yAxisId="left"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Clicks (7-day average)" : "Clicks"}
                           />
                         )}
                         {visibleLines.goals && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "goalsNorm" : "goals"}
+                            dataKey={useNormalizedKeys ? "goalsNorm" : "goalsDisplay"}
                             yAxisId="left"
                             stroke="#059669"
                             fill="url(#fillGoals)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Goals (7-day average)" : "Goals"}
                           />
                         )}
                         {visibleLines.sessions && (
                           <Area
                             type="linear"
-                            dataKey={useNormalizedKeys ? "sessionsNorm" : "sessions"}
+                            dataKey={useNormalizedKeys ? "sessionsNorm" : "sessionsDisplay"}
                             yAxisId="left"
                             stroke="#ea580c"
                             fill="url(#fillSessions)"
-                            strokeWidth={1}
+                            strokeWidth={ANALYTICS_CHART_STYLE.strokeWidth}
                             name={showMovingAverage ? "Sessions (7-day average)" : "Sessions"}
                           />
                         )}

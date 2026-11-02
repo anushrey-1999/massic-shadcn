@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { cn } from "@/lib/utils";
-import { AgentComposerRow } from "./agent-composer-row";
 import { AgentConversationMenu } from "./agent-conversation-menu";
 import { AgentModeTag } from "./agent-mode-tag";
 import type { AgentConversation } from "./types";
-export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading, showPlans = true, plansInitiallyVisible = showPlans }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean; showPlans?: boolean; plansInitiallyVisible?: boolean }) {
+export function AgentHistorySidebar({ conversations, activeId, activeView, collapsed, onCollapse, onBack, onSelect, onRename, onNewChat, onPlans, onSearch, onChats, loading, error, onRetry, hasMore, loadingMore, onMore, creditRemainingPercent, creditsLoading }: { conversations: AgentConversation[]; activeId: string; activeView: "chat" | "chats" | "plans"; collapsed: boolean; onCollapse: () => void; onBack: () => void; onSelect: (id: string) => void; onRename: (conversation: AgentConversation) => void; onNewChat: () => void; onPlans: () => void; onSearch: () => void; onChats: () => void; loading: boolean; error?: string; onRetry: () => void; hasMore: boolean; loadingMore: boolean; onMore: () => void; creditRemainingPercent: number | null; creditsLoading: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useInfiniteScroll({ enabled: hasMore && !error, loading: loading || loadingMore, onLoadMore: onMore, rootRef: scrollRef });
   return <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground">
@@ -23,12 +22,11 @@ export function AgentHistorySidebar({ conversations, activeId, activeView, colla
     <nav className="px-2 pb-3">
       {[
         { label: "New chat", Icon: Plus, click: onNewChat, active: false },
-        ...(showPlans || plansInitiallyVisible ? [{ label: "Plans", Icon: ClipboardList, click: onPlans, active: activeView === "plans" }] : []),
+        { label: "Plans", Icon: ClipboardList, click: onPlans, active: activeView === "plans" },
         { label: "Chats", Icon: MessageSquare, click: onChats, active: activeView === "chats" },
-      ].map(({ label, Icon, click, active }, index) => {
-        const item = <button key={label} aria-label={label} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} onClick={click} className={cn("flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-sm transition-[background-color,box-shadow,color] hover:bg-general-primary/10 hover:text-general-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring", index > 0 && "mt-1", active && "bg-general-primary/10 text-general-primary shadow-sm")}><Icon className="h-4 w-4 shrink-0" />{!collapsed && label}</button>;
-        return label === "Plans" ? <AgentComposerRow key={label} visible={showPlans} initialVisible={plansInitiallyVisible}>{item}</AgentComposerRow> : item;
-      })}
+      ].map(({ label, Icon, click, active }, index) => (
+        <button key={label} aria-label={label} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} onClick={click} className={cn("flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-sm transition-[background-color,box-shadow,color] hover:bg-general-primary/10 hover:text-general-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring", index > 0 && "mt-1", active && "bg-general-primary/10 text-general-primary shadow-sm")}><Icon className="h-4 w-4 shrink-0" />{!collapsed && label}</button>
+      ))}
     </nav>
     {!collapsed && <><p className="border-t border-border px-4 pt-3 pb-1 text-xs text-muted-foreground">Recents</p><div ref={scrollRef} aria-busy={loading || loadingMore} className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
       {loading && <ConversationSkeleton count={6} label="Loading conversations" />}{error && <div className="p-3 text-xs" role="alert">{error}<Button variant="ghost" size="sm" onClick={onRetry}>Retry</Button></div>}

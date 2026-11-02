@@ -133,7 +133,7 @@ function AgentWorkspace({
   const [search, setSearch] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
   const [view, setView] = useState<"chat" | "chats" | "plans">(() =>
-    supportsPlans && searchParams.get("view") === "plans" ? "plans" : "chat",
+    searchParams.get("view") === "plans" ? "plans" : "chat",
   );
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
@@ -155,11 +155,11 @@ function AgentWorkspace({
   const entryPlanId = searchParams.get("plan");
   const entryThreadId = searchParams.get("thread");
   const autoSubmit = searchParams.get("submit") === "1";
-  const entrySurface =
-    supportsPlans &&
-    (entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels")
+  const plansSurface =
+    entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels"
       ? entrySurfaceRaw
       : null;
+  const entrySurface = supportsPlans ? plansSurface : null;
   const preferredAction: AgentEntryAction | undefined =
     supportsPlans &&
     (entryActionRaw === "create" ||
@@ -407,6 +407,10 @@ function AgentWorkspace({
     !!chat.runningKey ||
     !!chat.recovery ||
     chat.hasPendingUploads;
+  const showModeSwitch =
+    chat.activeKey.startsWith("draft:") &&
+    !chat.messages.length &&
+    chat.runningKey !== chat.activeKey;
   // Switching mode remounts the workspace, which would stop a running turn.
   const routeToMode = (next: AgentChatMode, thread?: string) => {
     if (modeDisabled || next === mode) return;
@@ -520,8 +524,6 @@ function AgentWorkspace({
     router.push(fallbackHref);
   };
   const historyProps = {
-    showPlans: supportsPlans,
-    plansInitiallyVisible: AGENT_CHAT_MODES[fromMode].supportsPlans,
     conversations: chat.conversations,
     activeId: chat.activeKey,
     activeView: view,
@@ -573,37 +575,39 @@ function AgentWorkspace({
         attachments={
           <AgentAttachmentControls
             leadingControl={
-              <Select
-                value={mode}
-                onValueChange={changeMode}
-                disabled={modeDisabled}
-              >
-                <SelectTrigger
-                  id="massic-agent-mode"
-                  aria-label="Mode"
-                  title="Mode"
-                  variant="noBorder"
-                  size="sm"
-                  className="h-8 cursor-pointer gap-1 rounded-md bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:ring-2 disabled:cursor-default disabled:bg-transparent disabled:text-muted-foreground [&_svg]:size-3.5"
+              showModeSwitch ? (
+                <Select
+                  value={mode}
+                  onValueChange={changeMode}
+                  disabled={modeDisabled}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  side="top"
-                  align="start"
-                  className="w-40 shadow-xs"
-                >
-                  {Object.entries(AGENT_CHAT_MODES).map(([value, config]) => (
-                    <SelectItem
-                      key={value}
-                      value={value}
-                      className="cursor-pointer"
-                    >
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    id="massic-agent-mode"
+                    aria-label="Mode"
+                    title="Mode"
+                    variant="noBorder"
+                    size="sm"
+                    className="h-8 cursor-pointer gap-1 rounded-md bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:ring-2 disabled:cursor-default disabled:bg-transparent disabled:text-muted-foreground [&_svg]:size-3.5"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    side="top"
+                    align="start"
+                    className="w-40 shadow-xs"
+                  >
+                    {Object.entries(AGENT_CHAT_MODES).map(([value, config]) => (
+                      <SelectItem
+                        key={value}
+                        value={value}
+                        className="cursor-pointer"
+                      >
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : undefined
             }
             files={chat.draft.attachments}
             disabled={!!chat.runningKey || !!chat.recovery}
@@ -751,7 +755,7 @@ function AgentWorkspace({
             {view === "plans" ? (
               <AgentPlansView
                 businessId={businessId}
-                initialSurface={entrySurface ?? "webpages"}
+                initialSurface={plansSurface ?? "webpages"}
               />
             ) : view === "chats" ? (
               <AgentChatsListView

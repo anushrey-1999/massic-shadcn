@@ -103,7 +103,7 @@ export function CreatePitchTemplate() {
       setIsCreating(true);
       const result = await manualCreation.create(values);
       toast.success("Pitch created");
-      router.replace(`/pitches/${result.business.UniqueId}/profile`);
+      router.replace(`/pitches/${result.business.UniqueId}/reports?view=cards`);
     } catch (error) {
       const incompletePitch =
         error instanceof IncompleteBusinessCreationError

@@ -56,7 +56,7 @@ export function ProfileReferenceDocument({
 
   return (
     <section
-      className="flex h-full min-h-0 min-w-0 max-w-[920px] flex-col"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col"
       aria-label="Profile reference"
     >
       <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-general-border/30 pb-3">
@@ -132,8 +132,12 @@ export function ProfileReferenceDocument({
               : "No profile reference is available yet."}
           </p>
         ) : (
-          <div className={`${markdownStyles.markdown} min-w-0 break-words text-sm text-general-foreground [&_img]:h-auto [&_img]:max-w-full [&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0 [&_.task-list-item>input]:mr-2`}>
-            <AgentMarkdown content={markdown} tableLabel="Profile reference table" />
+          <div className={`${markdownStyles.markdown} ${markdownStyles.profileDocument} min-w-0 break-words text-sm text-general-foreground [&_img]:h-auto [&_img]:max-w-full [&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0 [&_.task-list-item>input]:mr-2`}>
+            <AgentMarkdown
+              content={markdown}
+              tableLabel="Profile reference table"
+              preserveFootnoteLabels
+            />
           </div>
         )}
       </div>

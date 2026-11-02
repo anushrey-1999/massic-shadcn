@@ -218,7 +218,8 @@ export function useInvitedGoogleLogin() {
         {
           token: data.token,
           googleToken: data.googleToken,
-        }
+        },
+        { skipAuth: true, suppressUnauthorizedSession: true }
       );
 
       if (!response.success) {

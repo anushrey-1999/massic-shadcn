@@ -59,11 +59,6 @@ export function getProfileWorkflowActions(
         ? "Analyze the business before rerunning search data."
         : undefined,
     ),
-    context: availability(
-      true,
-      job?.has_build_completed !== true
-        ? "Complete a profile build before updating business context."
-        : undefined,
-    ),
+    context: availability(true),
   };
 }

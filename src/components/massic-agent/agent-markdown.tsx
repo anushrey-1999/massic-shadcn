@@ -44,20 +44,54 @@ function remarkAgentCitations() {
   return (tree: Root) => transform(tree);
 }
 
+/** Profile references keep their source labels and order, as in the lab document. */
+function remarkLiteralFootnotes() {
+  const transform = (parent: Parent) => {
+    parent.children = parent.children.flatMap((child): RootContent[] => {
+      if (child.type === "footnoteReference") {
+        return [{ type: "text", value: `[^${child.label ?? child.identifier}]` }];
+      }
+      if ("children" in child) transform(child);
+      if (child.type === "footnoteDefinition") {
+        const [first, ...rest] = child.children;
+        return [
+          {
+            type: "paragraph",
+            data: { hProperties: { "data-profile-reference": "" } },
+            children: [
+              { type: "text", value: `[^${child.label ?? child.identifier}]: ` },
+              ...(first?.type === "paragraph" ? first.children : []),
+            ],
+          },
+          ...(first?.type === "paragraph" ? rest : child.children),
+        ];
+      }
+      return [child];
+    });
+  };
+  return (tree: Root) => transform(tree);
+}
+
 export function AgentMarkdown({
   content,
   renderCitation,
   renderLink,
   tableLabel = "Response table",
+  preserveFootnoteLabels = false,
 }: {
   content: string;
   renderCitation?: (number: number) => ReactNode;
   renderLink?: (href: string, children: ReactNode) => ReactNode;
   tableLabel?: string;
+  preserveFootnoteLabels?: boolean;
 }) {
   return (
     <Markdown
-      remarkPlugins={renderCitation ? [remarkGfm, remarkAgentCitations] : [remarkGfm]}
+      remarkPlugins={[
+        remarkGfm,
+        ...(preserveFootnoteLabels ? [remarkLiteralFootnotes] : []),
+        ...(renderCitation ? [remarkAgentCitations] : []),
+      ]}
       skipHtml
       components={{
         a: ({ node, href, children }) => {

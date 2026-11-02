@@ -6,6 +6,7 @@ import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { WebUnifiedPagesTableClient } from '@/components/organisms/WebUnifiedPagesTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
+import { ContentUsageInfo } from '@/components/molecules/content-usage'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
@@ -164,20 +165,23 @@ export default function BusinessWebPage({ params }: PageProps) {
         <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
             {!hideTabs && (
-              <div className="shrink-0 flex items-center justify-between gap-4">
+              <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <TabsList>
                   <TabsTrigger value="new-pages">New Pages</TabsTrigger>
                   <TabsTrigger value="optimize">Optimize</TabsTrigger>
                   <TabsTrigger value="all-pages">All Pages</TabsTrigger>
                 </TabsList>
-                <div className="flex items-center gap-3">
+                <div className="ml-auto flex min-w-0 items-center gap-3">
                   {activeTab === "new-pages" && showNewPagesContent && newPagesMetricsText && (
-                    <Typography
-                      variant="p"
-                      className="text-sm font-mono text-general-muted-foreground"
-                    >
-                      {newPagesMetricsText}
-                    </Typography>
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Typography
+                        variant="p"
+                        className="text-right text-sm font-mono text-general-muted-foreground"
+                      >
+                        {newPagesMetricsText}
+                      </Typography>
+                      <ContentUsageInfo businessId={businessId} feature="blogs_pages" />
+                    </div>
                   )}
                   <Button
                     variant="ghost"

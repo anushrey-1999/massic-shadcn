@@ -3,6 +3,7 @@
 import React from 'react'
 import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { SocialTableClient } from '@/components/organisms/SocialTable/social-table-client'
+import { ContentUsageInfo } from '@/components/molecules/content-usage'
 import {
   SocialBubbleChart,
   type SocialBubbleColorMetric,
@@ -386,16 +387,19 @@ function SocialEntitledContent({
 
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-      <Tabs
-        value={activeSocialTab}
-        onValueChange={handleSocialTabChange}
-        className="shrink-0 mb-4"
-      >
-        <TabsList className="shrink-0">
-          <TabsTrigger value="publish">Publish</TabsTrigger>
-          <TabsTrigger value="engage">Engage</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="mb-4 flex shrink-0 items-center gap-2">
+        <Tabs
+          value={activeSocialTab}
+          onValueChange={handleSocialTabChange}
+          className="shrink-0"
+        >
+          <TabsList className="shrink-0">
+            <TabsTrigger value="publish">Publish</TabsTrigger>
+            <TabsTrigger value="engage">Engage</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <ContentUsageInfo businessId={businessId} feature="social_posts" />
+      </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {socialView === "list" ? (

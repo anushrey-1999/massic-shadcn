@@ -436,6 +436,7 @@ export const AgentMessageView = memo(function AgentMessageView({
         </p>
       )}
       {message.widgetParts?.map((part) => {
+        if (part.widget !== "resource_table") return null;
         const isOpen =
           activeResource?.type === part.resource.type &&
           String(activeResource.id) === String(part.resource.id);

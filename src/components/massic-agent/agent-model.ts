@@ -76,26 +76,34 @@ export function widgetParts(raw: unknown): WidgetPart[] {
   if (!Array.isArray(raw)) return [];
   const result = new Map<string, WidgetPart>();
   for (const value of raw) {
+    if (!value || value.kind !== "widget" || value.schema_version !== 1) continue;
+    if (value.widget === "resource_table") {
+      const r = value.resource;
+      if (
+        !r ||
+        !["webpage_plan", "social_channels_plan"].includes(r.type) ||
+        !["number", "string"].includes(typeof r.id)
+      )
+        continue;
+      result.set(resourceKey(r), value as WidgetPart);
+    }
     if (
-      !value ||
-      value.kind !== "widget" ||
-      value.widget !== "resource_table" ||
-      value.schema_version !== 1
+      value.widget === "document" &&
+      value.resource &&
+      typeof value.resource.type === "string" &&
+      ["number", "string"].includes(typeof value.resource.id)
     )
-      continue;
-    const r = value.resource;
-    if (
-      !r ||
-      !["webpage_plan", "social_channels_plan"].includes(r.type) ||
-      !["number", "string"].includes(typeof r.id)
-    )
-      continue;
-    result.set(resourceKey(r), value as WidgetPart);
+      result.set(`document:${value.resource.type}`, value as WidgetPart);
   }
   return [...result.values()];
 }
 export function lastMatchingPlan(parts: WidgetPart[]): ResourceRef | null {
-  return [...parts].reverse().find((part) => part.resource)?.resource ?? null;
+  const part = [...parts]
+    .reverse()
+    .find((candidate): candidate is Extract<WidgetPart, { widget: "resource_table" }> =>
+      candidate.widget === "resource_table",
+    );
+  return part?.resource ?? null;
 }
 export function isSummaryMarker(item: ThreadItem): item is SummaryMarker {
   return (item as SummaryMarker).type === "summary";

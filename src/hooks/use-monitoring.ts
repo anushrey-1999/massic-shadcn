@@ -115,6 +115,7 @@ export interface MonitoringContextEvidence {
   type?: string;
   classification?: string;
   name?: string;
+  event?: string;
   date?: string;
   start?: string;
   end?: string;

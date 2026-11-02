@@ -258,20 +258,29 @@ function IncidentRow({
             {incident.parent ? (
               <span>{metricLabel(incident.parent.metricKey, goals)}</span>
             ) : null}
-            <span>Raised {formatMonitoringDate(incident.createdOn)}</span>
+            <span>
+              Raised {formatMonitoringDate(incident.createdOn, { withYear: true })}
+            </span>
             {incident.evaluatedOn ? (
               <span>
-                Evaluated {formatMonitoringDate(incident.evaluatedOn)}
+                Evaluated{" "}
+                {formatMonitoringDate(incident.evaluatedOn, { withYear: true })}
               </span>
             ) : null}
             {incident.lastNotifiedOn ? (
               <span>
-                Last notified {formatMonitoringDate(incident.lastNotifiedOn)}
+                Last notified{" "}
+                {formatMonitoringDate(incident.lastNotifiedOn, {
+                  withYear: true,
+                })}
               </span>
             ) : null}
             {incident.snoozedUntil ? (
               <span>
-                Snoozed to {formatMonitoringDate(incident.snoozedUntil)}
+                Snoozed to{" "}
+                {formatMonitoringDate(incident.snoozedUntil, {
+                  withYear: true,
+                })}
               </span>
             ) : null}
             {incident.acknowledgedAt ? <span>Seen</span> : null}

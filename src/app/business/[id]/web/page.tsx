@@ -44,7 +44,7 @@ export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
   const [{ tab: activeTab, integrations }, setWebQuery] = useQueryStates({
-    tab: parseAsStringEnum(["new-pages", "web-pages-v2", "optimize", "all-pages", "settings"]).withDefault("new-pages"),
+    tab: parseAsStringEnum(["new-pages", "web-architecture", "optimize", "all-pages", "settings"]).withDefault("new-pages"),
     integrations: parseAsString,
   })
   const [newPagesMetrics, setNewPagesMetrics] = React.useState<WebPageMetrics | null>(null)
@@ -62,7 +62,7 @@ export default function BusinessWebPage({ params }: PageProps) {
 
   const handleTabChange = React.useCallback(
     (value: string) => {
-      const nextTab = value as "new-pages" | "web-pages-v2" | "optimize" | "all-pages" | "settings"
+      const nextTab = value as "new-pages" | "web-architecture" | "optimize" | "all-pages" | "settings"
       void setWebQuery({ tab: nextTab })
       if (nextTab !== "optimize") {
         setIsOptimizeSplitView(false)
@@ -154,7 +154,7 @@ export default function BusinessWebPage({ params }: PageProps) {
               <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <TabsList className="max-w-full justify-start overflow-x-auto">
                   <TabsTrigger value="new-pages">New Pages</TabsTrigger>
-                  <TabsTrigger value="web-pages-v2">Web Pages v2</TabsTrigger>
+                  <TabsTrigger value="web-architecture">Web Architecture</TabsTrigger>
                   <TabsTrigger value="optimize">Optimize</TabsTrigger>
                   <TabsTrigger value="all-pages">All Pages</TabsTrigger>
                 </TabsList>
@@ -196,7 +196,7 @@ export default function BusinessWebPage({ params }: PageProps) {
                 />
               )}
             </TabsContent>
-            <TabsContent value="web-pages-v2" className="mt-4 flex flex-1 min-h-0 min-w-0 overflow-hidden flex-col">
+            <TabsContent value="web-architecture" className="mt-4 flex flex-1 min-h-0 min-w-0 overflow-hidden flex-col">
               <WebsiteArchitectureTableClient key={businessId} businessId={businessId} />
             </TabsContent>
             <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>

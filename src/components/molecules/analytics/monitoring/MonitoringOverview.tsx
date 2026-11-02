@@ -249,7 +249,8 @@ function StateHeader({
 }) {
   const lastRun = overview.lastRun;
   const runAge = daysSince(lastRun?.runDate);
-  const runFailed = Boolean(lastRun && lastRun.status !== "completed");
+  const runFailed = lastRun?.status === "failed";
+  const runRunning = lastRun?.status === "running";
   const runStale = runAge !== null && runAge > 1;
 
   // While a past day is being read, the header reports that day. The freshness warning is
@@ -276,7 +277,7 @@ function StateHeader({
 
         <div className="shrink-0 text-right">
           <p className="text-[10px] font-medium uppercase tracking-[0.15px] text-muted-foreground">
-            {selectedDate ? "Viewing" : "Last run"}
+            {selectedDate ? "Viewing" : "Last attempt"}
           </p>
           <p className="mt-0.5 text-sm text-general-foreground">
             {formatMonitoringDate(selectedDate ?? lastRun?.runDate)}
@@ -303,14 +304,17 @@ function StateHeader({
             Back to latest
           </Button>
         </div>
-      ) : runFailed || runStale ? (
-        <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-[#B9741A]">
-          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" />
+      ) : runFailed || runRunning || runStale ? (
+        <p
+          role="status"
+          className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+        >
+          <TriangleAlert className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
           {runFailed
-            ? `The last run did not complete${
-                lastRun?.error ? `: ${lastRun.error}` : ""
-              }. Everything below is from before that.`
-            : `The last run was ${runAge} days ago, so these numbers are not current.`}
+            ? "Monitoring could not complete its last run. Results may be incomplete or out of date."
+            : runRunning
+              ? "Monitoring is running. Results may be incomplete until it finishes."
+              : `The last run was ${runAge} days ago, so these results are out of date.`}
         </p>
       ) : null}
 

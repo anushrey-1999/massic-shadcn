@@ -34,8 +34,8 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
 
   const {
     reviewsData,
-    isLoading,
-  } = useLocalPresence(businessUniqueId, period, selectedLocation)
+    isReviewsLoading,
+  } = useLocalPresence(businessUniqueId, period, selectedLocation, false)
 
   if (!hasLocations) {
     return (
@@ -48,7 +48,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
     )
   }
 
-  if (isLoading) {
+  if (isReviewsLoading) {
     return (
       <div className="flex flex-col gap-7">
         {/* <h2 className="text-base font-semibold">Reviews</h2> */}

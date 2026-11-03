@@ -64,6 +64,7 @@ export function LocalSearchSection({
     queriesData,
     reviewsData,
     isLoading,
+    isReviewsLoading,
     hasInteractionsData,
     hasQueriesData,
   } = useLocalPresence(businessUniqueId, period, activeLocation);
@@ -163,19 +164,25 @@ export function LocalSearchSection({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-6">
-            <RatingCard
-              title="All Time Reviews"
-              value={reviewsData.allTimeReviews.value}
-              change={reviewsData.allTimeReviews.change}
-            />
-            <RatingCard
-              title={`Ratings Past ${period}`}
-              rating={reviewsData.avgRating.value}
-              maxRating={5}
-              change={reviewsData.avgRating.change}
-            />
-          </div>
+          {isReviewsLoading ? (
+            <div role="status" aria-label="Loading reviews" className="mt-6 flex h-[120px] items-center justify-center rounded-lg border">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 pt-6">
+              <RatingCard
+                title="All Time Reviews"
+                value={reviewsData.allTimeReviews.value}
+                change={reviewsData.allTimeReviews.change}
+              />
+              <RatingCard
+                title={`Ratings Past ${period}`}
+                rating={reviewsData.avgRating.value}
+                maxRating={5}
+                change={reviewsData.avgRating.change}
+              />
+            </div>
+          )}
         </>
       )}
 

@@ -8,12 +8,12 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Typography } from "@/components/ui/typography";
 import { formatVolume } from "@/lib/format";
 import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
-
-export const ARCHITECTURE_PAGE_TYPES = [
-  "offering", "offering_collection", "audience", "use_case_need", "pricing",
-  "alternative", "location", "service_area", "comparison", "editorial", "brand",
-  "foundational_utility", "process", "proof",
-];
+import {
+  parseWebPageType,
+  WEB_PAGE_TYPE_LABELS,
+  WEB_PAGE_TYPE_OPTIONS,
+  WEB_PAGE_TYPES,
+} from "@/lib/web-page-types";
 
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -34,10 +34,7 @@ function SectionsCell({ sections }: { sections: unknown[] | null }) {
   );
 }
 
-export function getWebsiteArchitectureColumns(
-  pageTypes: string[] = ARCHITECTURE_PAGE_TYPES,
-  negativeTypeFilter = false,
-): ColumnDef<WebsiteArchitecturePage>[] {
+export function getWebsiteArchitectureColumns(): ColumnDef<WebsiteArchitecturePage>[] {
   const text = (
     id: keyof WebsiteArchitecturePage,
     heading: string,
@@ -57,17 +54,17 @@ export function getWebsiteArchitectureColumns(
   const facet = (
     id: "page_type" | "disposition" | "sources",
     heading: string,
-    values: string[],
+    values: readonly string[],
   ): ColumnDef<WebsiteArchitecturePage> => ({
     ...text(id, heading, id === "page_type" ? 140 : 110),
     meta: {
       label: heading,
-      variant: id === "page_type" && negativeTypeFilter ? "select" : "multiSelect",
+      variant: "multiSelect",
       apiField: id === "sources" ? "source" : id,
-      options: values.map((value) => ({ label: label(value), value })),
-      operators: id === "page_type" && negativeTypeFilter
-        ? [{ label: "Is not", value: "ne" }]
-        : [{ label: "Has any of", value: "inArray" }],
+      options: id === "page_type"
+        ? [...WEB_PAGE_TYPE_OPTIONS]
+        : values.map((value) => ({ label: label(value), value })),
+      operators: [{ label: "Has any of", value: "inArray" }],
       icon: Tag,
     },
     enableColumnFilter: true,
@@ -80,7 +77,17 @@ export function getWebsiteArchitectureColumns(
 
   return [
     { ...text("title", "Page", 230), enableSorting: true, enableHiding: false },
-    facet("page_type", "Type", pageTypes),
+    {
+      ...facet("page_type", "Type", WEB_PAGE_TYPES),
+      cell: ({ row }) => {
+        const pageType = parseWebPageType(row.original.page_type);
+        return (
+          <TextCell
+            value={pageType ? WEB_PAGE_TYPE_LABELS[pageType] : label(row.original.page_type)}
+          />
+        );
+      },
+    },
     text("category", "Category", 110),
     facet("disposition", "Disposition", ["page", "child_page", "editorial"]),
     text("final_url", "Path", 190),

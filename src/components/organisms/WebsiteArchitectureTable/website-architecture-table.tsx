@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
-import { ARCHITECTURE_PAGE_TYPES, getWebsiteArchitectureColumns } from "./website-architecture-table-columns";
+import { getWebsiteArchitectureColumns } from "./website-architecture-table-columns";
 
 export const ARCHITECTURE_QUERY_KEYS = {
   page: "architecturePage",
@@ -31,7 +31,6 @@ interface WebsiteArchitectureTableProps {
   search: string;
   onSearchChange: (value: string) => void;
   quickTypeFilter: string;
-  negativeTypeFilter: boolean;
   onQuickTypeFilterChange: (value: string) => void;
   canDownload: boolean;
   onDownload: () => void;
@@ -39,13 +38,10 @@ interface WebsiteArchitectureTableProps {
 
 export function WebsiteArchitectureTable({
   data, pageCount, isLoading, isFetching, search, onSearchChange,
-  quickTypeFilter, negativeTypeFilter, onQuickTypeFilterChange,
+  quickTypeFilter, onQuickTypeFilterChange,
   canDownload, onDownload,
 }: WebsiteArchitectureTableProps) {
-  const pageTypes = React.useMemo(() => Array.from(new Set([
-    ...ARCHITECTURE_PAGE_TYPES, ...data.map((page) => page.page_type),
-  ])), [data]);
-  const columns = React.useMemo(() => getWebsiteArchitectureColumns(pageTypes, negativeTypeFilter), [pageTypes, negativeTypeFilter]);
+  const columns = React.useMemo(() => getWebsiteArchitectureColumns(), []);
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
     data,
     columns,
@@ -82,11 +78,11 @@ export function WebsiteArchitectureTable({
             <Tabs value={quickTypeFilter} onValueChange={onQuickTypeFilterChange}>
               <TabsList className="h-9 rounded-md p-1">
                 <TabsTrigger value="all" className="h-7 rounded px-2.5 text-xs">All</TabsTrigger>
-                <TabsTrigger value="blog" className="h-7 rounded px-2.5 text-xs">Blogs</TabsTrigger>
+                <TabsTrigger value="editorial" className="h-7 rounded px-2.5 text-xs">Blogs</TabsTrigger>
                 <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">Other pages</TabsTrigger>
               </TabsList>
             </Tabs>
-            <DataTableFilterList key={`${pageTypes.join(",")}:${negativeTypeFilter}`} table={table} shallow={shallow} debounceMs={debounceMs} throttleMs={throttleMs} align="start" />
+            <DataTableFilterList table={table} shallow={shallow} debounceMs={debounceMs} throttleMs={throttleMs} align="start" />
           </div>
           <div className="flex items-center gap-2">
             <Tooltip>

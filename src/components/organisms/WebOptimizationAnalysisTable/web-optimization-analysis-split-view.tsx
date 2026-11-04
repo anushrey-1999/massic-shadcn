@@ -11,6 +11,8 @@ import {
   getWebOptimizationSuggestionsColumns,
   type WebOptimizationSuggestionRow,
 } from "./suggestions-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface WebOptimizationAnalysisSplitViewProps {
   leftTableData: WebOptimizationAnalysisRow[];
@@ -68,6 +70,9 @@ export const WebOptimizationAnalysisSplitView = React.memo(function WebOptimizat
   );
 
   const pageSizeOptions = React.useMemo(() => [10, 30, 50, 100, 200], []);
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(suggestionsData, "web-optimization-suggestions.csv");
+  }, [suggestionsData]);
 
   const leftTableProps = React.useMemo(
     () => ({
@@ -112,6 +117,12 @@ export const WebOptimizationAnalysisSplitView = React.memo(function WebOptimizat
       rightTableWidth="70%"
       onBack={onBack}
       showFilters={false}
+      toolbarActions={
+        <DownloadCsvButton
+          onDownload={handleDownloadCsv}
+          disabled={suggestionsData.length === 0}
+        />
+      }
     />
   );
 });

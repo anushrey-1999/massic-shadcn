@@ -51,7 +51,6 @@ export function CreateBusinessTemplate({
                 { label: "Create business" },
               ]
         }
-        showAskMassic={false}
       />
       <div className="flex min-h-0 flex-1 overflow-y-auto p-5">
         <Card className="mx-auto my-auto w-full max-w-[490px] shrink-0 gap-0 py-0 shadow-none">

@@ -497,7 +497,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
       ) : (
         <button
           type="button"
-            onClick={() => handleTopicTabChange("overview")}
+          onClick={() => handleTopicTabChange("overview")}
           className={subtabLabelClass}
         >
           Overview

@@ -9,6 +9,8 @@ import {
   getThemesSplitTableColumns,
   type ThemeDetailRow,
 } from "./themes-split-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface ThemesSplitViewProps {
   themesData: ThemeRow[];
@@ -79,6 +81,9 @@ export const ThemesSplitView = React.memo(function ThemesSplitView({
   );
 
   const pageSizeOptions = React.useMemo(() => [25, 50, 100], []);
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(topicsData, "theme-topics.csv");
+  }, [topicsData]);
 
   const leftTableProps = React.useMemo(
     () => ({
@@ -123,6 +128,12 @@ export const ThemesSplitView = React.memo(function ThemesSplitView({
         leftTableWidth="35%"
         rightTableWidth="65%"
         onBack={onBack}
+        toolbarActions={
+          <DownloadCsvButton
+            onDownload={handleDownloadCsv}
+            disabled={topicsData.length === 0}
+          />
+        }
       />
     </div>
   );

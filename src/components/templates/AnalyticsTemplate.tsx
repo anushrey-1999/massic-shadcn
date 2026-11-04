@@ -10,7 +10,6 @@ import {
 import { AnalyticsToolbar, type AnalyticsScope } from "@/components/organisms/analytics/AnalyticsToolbar";
 import { AITrafficSection } from "@/components/organisms/analytics/AITrafficSection";
 import {
-  MonitoringSheet,
   PeriodSelector,
   PrimaryDriversSheet,
   type AnalyticsGroupBy,
@@ -222,9 +221,6 @@ export function AnalyticsTemplate() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [customContentGroupsOpen, setCustomContentGroupsOpen] = useState(false);
   const [primaryDriversOpen, setPrimaryDriversOpen] = useState(false);
-  const [monitoringOpen, setMonitoringOpen] = useState(
-    searchParams.get("monitoring") === "1"
-  );
   const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -437,11 +433,11 @@ export function AnalyticsTemplate() {
   useEffect(() => {
     const tab = searchParams.get("tab");
     setSelectedTab(tab === "ai-traffic" ? "ai-traffic" : tab === "organic" ? "organic" : "all");
-    // Lets a specific business be handed over as a URL with the sheet already open.
-    if (searchParams.get("monitoring") === "1") {
-      setMonitoringOpen(true);
+    // Old `?monitoring=1` hand-over links now land on the Overview page.
+    if (searchParams.get("monitoring") === "1" && businessId) {
+      router.replace(`/business/${businessId}/overview`);
     }
-  }, [searchParams]);
+  }, [searchParams, businessId, router]);
 
   const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
     addFilter(filter);
@@ -615,7 +611,7 @@ export function AnalyticsTemplate() {
           }}
           onMonitoring={() => {
             if (!businessId) return;
-            setMonitoringOpen(true);
+            router.push(`/business/${businessId}/overview`);
           }}
           onViewReports={() => {
             if (!businessId) return;
@@ -782,13 +778,6 @@ export function AnalyticsTemplate() {
       <PrimaryDriversSheet
         open={primaryDriversOpen}
         onOpenChange={setPrimaryDriversOpen}
-        businessId={businessId}
-        businessName={businessName}
-      />
-
-      <MonitoringSheet
-        open={monitoringOpen}
-        onOpenChange={setMonitoringOpen}
         businessId={businessId}
         businessName={businessName}
       />

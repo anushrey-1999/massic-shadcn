@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { Download } from "lucide-react";
 import { DataTable } from "@/components/filter-table";
 import { DataTableFilterList } from "@/components/filter-table/data-table-filter-list";
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
 import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
 import { ARCHITECTURE_PAGE_TYPES, getWebsiteArchitectureColumns } from "./website-architecture-table-columns";
@@ -30,11 +33,14 @@ interface WebsiteArchitectureTableProps {
   quickTypeFilter: string;
   negativeTypeFilter: boolean;
   onQuickTypeFilterChange: (value: string) => void;
+  canDownload: boolean;
+  onDownload: () => void;
 }
 
 export function WebsiteArchitectureTable({
   data, pageCount, isLoading, isFetching, search, onSearchChange,
   quickTypeFilter, negativeTypeFilter, onQuickTypeFilterChange,
+  canDownload, onDownload,
 }: WebsiteArchitectureTableProps) {
   const pageTypes = React.useMemo(() => Array.from(new Set([
     ...ARCHITECTURE_PAGE_TYPES, ...data.map((page) => page.page_type),
@@ -83,6 +89,22 @@ export function WebsiteArchitectureTable({
             <DataTableFilterList key={`${pageTypes.join(",")}:${negativeTypeFilter}`} table={table} shallow={shallow} debounceMs={debounceMs} throttleMs={throttleMs} align="start" />
           </div>
           <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9 font-normal"
+                  aria-label="Download website architecture"
+                  disabled={!canDownload}
+                  onClick={onDownload}
+                >
+                  <Download className="size-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Download</TooltipContent>
+            </Tooltip>
             <DataTableSortList table={table} align="start" />
             <div className="[&>button]:flex">
               <DataTableViewOptions table={table} align="end" />

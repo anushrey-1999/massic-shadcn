@@ -9,6 +9,11 @@ import type { WebPageRow } from "@/types/web-page-types";
 import { Typography } from "@/components/ui/typography";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import { formatVolume } from "@/lib/format";
+import {
+  WEB_PAGE_TYPE_LABELS,
+  WEB_PAGE_TYPE_OPTIONS,
+  type WebPageType,
+} from "@/lib/web-page-types";
 
 interface GetWebPageTableColumnsProps {
   businessId: string;
@@ -17,28 +22,6 @@ interface GetWebPageTableColumnsProps {
   onExpandedRowChange?: (rowId: string | null) => void;
   hideActions?: boolean;
 }
-
-export const WEB_PAGE_BLOG_TYPE = "blog";
-
-export const WEB_PAGE_TYPE_OPTIONS = [
-  { label: "Blog", value: WEB_PAGE_BLOG_TYPE },
-  { label: "Use Case", value: "use case" },
-  { label: "Audience", value: "audience" },
-  { label: "Alternative", value: "alternative" },
-  { label: "Comparison", value: "comparison" },
-  { label: "Local", value: "local" },
-  { label: "Product/Service Page", value: "product/service page" },
-  { label: "Benefits", value: "benefits" },
-  { label: "Reviews Section", value: "reviews section" },
-  { label: "Page Section", value: "page section" },
-  { label: "Brand", value: "brand" },
-  { label: "Pricing", value: "pricing" },
-  { label: "Careers", value: "careers" },
-] as const;
-
-export const WEB_PAGE_OTHER_TYPE_VALUES = WEB_PAGE_TYPE_OPTIONS
-  .map((option) => option.value)
-  .filter((value) => value !== WEB_PAGE_BLOG_TYPE);
 
 export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange, hideActions = false }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   const columns: ColumnDef<WebPageRow>[] = [
@@ -72,8 +55,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         <DataTableColumnHeader column={column} label="Type" />
       ),
       cell: ({ row }) => {
-        const pageType = row.getValue<string>("page_type");
-        return <Typography variant="p">{pageType || "N/A"}</Typography>;
+        const pageType = row.getValue<WebPageType | null>("page_type");
+        return <Typography variant="p">{pageType ? WEB_PAGE_TYPE_LABELS[pageType] : "N/A"}</Typography>;
       },
       meta: {
         label: "Type",
@@ -292,6 +275,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         const status = (row.status || "").toString().toLowerCase();
         const VIEW_ACTION_STATUSES = new Set([
           "success",
+          "stale",
           "updated",
           "update_required",
           "outline_only",

@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import type { TacticRow } from "@/types/social-types";
 import type { WebPageRow } from "@/types/web-page-types";
+import { parseWebPageType } from "@/lib/web-page-types";
 import { formatPlanDate, PLAN_ACTIONS_CONFIG, planMatchesType } from "./plan-actions-config";
 
 function escapeCsv(value: unknown) {
@@ -79,7 +80,7 @@ function WebAction({ businessId, item, index }: { businessId: string; item: Plan
     page_id: item.page_id,
     cluster_name: item.cluster_name || item.title || item.page_id,
     keyword: item.cluster_name || item.title || item.page_id,
-    page_type: item.page_type || "page",
+    page_type: parseWebPageType(item.page_type),
     search_volume: item.search_volume ?? 0,
     business_relevance_score: item.business_relevance_score ?? 0,
     page_opportunity_score: item.page_opportunity_score ?? 0,

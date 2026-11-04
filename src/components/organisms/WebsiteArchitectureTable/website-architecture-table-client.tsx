@@ -9,8 +9,67 @@ import { getFiltersStateParser, getSortingStateParser } from "@/components/filte
 import { Button } from "@/components/ui/button";
 import { useWebsiteArchitecture } from "@/hooks/use-website-architecture";
 import { formatVolume } from "@/lib/format";
-import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
+import type { WebsiteArchitectureExport, WebsiteArchitecturePage } from "@/types/website-architecture-types";
+import { WebsiteArchitectureDownloadDialog } from "./website-architecture-download-dialog";
 import { ARCHITECTURE_QUERY_KEYS, WebsiteArchitectureTable } from "./website-architecture-table";
+
+const CSV_COLUMNS: Array<{
+  header: string;
+  value: (page: WebsiteArchitecturePage) => unknown;
+}> = [
+  { header: "page_id", value: (page) => page.page_id },
+  { header: "title", value: (page) => page.title },
+  { header: "name", value: (page) => page.name },
+  { header: "page_type", value: (page) => page.page_type },
+  { header: "page_subtype", value: (page) => page.page_subtype },
+  { header: "category", value: (page) => page.category },
+  { header: "disposition", value: (page) => page.disposition },
+  { header: "parent_page_id", value: (page) => page.parent_page_id },
+  { header: "final_url", value: (page) => page.final_url },
+  { header: "current_url", value: (page) => page.current_url },
+  { header: "keyword", value: (page) => page.keyword },
+  { header: "supporting_keywords", value: (page) => page.supporting_keywords?.join(" | ") },
+  { header: "search_volume", value: (page) => page.search_volume },
+  { header: "business_relevance_score", value: (page) => page.business_relevance_score },
+  { header: "business_applicability", value: (page) => page.business_applicability },
+  { header: "confidence", value: (page) => page.confidence },
+  { header: "sources", value: (page) => page.sources?.join(" | ") },
+  { header: "alternate_framing", value: (page) => page.alternate_framing },
+  { header: "offerings", value: (page) => page.modifiers?.offerings?.join(" | ") },
+  { header: "customer_type", value: (page) => page.modifiers?.customer_type },
+  { header: "location", value: (page) => page.modifiers?.location },
+  { header: "service_area", value: (page) => page.modifiers?.service_area },
+  { header: "sections", value: (page) => page.sections },
+];
+
+function escapeCsv(value: unknown) {
+  const text = value == null ? "" : typeof value === "object" ? JSON.stringify(value) ?? "" : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function downloadTextFile(filename: string, contents: string, mimeType: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type: mimeType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadWebsiteArchitectureCsv(pages: WebsiteArchitecturePage[], filename: string) {
+  const rows = [
+    CSV_COLUMNS.map((column) => column.header),
+    ...pages.map((page) => CSV_COLUMNS.map((column) => column.value(page))),
+  ];
+  const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(",")).join("\n")}`;
+  downloadTextFile(filename, csv, "text/csv;charset=utf-8");
+}
+
+function downloadWebsiteArchitectureJson(payload: WebsiteArchitectureExport, filename: string) {
+  downloadTextFile(filename, JSON.stringify(payload, null, 2), "application/json");
+}
 
 const stateParsers = {
   page: parseAsInteger.withDefault(1),
@@ -39,7 +98,8 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
     void setState({ page: 1 });
   }, [signature, setState]);
 
-  const { fetchWebsiteArchitecture } = useWebsiteArchitecture();
+  const { fetchWebsiteArchitecture, fetchWebsiteArchitectureExport } = useWebsiteArchitecture();
+  const [isDownloadOpen, setIsDownloadOpen] = React.useState(false);
   const query = useQuery({
     queryKey: ["website-architecture", businessId, page, signature],
     queryFn: ({ signal }) => fetchWebsiteArchitecture({ ...state, businessId, page, perPage }, signal),
@@ -77,6 +137,27 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
     void setState({ page: 1, filters });
   };
 
+  const handleDownload = async (format: "csv" | "json", filename: string) => {
+    try {
+      const payload = await fetchWebsiteArchitectureExport(businessId);
+      const pages = payload.pages.output_data?.items ?? [];
+      if (!pages.length) throw new Error("There are no pages to download.");
+      if (format === "json") downloadWebsiteArchitectureJson(payload, filename);
+      else downloadWebsiteArchitectureCsv(pages, filename);
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        throw new Error("There are no pages to download.");
+      }
+      if (
+        error instanceof Error &&
+        ["Website architecture could not be loaded.", "Website architecture is not ready to download.", "There are no pages to download."].includes(error.message)
+      ) {
+        throw error;
+      }
+      throw new Error("Couldn't download website architecture. Please try again.");
+    }
+  };
+
   const pending = !query.isError && query.data && ["pending", "processing", "running", "queued", "in_progress"].includes(query.data.status);
   const notFound = query.isError && isAxiosError(query.error) && query.error.response?.status === 404;
   const totalCount = notFound ? 0 : query.data?.totalCount;
@@ -110,6 +191,14 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
         quickTypeFilter={quickTypeFilter}
         negativeTypeFilter={typeFilter?.operator === "ne"}
         onQuickTypeFilterChange={handleQuickTypeFilter}
+        canDownload={!query.isLoading && !needsPageReset && (totalCount ?? 0) > 0}
+        onDownload={() => setIsDownloadOpen(true)}
+      />
+      <WebsiteArchitectureDownloadDialog
+        isOpen={isDownloadOpen}
+        onClose={() => setIsDownloadOpen(false)}
+        defaultFilename="website-architecture"
+        onDownload={handleDownload}
       />
     </div>
   );

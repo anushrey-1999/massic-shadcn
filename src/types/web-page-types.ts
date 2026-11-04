@@ -1,9 +1,11 @@
+import type { WebPageType } from "@/lib/web-page-types";
+
 // Web Page (Blog Page Plan) data types based on Backend API Specification
 
 export interface WebPageItem {
   cluster_name?: string;
   keyword?: string;
-  page_type: string;
+  page_type: string | null;
   search_volume: number;
   business_relevance_score: number;
   page_opportunity_score: number;
@@ -22,7 +24,7 @@ export interface WebPageRow {
   id: string;
   cluster_name: string;
   keyword?: string;
-  page_type: string;
+  page_type: WebPageType | null;
   search_volume: number;
   business_relevance_score: number;
   page_opportunity_score: number;

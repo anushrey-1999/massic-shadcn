@@ -9,6 +9,11 @@ import { getFiltersStateParser, getSortingStateParser } from "@/components/filte
 import { Button } from "@/components/ui/button";
 import { useWebsiteArchitecture } from "@/hooks/use-website-architecture";
 import { formatVolume } from "@/lib/format";
+import {
+  getWebPageQuickTypeFilter,
+  getWebPageTypesForQuickFilter,
+  type WebPageQuickTypeFilter,
+} from "@/lib/web-page-types";
 import type { WebsiteArchitectureExport, WebsiteArchitecturePage } from "@/types/website-architecture-types";
 import { WebsiteArchitectureDownloadDialog } from "./website-architecture-download-dialog";
 import { ARCHITECTURE_QUERY_KEYS, WebsiteArchitectureTable } from "./website-architecture-table";
@@ -118,20 +123,21 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
   }, [page, query.data?.pageCount, query.isPlaceholderData, setState]);
 
   const typeFilter = state.filters.find((filter) => filter.field === "page_type");
-  const typeValues = typeFilter ? (Array.isArray(typeFilter.value) ? typeFilter.value : [typeFilter.value]) : [];
-  const quickTypeFilter = !typeFilter ? "all"
-    : typeValues.length === 1 && typeValues[0] === "editorial"
-      ? typeFilter.operator === "ne" ? "other" : ["eq", "inArray"].includes(typeFilter.operator) ? "blog" : "custom"
-      : "custom";
+  const quickTypeFilter = getWebPageQuickTypeFilter(
+    typeFilter?.operator,
+    typeFilter?.value,
+  );
 
   const handleQuickTypeFilter = (value: string) => {
-    if (!["all", "blog", "other"].includes(value)) return;
+    if (!["all", "editorial", "other"].includes(value)) return;
+
+    const pageTypes = getWebPageTypesForQuickFilter(value as WebPageQuickTypeFilter);
     const filters = state.filters.filter((filter) => filter.field !== "page_type");
-    if (value !== "all") {
+    if (pageTypes) {
       filters.push({
         field: "page_type",
-        operator: value === "blog" ? "inArray" : "ne",
-        value: value === "blog" ? ["editorial"] : "editorial",
+        operator: "inArray",
+        value: pageTypes,
       });
     }
     void setState({ page: 1, filters });
@@ -189,7 +195,6 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
         search={state.search}
         onSearchChange={(search) => void setState({ search, page: 1 })}
         quickTypeFilter={quickTypeFilter}
-        negativeTypeFilter={typeFilter?.operator === "ne"}
         onQuickTypeFilterChange={handleQuickTypeFilter}
         canDownload={!query.isLoading && !needsPageReset && (totalCount ?? 0) > 0}
         onDownload={() => setIsDownloadOpen(true)}

@@ -63,3 +63,9 @@ export interface WebsiteArchitectureResult {
   pageCount: number;
   totalCount: number | undefined;
 }
+
+export interface WebsiteArchitectureExport {
+  pages: WebsiteArchitectureResponse;
+  urls: unknown;
+  navigation: unknown;
+}

@@ -7,6 +7,7 @@ import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WebPageRow } from "@/types/web-page-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
@@ -22,6 +23,8 @@ interface WebPageTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  quickTypeFilter?: string;
+  onQuickTypeFilterChange?: (value: string) => void;
   hideActions?: boolean;
   pageSize?: number;
   pageSizeOptions?: number[];
@@ -39,6 +42,8 @@ export function WebPageTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  quickTypeFilter = "all",
+  onQuickTypeFilterChange,
   hideActions = false,
   pageSize = 100,
   pageSizeOptions = [10, 30, 50, 100, 200],
@@ -88,6 +93,7 @@ export function WebPageTable({
         const status = (row.status || "").toString().toLowerCase();
         const VIEW_ACTION_STATUSES = new Set([
           "success",
+          "stale",
           "updated",
           "update_required",
           "outline_only",
@@ -204,6 +210,22 @@ export function WebPageTable({
                 onChange={onSearchChange}
                 placeholder="Search pages, keywords..."
               />
+            )}
+
+            {onQuickTypeFilterChange && (
+              <Tabs value={quickTypeFilter} onValueChange={onQuickTypeFilterChange}>
+                <TabsList className="h-9 rounded-md p-1">
+                  <TabsTrigger value="all" className="h-7 rounded px-2.5 text-xs">
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger value="editorial" className="h-7 rounded px-2.5 text-xs">
+                    Blogs
+                  </TabsTrigger>
+                  <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">
+                    Other pages
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             )}
 
             <DataTableFilterList

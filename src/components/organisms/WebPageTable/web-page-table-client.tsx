@@ -10,6 +10,7 @@ import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { WebPageMetrics, WebPageRow } from "@/types/web-page-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import { WEB_PAGE_TYPES } from "@/lib/web-page-types";
 
 interface WebPageTableClientProps {
   businessId: string;
@@ -40,7 +41,7 @@ export function WebPageTableClient({
       return null;
     }).withDefault([])
   );
-  const [filters] = useQueryState(
+  const [filters, setFilters] = useQueryState(
     "filters",
     parseAsJson<WebPageFilter[]>((value) => {
       if (Array.isArray(value)) {
@@ -59,6 +60,42 @@ export function WebPageTableClient({
     const hasFilters = filters.length > 0;
     return hasSearch || hasFilters;
   }, [search, filters]);
+
+  const nonEditorialPageTypes = React.useMemo(
+    () => WEB_PAGE_TYPES.filter((pageType) => pageType !== "editorial"),
+    []
+  );
+  const typeFilter = filters.find((filter) => filter.field === "page_type");
+  const typeValues = typeFilter
+    ? (Array.isArray(typeFilter.value) ? typeFilter.value : [typeFilter.value])
+    : [];
+  const quickTypeFilter = !typeFilter
+    ? "all"
+    : typeFilter.operator === "inArray" &&
+        typeValues.length === 1 &&
+        typeValues[0] === "editorial"
+      ? "editorial"
+      : typeFilter.operator === "inArray" &&
+          typeValues.length === nonEditorialPageTypes.length &&
+          nonEditorialPageTypes.every((pageType) => typeValues.includes(pageType))
+        ? "other"
+        : "custom";
+
+  const handleQuickTypeFilter = (value: string) => {
+    if (!["all", "editorial", "other"].includes(value)) return;
+
+    const nextFilters = filters.filter((filter) => filter.field !== "page_type");
+    if (value !== "all") {
+      nextFilters.push({
+        field: "page_type",
+        operator: "inArray",
+        value: value === "editorial" ? ["editorial"] : [...nonEditorialPageTypes],
+      });
+    }
+
+    void setPage(1);
+    void setFilters(nextFilters.length > 0 ? nextFilters : null);
+  };
 
   const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
@@ -291,6 +328,8 @@ export function WebPageTableClient({
         isFetching={webPageFetching}
         search={search}
         onSearchChange={setSearch}
+        quickTypeFilter={quickTypeFilter}
+        onQuickTypeFilterChange={handleQuickTypeFilter}
         hideActions={hideActions}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,17 @@ import {
   type MonitoringRange,
   type MonitoringWhereView,
 } from "@/hooks/use-monitoring-screen";
-import { MonitoringLineChart, formatChartDate } from "./MonitoringLineChart";
-import { EventTypeTag, SHADE_COLORS, SectionLabel } from "./monitoring-ui";
+import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
+import { MonitoringLineChart } from "./MonitoringLineChart";
+import {
+  ChartEdgeDates,
+  ChartLegend,
+  EventTypeTag,
+  PanelSection,
+  PanelSkeleton,
+  SegmentedToggle,
+  shadeDirections,
+} from "./monitoring-ui";
 
 interface MonitoringEventPanelProps {
   businessId: string;
@@ -37,25 +46,9 @@ function pageUrl(website: string | null | undefined, page: string): string | nul
   }
 }
 
-function PanelSection({ label, aside, children }: { label: string; aside?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5 border-t border-general-border py-5">
-      <div className="flex min-h-[18px] items-center gap-2">
-        <SectionLabel>{label}</SectionLabel>
-        <div className="flex-1" />
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function KeyNumber({ detail }: { detail: MonitoringCardDetail }) {
   const { keyNumber, miniChart } = detail;
   const points = miniChart.points;
-  const first = points[0]?.date;
-  const last = points[points.length - 1]?.date;
-  const directions = new Set(miniChart.shading.map((shade) => shade.direction));
 
   return (
     <div className="flex flex-col gap-3 rounded-[10px] border border-general-border px-4 pt-3.5 pb-3">
@@ -95,74 +88,12 @@ function KeyNumber({ detail }: { detail: MonitoringCardDetail }) {
         </div>
       )}
 
-      {first && last ? (
-        <div className="flex items-start text-[10px] leading-[1.5] font-medium tracking-[0.15px] text-general-muted-foreground">
-          <span>{formatChartDate(first)}</span>
-          <div className="flex-1" />
-          <span>{formatChartDate(last)}</span>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-start gap-4 text-[10px] leading-[1.5] font-medium tracking-[0.15px] text-general-muted-foreground">
-        {miniChart.usualPerDay !== null ? (
-          <span className="flex items-center gap-1.5">
-            <span className="h-0 w-3 shrink-0 border-t border-dashed border-general-muted-foreground" />
-            Usual
-          </span>
-        ) : null}
-        {directions.has("down") ? (
-          <span className="flex items-center gap-1.5">
-            <span className={cn("size-2 shrink-0 rounded-[2px]", SHADE_COLORS.down.swatch)} />
-            Unusual drop
-          </span>
-        ) : null}
-        {directions.has("up") ? (
-          <span className="flex items-center gap-1.5">
-            <span className={cn("size-2 shrink-0 rounded-[2px]", SHADE_COLORS.up.swatch)} />
-            Unusual jump
-          </span>
-        ) : null}
-        {miniChart.compared ? (
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 shrink-0 rounded-[2px] border border-general-border bg-[#f5f5f5]" />
-            {miniChart.compared.label}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function ViewToggle({
-  views,
-  value,
-  onChange,
-}: {
-  views: MonitoringWhereView[];
-  value: MonitoringWhereView["key"];
-  onChange: (key: MonitoringWhereView["key"]) => void;
-}) {
-  if (views.length < 2) return null;
-  return (
-    <div role="radiogroup" aria-label="Where it happened view" className="flex items-start gap-0.5 rounded-[8px] bg-[#f5f5f5] p-1">
-      {views.map((view) => {
-        const active = view.key === value;
-        return (
-          <button
-            key={view.key}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(view.key)}
-            className={cn(
-              "flex min-h-8 items-center justify-center rounded-[8px] px-1.5 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] whitespace-nowrap text-general-foreground transition-colors",
-              active ? "bg-black/10" : "hover:bg-black/5"
-            )}
-          >
-            {view.label}
-          </button>
-        );
-      })}
+      <ChartEdgeDates first={points[0]?.date} last={points[points.length - 1]?.date} />
+      <ChartLegend
+        usual={miniChart.usualPerDay !== null}
+        directions={shadeDirections(miniChart.shading)}
+        comparedLabel={miniChart.compared?.label ?? null}
+      />
     </div>
   );
 }
@@ -200,6 +131,11 @@ function WhereTable({ view, website }: { view: MonitoringWhereView; website?: st
                       <a href={href} target="_blank" rel="noopener noreferrer" className="break-all hover:underline">
                         {row.name}
                       </a>
+                    ) : view.key === "channels" ? (
+                      <span className="flex items-center gap-2">
+                        <SourceFavicon sourceName={row.name} />
+                        <span className="break-all">{row.name}</span>
+                      </span>
                     ) : (
                       <span className="break-all">{row.name}</span>
                     )}
@@ -232,7 +168,17 @@ function WhereSection({ views, website }: { views: MonitoringWhereView[]; websit
   const [active, setActive] = useState<MonitoringWhereView["key"]>(views[0].key);
   const view = views.find((item) => item.key === active) ?? views[0];
   return (
-    <PanelSection label="Where it happened" aside={<ViewToggle views={views} value={view.key} onChange={setActive} />}>
+    <PanelSection
+      label="Where it happened"
+      aside={
+        <SegmentedToggle
+          ariaLabel="Where it happened view"
+          options={views}
+          value={view.key}
+          onChange={setActive}
+        />
+      }
+    >
       <WhereTable view={view} website={website} />
     </PanelSection>
   );
@@ -290,21 +236,6 @@ function WhatToCheck({ items }: { items: string[] }) {
         ))}
       </ol>
     </PanelSection>
-  );
-}
-
-function PanelSkeleton() {
-  return (
-    <div className="flex flex-col gap-5 px-6 pt-2 pb-6">
-      <Skeleton className="h-[160px] w-full rounded-[10px]" />
-      {[0, 1, 2].map((section) => (
-        <div key={section} className="flex flex-col gap-2.5">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-4/5" />
-        </div>
-      ))}
-    </div>
   );
 }
 

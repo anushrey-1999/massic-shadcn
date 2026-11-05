@@ -1,64 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import { Bell } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { normalizeDomainForFavicon } from "@/utils/utils";
 import type { MonitoringSection, MonitoringTop } from "@/hooks/use-monitoring-screen";
+import { useNotificationCount, type NotificationScope } from "@/hooks/use-monitoring-notifications";
+import { NotificationsSheet } from "./NotificationsSheet";
 import {
+  BusinessFavicon,
   HealthStateBadge,
   MonitoringCardShell,
   MonitoringPartError,
+  NotificationBell,
   TopCardSkeleton,
 } from "./monitoring-ui";
 
-const FAVICON_URL = "https://www.google.com/s2/favicons?domain=";
-
-function BusinessFavicon({ website, name }: { website?: string | null; name: string }) {
-  const [failed, setFailed] = useState(false);
-  const domain = normalizeDomainForFavicon(website || undefined);
-
-  if (!domain || failed) {
-    return (
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-general-border text-[10px] font-medium text-general-muted-foreground">
-        {name.trim().charAt(0).toUpperCase() || "B"}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={`${FAVICON_URL}${domain}&sz=64`}
-      alt=""
-      width={20}
-      height={20}
-      className="size-5 shrink-0 rounded-[4px] object-contain"
-      onError={() => setFailed(true)}
-    />
+/** The business bell: its own unread count, opening the sheet for this business only. */
+function BusinessNotifications({
+  businessId,
+  businessName,
+  website,
+}: {
+  businessId: string;
+  businessName: string;
+  website?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const scope = useMemo<NotificationScope>(
+    () => ({ kind: "business", businessId, name: businessName, website }),
+    [businessId, businessName, website]
   );
-}
+  const count = useNotificationCount(scope);
 
-/** Notifications Button (Figma 6928:52008). The bell panel opens it in a later phase. */
-function NotificationsButton({ unseen }: { unseen: number }) {
-  const label = unseen > 99 ? "99+" : String(unseen);
   return (
-    <span
-      className="relative flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-general-border bg-white text-general-foreground"
-      aria-label={unseen ? `${unseen} unseen notifications` : "No unseen notifications"}
-      role="img"
-    >
-      <Bell className="size-4" strokeWidth={1.5} aria-hidden />
-      {unseen > 0 ? (
-        <span className="absolute -top-[5px] left-[23px] flex h-4 min-w-4 items-center justify-center rounded-[12px] border-2 border-white bg-red-500 px-1 text-[10px] leading-[1.5] font-medium tracking-[0.15px] text-general-primary-foreground">
-          {label}
-        </span>
-      ) : null}
-    </span>
+    <>
+      <NotificationBell unread={count.data ?? 0} onClick={() => setOpen(true)} aria-expanded={open} />
+      <NotificationsSheet open={open} onOpenChange={setOpen} scope={scope} />
+    </>
   );
 }
 
 interface MonitoringTopCardProps {
+  businessId: string;
   businessName: string;
   website?: string | null;
   top: MonitoringSection<MonitoringTop> | null;
@@ -68,6 +51,7 @@ interface MonitoringTopCardProps {
 }
 
 export function MonitoringTopCard({
+  businessId,
   businessName,
   website,
   top,
@@ -98,7 +82,7 @@ export function MonitoringTopCard({
             <HealthStateBadge color={pill.color} text={pill.streak?.text ?? pill.label} />
           ) : null}
           <div className="flex-1" />
-          {data ? <NotificationsButton unseen={data.notifications.unseen} /> : null}
+          <BusinessNotifications businessId={businessId} businessName={businessName} website={website} />
         </div>
 
         {data ? (

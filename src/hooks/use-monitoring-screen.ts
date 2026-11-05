@@ -147,7 +147,6 @@ export interface MonitoringPill {
 
 export interface MonitoringTop {
   pill: MonitoringPill | null;
-  notifications: { unseen: number };
   headline: { title: string; subtitle: string | null };
 }
 
@@ -188,6 +187,15 @@ export interface MonitoringList {
   cards: MonitoringCard[];
 }
 
+/** Metrics tab statuses (PRD 10.3), in the order they are checked. */
+export type MonitoringMetricStatus =
+  | "no_data"
+  | "not_enough_history"
+  | "too_few"
+  | "lower"
+  | "higher"
+  | "normal";
+
 export interface MonitoringMetricRow {
   key: string;
   name: string;
@@ -198,9 +206,47 @@ export interface MonitoringMetricRow {
   notConnected?: string;
   empty?: string;
   total?: number | null;
-  status?: string;
+  status?: MonitoringMetricStatus;
   statusLabel?: string;
-  sentence?: string;
+  /** "Usually 520 to 610", or null when the range can't be judged. */
+  usual?: string | null;
+}
+
+export interface MonitoringJudged {
+  total: number;
+  lo: number | null;
+  hi: number | null;
+  status: MonitoringMetricStatus;
+  statusLabel: string;
+}
+
+export interface MonitoringWeekBucket {
+  start: string;
+  end: string;
+  value: number;
+  partial: boolean;
+}
+
+export interface MonitoringMetricDetail extends MonitoringJudged {
+  key: string;
+  name: string;
+  metric: MonitoringMetric;
+  connected: boolean;
+  usual: string | null;
+  caption: string;
+  usualSentence: string | null;
+  chart: {
+    daily: MonitoringChartWindow;
+    weekly: { buckets: MonitoringWeekBucket[]; usualPerWeek: number | null };
+    labels: { daily: string; weekly: string; eachDay: string; eachWeek: string };
+  };
+  quickCheck: {
+    title: string;
+    head: { dates: string; total: string; usual: string; status: string };
+    rows: Array<
+      MonitoringJudged & { days: number; label: string; start: string; end: string; usual: string | null }
+    >;
+  };
 }
 
 export interface MonitoringScreen {
@@ -267,7 +313,7 @@ export interface MonitoringCardDetail {
 // ─── Transport ──────────────────────────────────────────────────────────────
 
 /** Monitoring answers `{ success, data }` and fails `{ success: false, error: { message } }`. */
-async function monitoringGet<T>(path: string, params: Record<string, string>): Promise<T> {
+export async function monitoringGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const res = await api.get<{ success: boolean; data: T }>(`/monitoring${path}`, "node", {
     params,
   });
@@ -315,6 +361,25 @@ export function useMonitoringCard(
         rangeParams(range)
       ),
     enabled: !!businessId && !!cardId,
+    staleTime: STALE_TIME,
+    retry: false,
+  });
+}
+
+/** One Metrics tab row's detail panel. Runs only while the panel is open. */
+export function useMonitoringMetric(
+  businessId: string | null,
+  metricKey: string | null,
+  range: MonitoringRange
+) {
+  return useQuery({
+    queryKey: ["monitoring-metric", businessId, metricKey, rangeKey(range)],
+    queryFn: () =>
+      monitoringGet<MonitoringMetricDetail>(
+        `/businesses/${businessId}/metrics/${encodeURIComponent(metricKey as string)}`,
+        rangeParams(range)
+      ),
+    enabled: !!businessId && !!metricKey,
     staleTime: STALE_TIME,
     retry: false,
   });

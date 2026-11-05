@@ -11,7 +11,7 @@ interface PageProps {
   }>
 }
 
-export default function BusinessOverviewPage({ params }: PageProps) {
+export default function BusinessMonitoringPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
 
   React.useEffect(() => {
@@ -26,7 +26,7 @@ export default function BusinessOverviewPage({ params }: PageProps) {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Overview" },
+      { label: "Monitoring" },
     ],
     [businessName]
   )

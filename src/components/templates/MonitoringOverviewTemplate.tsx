@@ -18,6 +18,7 @@ import { MonitoringTopCard } from "@/components/molecules/monitoring/MonitoringT
 import { MonitoringTimelineCard } from "@/components/molecules/monitoring/MonitoringTimelineCard";
 import { MonitoringEventsCard } from "@/components/molecules/monitoring/MonitoringEventsCard";
 import { MonitoringEventPanel } from "@/components/molecules/monitoring/MonitoringEventPanel";
+import { MonitoringMetricPanel } from "@/components/molecules/monitoring/MonitoringMetricPanel";
 
 interface MonitoringOverviewTemplateProps {
   businessId: string;
@@ -50,6 +51,7 @@ export function MonitoringOverviewTemplate({
 
   const range = useMemo(() => rangeFromParams(new URLSearchParams(searchParams.toString())), [searchParams]);
   const cardId = searchParams.get("card");
+  const metricKey = searchParams.get("metric");
 
   const query = useMonitoringScreen(businessId, range);
   const screen = query.data ?? null;
@@ -74,6 +76,7 @@ export function MonitoringOverviewTemplate({
         params.delete("start");
         params.delete("end");
         params.delete("card");
+        params.delete("metric");
         if (!next) return;
         if ("preset" in next) {
           params.set("range", next.preset);
@@ -91,6 +94,11 @@ export function MonitoringOverviewTemplate({
     [updateParams]
   );
   const closeCard = useCallback(() => updateParams((params) => params.delete("card")), [updateParams]);
+  const openMetric = useCallback(
+    (key: string) => updateParams((params) => params.set("metric", key)),
+    [updateParams]
+  );
+  const closeMetric = useCallback(() => updateParams((params) => params.delete("metric")), [updateParams]);
 
   const refetch = useCallback(() => {
     void query.refetch();
@@ -100,7 +108,7 @@ export function MonitoringOverviewTemplate({
     () => [
       { label: "Home", href: "/" },
       { label: businessName, href: `/business/${businessId}/analytics` },
-      { label: "Overview" },
+      { label: "Monitoring" },
     ],
     [businessId, businessName]
   );
@@ -150,6 +158,7 @@ export function MonitoringOverviewTemplate({
             aria-busy={query.isFetching}
           >
             <MonitoringTopCard
+              businessId={businessId}
               businessName={businessName}
               website={website}
               top={screen?.top ?? null}
@@ -174,6 +183,8 @@ export function MonitoringOverviewTemplate({
               onRetry={refetch}
               retrying={retrying}
               onOpenCard={openCard}
+              onOpenMetric={openMetric}
+              initialTab={metricKey ? "metrics" : "events"}
             />
           </div>
         )}
@@ -185,6 +196,12 @@ export function MonitoringOverviewTemplate({
         range={range}
         website={website}
         onClose={closeCard}
+      />
+      <MonitoringMetricPanel
+        businessId={businessId}
+        metricKey={screen ? metricKey : null}
+        range={range}
+        onClose={closeMetric}
       />
     </div>
   );

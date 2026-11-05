@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { format, parseISO } from "date-fns";
 import {
   CartesianGrid,
   ComposedChart,
@@ -15,7 +14,7 @@ import {
 } from "recharts";
 
 import type { MonitoringPoint, MonitoringShade } from "@/hooks/use-monitoring-screen";
-import { COMPARED_FILL, LINE_COLOR, SHADE_COLORS, USUAL_COLOR } from "./monitoring-ui";
+import { COMPARED_FILL, LINE_COLOR, SHADE_COLORS, USUAL_COLOR, formatChartDate } from "./monitoring-ui";
 
 export interface MonitoringComparedBand {
   start: string;
@@ -39,10 +38,6 @@ interface MonitoringLineChartProps {
 
 const AXIS_TICKS = 6;
 const LABEL_CHAR_WIDTH = 6.4;
-
-export function formatChartDate(date: string): string {
-  return format(parseISO(date), "MMM d");
-}
 
 function pickTicks(dates: string[]): string[] {
   if (dates.length <= AXIS_TICKS) return dates;

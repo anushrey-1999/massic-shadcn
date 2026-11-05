@@ -1,5 +1,6 @@
 const ANALYTICS_ROUTE_SEGMENTS = [
   'analytics',
+  'monitoring',
   'indexing',
   'organic-deepdive',
   'reports',

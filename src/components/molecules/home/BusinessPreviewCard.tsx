@@ -101,7 +101,7 @@ function healthStatusStreakLabel(status: HealthStatusRow) {
 
 // ─── Health badge wrapped in a metrics tooltip ─────────────────────────────────
 
-function HealthBadge({
+export function HealthBadge({
 	healthStatus,
 	businessId,
 	businessName,
@@ -171,18 +171,18 @@ function HealthBadge({
 	);
 }
 
-type PreviewStats = {
+export type PreviewStats = {
 	Total?: string | number;
 	Trend?: "up" | "down" | string;
 	Diff?: string | number;
 };
 
-function formatTotal(value: string | number | undefined) {
+export function formatTotal(value: string | number | undefined) {
 	if (value === undefined || value === null) return "—";
 	return String(value);
 }
 
-function parsePercent(
+export function parsePercent(
 	diff: string | number | undefined,
 	trend: string | undefined,
 ): number {
@@ -200,9 +200,10 @@ const FAVICON_URL = "https://www.google.com/s2/favicons?domain=";
 interface BusinessIconProps {
 	website?: string;
 	name?: string;
+	grayscale?: boolean;
 }
 
-function BusinessIcon({ website, name }: BusinessIconProps) {
+export function BusinessIcon({ website, name, grayscale = true }: BusinessIconProps) {
 	const [imgError, setImgError] = useState(false);
 	const fallbackInitial = name?.charAt(0).toUpperCase() || "B";
 
@@ -223,7 +224,7 @@ function BusinessIcon({ website, name }: BusinessIconProps) {
 				alt=""
 				width={16}
 				height={16}
-				className="h-full w-full object-contain grayscale"
+				className={cn("h-full w-full object-contain", grayscale && "grayscale")}
 				onError={() => setImgError(true)}
 			/>
 		</div>

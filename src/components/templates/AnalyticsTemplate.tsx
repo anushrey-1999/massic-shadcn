@@ -433,9 +433,9 @@ export function AnalyticsTemplate() {
   useEffect(() => {
     const tab = searchParams.get("tab");
     setSelectedTab(tab === "ai-traffic" ? "ai-traffic" : tab === "organic" ? "organic" : "all");
-    // Old `?monitoring=1` hand-over links now land on the Overview page.
+    // Old `?monitoring=1` hand-over links now land on the Monitoring page.
     if (searchParams.get("monitoring") === "1" && businessId) {
-      router.replace(`/business/${businessId}/overview`);
+      router.replace(`/business/${businessId}/monitoring`);
     }
   }, [searchParams, businessId, router]);
 
@@ -611,7 +611,7 @@ export function AnalyticsTemplate() {
           }}
           onMonitoring={() => {
             if (!businessId) return;
-            router.push(`/business/${businessId}/overview`);
+            router.push(`/business/${businessId}/monitoring`);
           }}
           onViewReports={() => {
             if (!businessId) return;

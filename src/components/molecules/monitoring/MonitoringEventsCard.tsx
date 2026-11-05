@@ -13,6 +13,7 @@ import type {
 import {
   EventTypeTag,
   ListSkeleton,
+  MetricStatusTag,
   MonitoringCardShell,
   MonitoringPartError,
 } from "./monitoring-ui";
@@ -99,23 +100,44 @@ function EventRow({ card, onOpen }: { card: MonitoringCard; onOpen: (id: string)
   );
 }
 
-/** Metrics tab rows until the tab's own design lands. */
-function MetricRow({ row }: { row: MonitoringMetricRow }) {
-  const detail = row.empty ?? row.notConnected ?? row.sentence ?? "";
-  return (
-    <div className="flex w-full items-start gap-3 border-t border-general-border py-3">
-      <span className={cn("flex min-w-0 flex-1 flex-col gap-0.5 leading-[1.5]", row.indent && "pl-6")}>
-        <span className="text-sm font-medium tracking-[0.07px] text-general-foreground">
-          {row.name}
-        </span>
-        {detail ? (
-          <span className="text-xs tracking-[0.18px] text-general-muted-foreground">{detail}</span>
+/** Metric Row (Figma 7225:87629). A row with a status opens the metric panel. */
+function MetricRow({ row, onOpen }: { row: MonitoringMetricRow; onOpen: (key: string) => void }) {
+  const opens = Boolean(row.status);
+  const usual = row.empty ?? row.notConnected ?? row.usual ?? "";
+  const content = (
+    <>
+      <span className={cn("flex min-w-0 flex-1 flex-col leading-[1.5]", row.indent && "pl-5")}>
+        <span className="truncate text-sm font-medium tracking-[0.07px] text-general-foreground">{row.name}</span>
+        {usual ? (
+          <span className="truncate text-xs tracking-[0.18px] text-general-muted-foreground xl:hidden">{usual}</span>
         ) : null}
       </span>
-      <span className="w-[160px] shrink-0 text-right text-xs leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
-        {row.notConnected || row.empty ? "" : row.statusLabel ?? ""}
+      <span className="w-20 shrink-0 text-right text-sm leading-[1.5] font-medium tracking-[0.07px] text-general-foreground xl:w-[120px]">
+        {row.empty ? "" : row.status === "no_data" || row.total === null || row.total === undefined ? "—" : row.total.toLocaleString("en-US")}
       </span>
-    </div>
+      <span className="hidden w-[180px] shrink-0 truncate text-xs leading-[1.5] tracking-[0.18px] text-general-muted-foreground xl:block">
+        {usual}
+      </span>
+      <span className="flex w-[150px] shrink-0 items-center xl:w-[170px]">
+        {row.status && row.statusLabel ? <MetricStatusTag status={row.status} label={row.statusLabel} /> : null}
+      </span>
+      <span className="flex size-6 shrink-0 items-center justify-center">
+        {opens ? <ChevronRight className="size-4 text-general-muted-foreground" strokeWidth={1.5} aria-hidden /> : null}
+      </span>
+    </>
+  );
+
+  if (!opens) {
+    return <div className="flex w-full items-center gap-3 border-t border-general-border py-3 xl:gap-4">{content}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row.key)}
+      className="flex w-full items-center gap-3 border-t xl:gap-4 border-general-border py-3 text-left transition-colors hover:bg-[#f5f5f5]/60 focus-visible:bg-[#f5f5f5] focus-visible:outline-none"
+    >
+      {content}
+    </button>
   );
 }
 
@@ -126,6 +148,8 @@ interface MonitoringEventsCardProps {
   onRetry: () => void;
   retrying: boolean;
   onOpenCard: (cardId: string) => void;
+  onOpenMetric: (metricKey: string) => void;
+  initialTab?: EventsTab;
 }
 
 export function MonitoringEventsCard({
@@ -135,8 +159,10 @@ export function MonitoringEventsCard({
   onRetry,
   retrying,
   onOpenCard,
+  onOpenMetric,
+  initialTab = "events",
 }: MonitoringEventsCardProps) {
-  const [tab, setTab] = useState<EventsTab>("events");
+  const [tab, setTab] = useState<EventsTab>(initialTab);
   const [showHidden, setShowHidden] = useState(false);
 
   const cards = list?.data?.cards ?? [];
@@ -191,7 +217,7 @@ export function MonitoringEventsCard({
       ) : tab === "metrics" && metrics.data ? (
         <div role="tabpanel" className="flex flex-col">
           {metrics.data.map((row) => (
-            <MetricRow key={row.key} row={row} />
+            <MetricRow key={row.key} row={row} onOpen={onOpenMetric} />
           ))}
         </div>
       ) : null}

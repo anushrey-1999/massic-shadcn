@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { ChartColumn, Eye, MousePointerClick } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -113,7 +114,7 @@ function LegendKey({ swatch, label }: { swatch: string; label: string }) {
   );
 }
 
-/** One row per checked goal, a dot on each day it was recorded (PRD 5.5). */
+/** One lane per picked goal, a dot on each day it was recorded; hovering a dot names the goal (PRD 5.5). */
 function GoalDotRows({
   dates,
   goals,
@@ -125,18 +126,30 @@ function GoalDotRows({
   const count = dates.length || 1;
   const index = new Map(dates.map((date, position) => [date, position]));
   return (
-    <div className="flex w-full flex-col gap-1">
+    <div className="-mt-1 flex w-full flex-col" aria-label="Goals recorded by day">
       {goals.map((goal) => (
-        <div key={goal.eventName} className="relative h-3 w-full" aria-label={goal.name}>
+        <div key={goal.eventName} className="relative h-2.5 w-full" aria-label={goal.name}>
           {goal.dates.map((date) => {
             const position = index.get(date);
             if (position === undefined) return null;
             return (
-              <span
-                key={date}
-                className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{ left: `${((position + 0.5) / count) * 100}%`, background: goalColor(goal.colorIndex) }}
-              />
+              <Tooltip key={date}>
+                <TooltipTrigger asChild>
+                  <span
+                    className="group absolute top-1/2 flex size-2.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center"
+                    style={{ left: `${((position + 0.5) / count) * 100}%` }}
+                  >
+                    <span
+                      className="size-1.5 rounded-full transition-transform duration-150 group-hover:scale-[1.6]"
+                      style={{ background: goalColor(goal.colorIndex) }}
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <span className="font-medium">{goal.name}</span>
+                  <span className="opacity-70"> · {format(parseISO(date), "EEE, MMM d")}</span>
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </div>
@@ -165,7 +178,7 @@ export function MonitoringTimelineCard({
   onOpenCard,
 }: MonitoringTimelineCardProps) {
   const [line, setLine] = useState<MonitoringLineMetric | null>(null);
-  const [shownGoals, setShownGoals] = useState<Set<string>>(() => new Set());
+  const [showGoals, setShowGoals] = useState<boolean | null>(null);
 
   const data = chart?.data ?? null;
   const activeLine = line ?? data?.defaultLine ?? "impressions";
@@ -190,17 +203,8 @@ export function MonitoringTimelineCard({
   }
 
   const goals = data?.goalDots.goals ?? [];
-  const checkedGoals = goals.filter((goal) => shownGoals.has(goal.eventName));
+  const goalsOn = showGoals ?? data?.goalDots.defaultOn ?? false;
   const source = activeLine === "sessions" ? sources?.ga4 : sources?.gsc;
-
-  const toggleGoal = (eventName: string, on: boolean) => {
-    setShownGoals((current) => {
-      const next = new Set(current);
-      if (on) next.add(eventName);
-      else next.delete(eventName);
-      return next;
-    });
-  };
 
   return (
     <MonitoringCardShell className="flex flex-col gap-3">
@@ -249,8 +253,8 @@ export function MonitoringTimelineCard({
                 </p>
               </div>
             )}
-            {checkedGoals.length ? (
-              <GoalDotRows dates={lineWindow.points.map((point) => point.date)} goals={checkedGoals} />
+            {goalsOn ? (
+              <GoalDotRows dates={lineWindow.points.map((point) => point.date)} goals={goals} />
             ) : null}
           </div>
 
@@ -267,29 +271,33 @@ export function MonitoringTimelineCard({
           </div>
 
           {goals.length ? (
-            <div className="flex flex-wrap items-center gap-5">
-              <p className="text-xs leading-[1.5] font-medium tracking-[0.18px] whitespace-nowrap text-general-muted-foreground">
-                {data.goalDots.label}
-              </p>
-              {goals.map((goal) => {
-                const id = `goal-dot-${goal.eventName}`;
-                return (
-                  <label key={goal.eventName} htmlFor={id} className="flex cursor-pointer items-center gap-2">
-                    <Checkbox
-                      id={id}
-                      checked={shownGoals.has(goal.eventName)}
-                      onCheckedChange={(state) => toggleGoal(goal.eventName, state === true)}
-                    />
-                    <span
-                      className="size-2 shrink-0 rounded-full"
-                      style={{ background: goalColor(goal.colorIndex) }}
-                    />
-                    <span className="text-xs leading-[1.5] tracking-[0.18px] whitespace-nowrap text-general-foreground">
-                      {goal.name}
-                    </span>
-                  </label>
-                );
-              })}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <label htmlFor="monitoring-goal-dots" className="flex w-fit cursor-pointer items-center gap-2">
+                <Checkbox
+                  id="monitoring-goal-dots"
+                  checked={goalsOn}
+                  onCheckedChange={(state) => setShowGoals(state === true)}
+                />
+                <span className="text-xs leading-[1.5] tracking-[0.18px] whitespace-nowrap text-general-foreground">
+                  {data.goalDots.label}
+                </span>
+              </label>
+              {goalsOn ? (
+                <ul className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Goal colors">
+                  {goals.map((goal) => (
+                    <li key={goal.eventName} className="flex items-center gap-1.5">
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: goalColor(goal.colorIndex) }}
+                        aria-hidden
+                      />
+                      <span className="text-xs leading-[1.5] tracking-[0.18px] whitespace-nowrap text-general-muted-foreground">
+                        {goal.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 

@@ -17,13 +17,14 @@ export function useAgentHistory(
   tag = "chat",
   enabled = true,
   confirmedThread?: string,
+  listTags: string[] = [tag],
 ) {
   const threads = useInfiniteQuery({
-    queryKey: agentKeys.threads(business, [tag]),
+    queryKey: agentKeys.threads(business, listTags),
     enabled: !!business && enabled,
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
-      getThreads(business, pageParam, signal, [tag]),
+      getThreads(business, pageParam, signal, listTags),
     getNextPageParam: (last, pages) => {
       const offset = pages.reduce((n, page) => n + page.threads.length, 0);
       return last.threads.length && offset < last.total ? offset : undefined;

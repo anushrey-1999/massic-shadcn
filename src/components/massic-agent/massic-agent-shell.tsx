@@ -63,7 +63,12 @@ import {
   resourcePlanSurface,
 } from "./agent-model";
 import { usePlannerChat } from "./use-planner-chat";
-import { AGENT_CHAT_MODES, isAgentChatMode } from "./agent-modes";
+import {
+  AGENT_CHAT_MODE_TAGS,
+  AGENT_CHAT_MODES,
+  chatModeForTag,
+  isAgentChatMode,
+} from "./agent-modes";
 import type { AgentChatMode, AgentConversation, ResourceRef } from "./types";
 import styles from "./agent.module.css";
 
@@ -71,6 +76,9 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
   const searchParams = useSearchParams();
   const requestedMode = searchParams.get("mode");
   const mode = isAgentChatMode(requestedMode) ? requestedMode : "planner";
+  // The workspace remounts per mode; remembering the previous one lets mode-only UI animate between them.
+  const [modes, setModes] = useState<{ shown: AgentChatMode; from: AgentChatMode }>({ shown: mode, from: mode });
+  if (modes.shown !== mode) setModes({ shown: mode, from: modes.shown });
   const { profileData } = useBusinessProfileById(businessId);
   const businessName =
     profileData?.Name || profileData?.DisplayName || "Business";
@@ -96,7 +104,11 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
           key={`${businessId}:${mode}`}
           business={businessId}
         >
-          <AgentWorkspace businessId={businessId} mode={mode} />
+          <AgentWorkspace
+            businessId={businessId}
+            mode={mode}
+            fromMode={modes.shown === mode ? modes.from : modes.shown}
+          />
         </AgentAttachmentsProvider>
       </div>
     </div>
@@ -105,9 +117,11 @@ export function MassicAgentShell({ businessId }: { businessId: string }) {
 function AgentWorkspace({
   businessId,
   mode,
+  fromMode,
 }: {
   businessId: string;
   mode: AgentChatMode;
+  fromMode: AgentChatMode;
 }) {
   const { tag, supportsPlans } = AGENT_CHAT_MODES[mode];
   const chat = usePlannerChat(businessId, mode);
@@ -119,7 +133,7 @@ function AgentWorkspace({
   const [search, setSearch] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
   const [view, setView] = useState<"chat" | "chats" | "plans">(() =>
-    supportsPlans && searchParams.get("view") === "plans" ? "plans" : "chat",
+    searchParams.get("view") === "plans" ? "plans" : "chat",
   );
   const [planPicker, setPlanPicker] = useState(false);
   const [planVisible, setPlanVisible] = useState(true);
@@ -141,11 +155,11 @@ function AgentWorkspace({
   const entryPlanId = searchParams.get("plan");
   const entryThreadId = searchParams.get("thread");
   const autoSubmit = searchParams.get("submit") === "1";
-  const entrySurface =
-    supportsPlans &&
-    (entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels")
+  const plansSurface =
+    entrySurfaceRaw === "webpages" || entrySurfaceRaw === "social_channels"
       ? entrySurfaceRaw
       : null;
+  const entrySurface = supportsPlans ? plansSurface : null;
   const preferredAction: AgentEntryAction | undefined =
     supportsPlans &&
     (entryActionRaw === "create" ||
@@ -304,7 +318,7 @@ function AgentWorkspace({
       chat.updateTitle(result.thread_id, result.title ?? title.trim());
       setRenameTarget(null);
       void qc.invalidateQueries({
-        queryKey: agentKeys.threads(businessId, [tag]),
+        queryKey: agentKeys.threads(businessId, AGENT_CHAT_MODE_TAGS),
       });
     },
   });
@@ -344,6 +358,14 @@ function AgentWorkspace({
     );
   };
   const select = (id: string) => {
+    const target = chat.conversations.find((c) => c.id === id);
+    const targetMode = target ? chatModeForTag(target.tag) : null;
+    if (targetMode && target!.tag !== tag) {
+      if (modeDisabled) return;
+      routeToMode(targetMode, id);
+      setMobileHistory(false);
+      return;
+    }
     chat.selectChat(id);
     updateViewRoute("chat");
   };
@@ -385,25 +407,40 @@ function AgentWorkspace({
     !!chat.runningKey ||
     !!chat.recovery ||
     chat.hasPendingUploads;
-  const changeMode = (value: string) => {
-    if (
-      modeDisabled ||
-      value === mode ||
-      !isAgentChatMode(value)
-    )
-      return;
+  const showModeSwitch =
+    chat.activeKey.startsWith("draft:") &&
+    !chat.messages.length &&
+    chat.runningKey !== chat.activeKey;
+  // Switching mode remounts the workspace, which would stop a running turn.
+  const routeToMode = (next: AgentChatMode, thread?: string) => {
+    if (modeDisabled || next === mode) return;
     setChangingMode(true);
     const params = new URLSearchParams(searchParams.toString());
     for (const key of ["thread", "surface", "action", "plan", "submit", "view"])
       params.delete(key);
-    if (value !== "planner") params.set("mode", value);
+    if (next !== "planner") params.set("mode", next);
     else params.delete("mode");
+    if (thread) params.set("thread", thread);
     const query = params.toString();
     router.replace(
       `/business/${encodeURIComponent(businessId)}/agent${query ? `?${query}` : ""}`,
       { scroll: false },
     );
   };
+  const changeMode = (value: string) => {
+    if (isAgentChatMode(value)) routeToMode(value);
+  };
+  const deepLinkTarget =
+    entryThreadId && !chat.knownThread
+      ? chat.conversations.find((c) => c.id === entryThreadId)
+      : undefined;
+  const deepLinkMode =
+    deepLinkTarget && deepLinkTarget.tag !== tag
+      ? chatModeForTag(deepLinkTarget.tag)
+      : null;
+  useEffect(() => {
+    if (deepLinkMode && entryThreadId) routeToMode(deepLinkMode, entryThreadId);
+  }, [deepLinkMode, entryThreadId]);
   const activatePlan = () => {
     if (!planRef || !plan || plan.valid !== true || streaming || busyElsewhere)
       return;
@@ -487,7 +524,6 @@ function AgentWorkspace({
     router.push(fallbackHref);
   };
   const historyProps = {
-    showPlans: supportsPlans,
     conversations: chat.conversations,
     activeId: chat.activeKey,
     activeView: view,
@@ -517,6 +553,7 @@ function AgentWorkspace({
     <>
       <AgentPlannerComposer
         mode={mode}
+        fromMode={fromMode}
         value={chat.draft.input}
         onChange={(input) => chat.updateDraft({ input })}
         preferredSurface={preferredSurface}
@@ -538,37 +575,39 @@ function AgentWorkspace({
         attachments={
           <AgentAttachmentControls
             leadingControl={
-              <Select
-                value={mode}
-                onValueChange={changeMode}
-                disabled={modeDisabled}
-              >
-                <SelectTrigger
-                  id="massic-agent-mode"
-                  aria-label="Mode"
-                  title="Mode"
-                  variant="noBorder"
-                  size="sm"
-                  className="h-8 cursor-pointer gap-1 rounded-md bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:ring-2 disabled:cursor-default disabled:bg-transparent disabled:text-muted-foreground [&_svg]:size-3.5"
+              showModeSwitch ? (
+                <Select
+                  value={mode}
+                  onValueChange={changeMode}
+                  disabled={modeDisabled}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  side="top"
-                  align="start"
-                  className="w-40 shadow-xs"
-                >
-                  {Object.entries(AGENT_CHAT_MODES).map(([value, config]) => (
-                    <SelectItem
-                      key={value}
-                      value={value}
-                      className="cursor-pointer"
-                    >
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    id="massic-agent-mode"
+                    aria-label="Mode"
+                    title="Mode"
+                    variant="noBorder"
+                    size="sm"
+                    className="h-8 cursor-pointer gap-1 rounded-md bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:ring-2 disabled:cursor-default disabled:bg-transparent disabled:text-muted-foreground [&_svg]:size-3.5"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    side="top"
+                    align="start"
+                    className="w-40 shadow-xs"
+                  >
+                    {Object.entries(AGENT_CHAT_MODES).map(([value, config]) => (
+                      <SelectItem
+                        key={value}
+                        value={value}
+                        className="cursor-pointer"
+                      >
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : undefined
             }
             files={chat.draft.attachments}
             disabled={!!chat.runningKey || !!chat.recovery}
@@ -716,7 +755,7 @@ function AgentWorkspace({
             {view === "plans" ? (
               <AgentPlansView
                 businessId={businessId}
-                initialSurface={entrySurface ?? "webpages"}
+                initialSurface={plansSurface ?? "webpages"}
               />
             ) : view === "chats" ? (
               <AgentChatsListView
@@ -779,6 +818,7 @@ function AgentWorkspace({
                     </p>
                   )}
                   {!chat.knownThread &&
+                    !deepLinkMode &&
                     !chat.history.threads.isLoading &&
                     !chat.history.threads.isFetchingNextPage && (
                       <p role="alert" className="text-sm text-destructive">

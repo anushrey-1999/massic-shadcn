@@ -24,6 +24,17 @@ export const AGENT_CHAT_MODES: Record<
   },
 };
 
+export const AGENT_CHAT_MODE_TAGS: AgentThreadTag[] = Object.values(
+  AGENT_CHAT_MODES,
+).map((config) => config.tag);
+
 export function isAgentChatMode(value: string | null): value is AgentChatMode {
   return value === "planner" || value === "analytics" || value === "general";
+}
+
+export function chatModeForTag(tag: string): AgentChatMode | null {
+  const entry = Object.entries(AGENT_CHAT_MODES).find(
+    ([, config]) => config.tag === tag,
+  );
+  return entry && isAgentChatMode(entry[0]) ? entry[0] : null;
 }

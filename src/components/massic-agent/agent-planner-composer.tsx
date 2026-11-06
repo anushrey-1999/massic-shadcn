@@ -22,6 +22,8 @@ import styles from "./agent.module.css";
 
 type Props = {
   mode?: AgentChatMode;
+  /** Mode shown before the latest switch, so mode-only rows can animate between them. */
+  fromMode?: AgentChatMode;
   value: string;
   onChange: (text: string) => void;
   preferredSurface?: PlanSurface;
@@ -55,6 +57,8 @@ export function AgentPlannerComposer(p: Props) {
     (actionSurface ? PLAN_SURFACES[actionSurface].resource : null);
   const createMessage = planType ? planActionMessage("create", planType) : null;
   const showQuickActions = !p.locked;
+  const isPlanner = (p.mode ?? "planner") === "planner";
+  const wasPlanner = (p.fromMode ?? p.mode ?? "planner") === "planner";
   const quickActionClass =
     "h-8 border-general-primary/15 bg-general-primary/5 text-xs text-general-primary shadow-sm hover:border-general-primary/30 hover:bg-general-primary hover:text-primary-foreground hover:shadow-md";
   const preferredClass =
@@ -102,10 +106,13 @@ export function AgentPlannerComposer(p: Props) {
         ) : undefined
       }
       actions={
-        (p.mode ?? "planner") === "planner" ? (
+        isPlanner || wasPlanner ? (
           <>
             {" "}
-            <AgentComposerRow visible={showQuickActions}>
+            <AgentComposerRow
+              visible={isPlanner && showQuickActions}
+              initialVisible={wasPlanner && showQuickActions}
+            >
               <div
                 className={cn(
                   styles.softReveal,

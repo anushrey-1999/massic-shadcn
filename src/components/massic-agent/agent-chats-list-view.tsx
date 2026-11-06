@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AgentConversationMenu } from "./agent-conversation-menu";
+import { AgentModeTag } from "./agent-mode-tag";
 import type { AgentConversation } from "./types";
 
 function timeAgo(ts: number): string {
@@ -81,7 +82,10 @@ export function AgentChatsListView({ conversations, onSelect, onNewChat, onRenam
               <div key={c.id}>
                 <div className={cn("group flex items-center rounded-lg transition-[background-color,box-shadow] hover:bg-general-primary/8 hover:shadow-sm focus-within:bg-general-primary/8")}>
                   <button type="button" onClick={() => onSelect(c.id)} className="flex min-w-0 flex-1 cursor-pointer items-baseline justify-between gap-4 rounded-lg px-2 py-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary/30">
-                    <span className="truncate text-sm font-normal text-foreground">{c.title}</span>
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate text-sm font-normal text-foreground">{c.title}</span>
+                      <AgentModeTag tag={c.tag} />
+                    </span>
                     <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(c.updatedAt)}</span>
                   </button>
                   <AgentConversationMenu conversation={c} onRename={onRename} className="mr-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100" />

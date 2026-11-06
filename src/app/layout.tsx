@@ -23,14 +23,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_ORIGIN || "https://app.massic.io"),
   title: {
     default: `${pageMeta.dashboard.title} | ${siteMeta.name}`,
     template: siteMeta.titleTemplate,
   },
   description: siteMeta.description,
   icons: {
-    icon: "/massic-logo-green.svg",
+    icon: "/massic-icon-green.svg",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
   },
+  openGraph: {
+    type: "website",
+    siteName: siteMeta.name,
+    images: [siteMeta.shareImage],
+  },
+  twitter: { card: "summary" },
 };
 
 export default function RootLayout({

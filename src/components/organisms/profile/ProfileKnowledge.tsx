@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, MoreHorizontal, Trash2, Upload, X } from "lucide-react";
+import { AgentFilePreviewDialog } from "@/components/massic-agent/agent-attachments";
+import { AGENT_FILE_TYPES } from "@/components/massic-agent/agent-uploads";
 import { FileDropzone } from "@/components/molecules/FileDropzone";
 import {
   AlertDialog,
@@ -47,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 import {
   deleteKnowledgeFile,
+  getKnowledgeFileUrls,
   knowledgeErrorMessage,
   knowledgeSourceError,
   listKnowledge,
@@ -107,6 +110,14 @@ function formatSize(bytes: number | null) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+function getFileName(source: KnowledgeFile) {
+  return source.filename?.trim() || "Unnamed file";
+}
+
+function getFileExtension(source: KnowledgeFile) {
+  return source.filename?.trim().match(/\.([^.]+)$/)?.[1]?.toLowerCase() ?? "";
 }
 
 function KnowledgeSection({ title, description, used, limit, children }: {
@@ -179,15 +190,15 @@ function KnowledgeTable({ title, empty, children }: {
   );
 }
 
-function KnowledgeFileRow({ businessId, source, onUpdate, onSettled }: {
+function KnowledgeFileRow({ businessId, source, onPreview, onUpdate, onSettled }: {
   businessId: string;
   source: KnowledgeFile;
+  onPreview: (id: string, trigger: HTMLButtonElement) => void;
   onUpdate: (source: KnowledgeFile) => Promise<void>;
   onSettled: () => void;
 }) {
-  const name = source.filename?.trim() || "Unnamed file";
-  const extension = source.filename?.match(/\.([^.]+)$/)?.[1]?.toLowerCase();
-  const fileType = FILE_TYPE_LABELS.get(extension ?? "") ?? FILE_TYPE_LABELS.get(source.format_id ?? "");
+  const name = getFileName(source);
+  const fileType = FILE_TYPE_LABELS.get(getFileExtension(source)) ?? FILE_TYPE_LABELS.get(source.format_id ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const actionsButton = useRef<HTMLButtonElement>(null);
   const action = useMutation({
@@ -205,14 +216,27 @@ function KnowledgeFileRow({ businessId, source, onUpdate, onSettled }: {
       <TableCell className="px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 wrap-anywhere font-medium text-general-foreground">{name}</span>
+          {deleting || (action.isPending && action.variables === "delete") ? (
+            <span className="min-w-0 wrap-anywhere font-medium text-general-foreground">{name}</span>
+          ) : (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              className="min-w-0 cursor-pointer wrap-anywhere rounded-sm text-left font-medium text-general-foreground underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              onClick={(event) => onPreview(source.id, event.currentTarget)}
+            >
+              {name}
+            </button>
+          )}
         </div>
         {source.error && (
           <p className="mt-1 text-xs text-destructive">{knowledgeSourceError(source.error)}</p>
         )}
         {action.isError && (
           <p role="alert" className="max-w-56 text-xs text-destructive">
-            {knowledgeErrorMessage(action.error, "Couldn't update this file. Try again.")}
+            {knowledgeErrorMessage(action.error, action.variables === "delete"
+              ? "Couldn't delete this file. Try again."
+              : "Couldn't update searchability for this file. Try again.")}
           </p>
         )}
       </TableCell>
@@ -434,6 +458,8 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
     refetchInterval: ({ state }) => active && !isAccessError(state.error) && state.data?.sources.some(isProcessing) ? 3000 : false,
   });
   const [uploads, setUploads] = useState<Partial<Record<KnowledgeFileKind, PendingUpload[]>>>({});
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewTrigger = useRef<HTMLButtonElement | null>(null);
   const uploadController = useRef<AbortController | null>(null);
   useEffect(() => () => uploadController.current?.abort(), []);
 
@@ -497,7 +523,7 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
           if (controller.signal.aborted) break;
           updateUpload(kind, item.id, {
             status: "Failed",
-            error: knowledgeErrorMessage(error, "Couldn't upload the file. Try again."),
+            error: error instanceof Error ? error.message : "Couldn't upload the file. Try again.",
           });
         }
       }
@@ -509,6 +535,9 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
 
   const busy = Object.values(uploads).some((items) => items?.some((item) => item.status !== "Failed"));
   const canShowData = data && !isAccessError(query.error);
+  const previewSource = active && canShowData
+    ? data.sources.find(({ id, status }) => id === previewId && status !== "deleting")
+    : undefined;
   const sections = FILE_SECTIONS.map((section) => {
     const rows = data?.sources.filter((source) => source.kind === section.kind) ?? [];
     const limit = data?.limits.kinds.find((limit) => limit.kind === section.kind);
@@ -538,7 +567,7 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
       )}
       {query.isError && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-3 text-sm">
-          <p>{knowledgeErrorMessage(query.error, "Couldn't load knowledge.")}</p>
+          <p>{knowledgeErrorMessage(query.error, "Couldn't load the Knowledge files. Try again.")}</p>
           <Button type="button" size="sm" variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
             {query.isFetching ? "Retrying…" : "Retry"}
           </Button>
@@ -582,6 +611,10 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
                 <KnowledgeTable title={title} empty={!rows.length ? emptyLabel : undefined}>
                   {rows.map((source) => (
                     <KnowledgeFileRow key={source.id} businessId={businessId} source={source}
+                      onPreview={(id, trigger) => {
+                        previewTrigger.current = trigger;
+                        setPreviewId(id);
+                      }}
                       onUpdate={syncSource} onSettled={refresh} />
                   ))}
                 </KnowledgeTable>
@@ -590,6 +623,23 @@ export function ProfileKnowledge({ businessId, active }: { businessId: string; a
           })}
         </>
       )}
+      <AgentFilePreviewDialog
+        business={businessId}
+        file={previewSource ? {
+          file_id: previewSource.id,
+          filename: getFileName(previewSource),
+          content_type: AGENT_FILE_TYPES[getFileExtension(previewSource)] ?? previewSource.content_type ?? "",
+          size_bytes: previewSource.size_bytes,
+        } : null}
+        getFileUrls={getKnowledgeFileUrls}
+        variant="knowledge"
+        onClose={() => setPreviewId(null)}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          previewTrigger.current?.focus();
+          previewTrigger.current = null;
+        }}
+      />
     </div>
   );
 }

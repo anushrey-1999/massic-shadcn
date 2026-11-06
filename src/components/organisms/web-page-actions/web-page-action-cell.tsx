@@ -23,7 +23,11 @@ import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
-import { getWebPageContentType, parseWebPageType } from "@/lib/web-page-types";
+import { getWebPageContentType } from "@/lib/web-page-types";
+
+type WebPageActionRow = Pick<WebPageRow, "page_id" | "cluster_name" | "keyword" | "status"> & {
+  page_type: WebPageRow["page_type"] | "page";
+};
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -36,7 +40,7 @@ const VIEW_ACTION_STATUSES = new Set([
 ]);
 
 function getRowAction(
-  row: WebPageRow,
+  row: WebPageActionRow,
   type: WebActionType,
 ): { icon: typeof Sparkles; label: string } | { icon: typeof Eye; label: string } {
   const status = (row.status || "").toString().toLowerCase();
@@ -50,8 +54,8 @@ function getRowAction(
   return { icon: Sparkles, label };
 }
 
-export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageRow }) {
-  const pageType = parseWebPageType(row.page_type);
+export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageActionRow }) {
+  const pageType = row.page_type;
   const type = getWebPageContentType(pageType);
   const router = useRouter();
   const queryClient = useQueryClient();

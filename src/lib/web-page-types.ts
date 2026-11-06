@@ -49,6 +49,8 @@ export function parseWebPageType(value: unknown): WebPageType | null {
 }
 
 export function getWebPageContentType(value: unknown): WebPageContentType | null {
+  if (value === "blog" || value === "page") return value;
+
   const pageType = parseWebPageType(value);
   if (!pageType) return null;
   return pageType === "editorial" ? "blog" : "page";

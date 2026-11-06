@@ -14,10 +14,13 @@ export const AGENT_FILE_ACCEPT = Object.keys(AGENT_FILE_TYPES)
   .map((extension) => `.${extension}`)
   .join(",");
 
-export type AgentAttachment = {
+export type AgentPreviewFile = {
   file_id: string;
   filename: string;
   content_type: string;
+  size_bytes: number | null;
+};
+export type AgentAttachment = AgentPreviewFile & {
   size_bytes: number;
   total_chars: number;
 };
@@ -151,19 +154,23 @@ export function attachmentsReady(files: PendingAttachment[]): boolean {
 }
 
 export async function loadAgentFilePreview(
-  file: AgentAttachment,
+  contentType: string,
   url: string,
   signal?: AbortSignal,
-): Promise<{ text?: string; blob?: Blob }> {
-  if (file.content_type === AGENT_FILE_TYPES.docx) return {};
+  inlineDocx = false,
+): Promise<{ text?: string; truncated?: boolean; blob?: Blob; docx?: Blob }> {
+  const isDocx = contentType === AGENT_FILE_TYPES.docx;
+  if (isDocx && !inlineDocx) return {};
   const response = await fetch(url, { signal, credentials: "omit" });
   if (!response.ok)
-    throw new Error("Preview unavailable. You can open or download this file.");
-  if (file.content_type === AGENT_FILE_TYPES.pdf)
+    throw new Error("Couldn't load the file preview.");
+  if (isDocx) return { docx: await response.blob() };
+  if (contentType === AGENT_FILE_TYPES.pdf)
     return {
       blob: new Blob([await response.arrayBuffer()], {
         type: AGENT_FILE_TYPES.pdf,
       }),
     };
-  return { text: (await response.text()).slice(0, 320_000) };
+  const text = await response.text();
+  return { text: text.slice(0, 320_000), truncated: text.length > 320_000 };
 }

@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   Check,
+  Download,
   FileText,
   Loader2,
   Paperclip,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,14 +27,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   AGENT_FILE_ACCEPT,
   AGENT_FILE_TYPES,
   MAX_AGENT_FILES,
   getAgentFileUrls,
   loadAgentFilePreview,
-  uploadErrorMessage,
   type AgentAttachment,
+  type AgentPreviewFile,
   type PendingAttachment,
 } from "./agent-uploads";
 import styles from "./agent.module.css";
@@ -50,127 +53,277 @@ export function AgentAttachmentsProvider({
   children: ReactNode;
 }) {
   const [file, setFile] = useState<AgentAttachment | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [text, setText] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <AttachmentContext.Provider value={setFile}>
+      {children}
+      <AgentFilePreviewDialog
+        business={business}
+        file={file}
+        onClose={() => setFile(null)}
+      />
+    </AttachmentContext.Provider>
+  );
+}
+
+export function AgentFilePreviewDialog({
+  business,
+  file,
+  getFileUrls = getAgentFileUrls,
+  variant = "chat",
+  onClose,
+  onCloseAutoFocus,
+}: {
+  business: string;
+  file: AgentPreviewFile | null;
+  getFileUrls?: typeof getAgentFileUrls;
+  variant?: "chat" | "knowledge";
+  onClose: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
+}) {
   const [attempt, setAttempt] = useState(0);
+
+  return (
+    <Dialog
+      open={!!file}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        className="flex h-[80dvh] min-h-0 flex-col overflow-hidden sm:max-w-3xl"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        <DialogHeader className="shrink-0 pr-6 text-left">
+          <DialogTitle className="break-all font-medium">{file?.filename}</DialogTitle>
+          <DialogDescription>
+            Attached file{file?.size_bytes != null && ` · ${formatFileSize(file.size_bytes)}`}
+          </DialogDescription>
+        </DialogHeader>
+        {file && (
+          <AgentFilePreview
+            key={`${business}:${file.file_id}:${file.content_type}:${attempt}`}
+            business={business}
+            file={file}
+            getFileUrls={getFileUrls}
+            variant={variant}
+            onRetry={() => setAttempt((value) => value + 1)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AgentFilePreview({
+  business,
+  file,
+  getFileUrls,
+  variant,
+  onRetry,
+}: {
+  business: string;
+  file: AgentPreviewFile;
+  getFileUrls: typeof getAgentFileUrls;
+  variant: "chat" | "knowledge";
+  onRetry: () => void;
+}) {
+  const { file_id: id, content_type: contentType } = file;
+  const [url, setUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    blobUrl?: string;
+    docxHtml?: string;
+    text?: string;
+    truncated?: boolean;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    setUrl(null);
-    setBlobUrl(null);
-    setText(null);
-    setError(null);
-    if (!file) return;
     const controller = new AbortController();
+    const { signal } = controller;
     let objectUrl: string | undefined;
-    setLoading(true);
     void (async () => {
       try {
-        const urls = await getAgentFileUrls(
-          business,
-          [file.file_id],
-          controller.signal,
-        );
-        const signed = urls.find((item) => item.file_id === file.file_id);
-        if (!signed)
-          throw new Error("This file is unavailable. Please try again.");
-        if (controller.signal.aborted) return;
+        const urls = await getFileUrls(business, [id], signal);
+        const signed = urls.find((item) => item.file_id === id);
+        if (!signed) throw new Error("This file is unavailable.");
+        if (signal.aborted) return;
         setUrl(signed.url);
-        const preview = await loadAgentFilePreview(
-          file,
+        const { blob, docx, text, truncated } = await loadAgentFilePreview(
+          contentType,
           signed.url,
-          controller.signal,
+          signal,
+          variant === "knowledge",
         );
-        if (controller.signal.aborted) return;
-        if (preview.blob) {
-          objectUrl = URL.createObjectURL(preview.blob);
-          setBlobUrl(objectUrl);
-        }
-        if (preview.text !== undefined) setText(preview.text);
+        if (signal.aborted) return;
+        const docxHtml = docx ? await renderDocxPreview(docx, signal) : undefined;
+        if (signal.aborted) return;
+        if (blob) objectUrl = URL.createObjectURL(blob);
+        setPreview({ blobUrl: objectUrl, docxHtml, text, truncated });
       } catch (error) {
-        if (!controller.signal.aborted) setError(uploadErrorMessage(error));
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (signal.aborted) return;
+        const requestError = error as { response?: { status?: number }; code?: string } | null;
+        const status = requestError?.response?.status;
+        const fallback = "Couldn't load the file preview.";
+        if (status === 404 || status === 422) {
+          setError("This file is unavailable.");
+        } else if (variant === "knowledge" && (
+          (status != null && status >= 500) || requestError?.code === "ERR_NETWORK" ||
+          requestError?.code === "ECONNABORTED" || error instanceof TypeError
+        )) {
+          setError(fallback);
+        } else {
+          setError(apiErrorMessage(error, fallback));
+        }
       }
     })();
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [business, file, attempt]);
+  }, [business, id, contentType, getFileUrls, variant]);
   return (
-    <AttachmentContext.Provider value={setFile}>
-      {children}
-      <Dialog
-        open={!!file}
-        onOpenChange={(open) => {
-          if (!open) setFile(null);
-        }}
-      >
-        <DialogContent className="flex h-[80dvh] min-h-0 flex-col overflow-hidden sm:max-w-3xl">
-          <DialogHeader className="shrink-0 pr-6 text-left">
-            <DialogTitle className="break-all font-medium">
-              {file?.filename}
-            </DialogTitle>
-            <DialogDescription>
-              Attached file · {file ? formatFileSize(file.size_bytes) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {loading ? (
-            <p
-              role="status"
-              className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"
-            >
-              <Loader2 className="size-4 animate-spin" />
-              Loading file…
-            </p>
-          ) : blobUrl ? (
-            <iframe
-              title={`Preview ${file?.filename}`}
-              src={blobUrl}
-              className="min-h-0 w-full flex-1 rounded-md border"
-            />
-          ) : text !== null && file ? (
-            <AgentTextPreview file={file} text={text} />
+    <>
+      {!preview && !error ? (
+        <p
+          role="status"
+          className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Loading file…
+        </p>
+      ) : preview?.blobUrl ? (
+        <iframe
+          title={`Preview ${file.filename}`}
+          src={preview.blobUrl}
+          className="min-h-0 w-full flex-1 rounded-md border"
+        />
+      ) : preview?.docxHtml ? (
+        <iframe
+          title={`Preview ${file.filename}`}
+          sandbox=""
+          srcDoc={preview.docxHtml}
+          className="min-h-0 w-full flex-1 rounded-md border"
+        />
+      ) : preview?.text !== undefined ? (
+        <AgentTextPreview file={file} text={preview.text} />
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+          <FileText className="size-8" aria-hidden="true" />
+          <p role={error ? "alert" : undefined}>
+            {error ?? "Download this file to view it."}
+          </p>
+          {error && (
+            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
+      {url && (
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {preview?.truncated && (
+            <p className="mr-auto text-xs text-muted-foreground">This preview shows the beginning of the file.</p>
+          )}
+          {variant === "knowledge" ? (
+            <DownloadOriginalButton url={url} filename={file.filename} />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
-              <FileText className="size-8" />
-              <p role={error ? "alert" : undefined}>
-                {error ?? "Open or download this file to view it."}
-              </p>
-              {error && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAttempt((value) => value + 1)}
-                >
-                  Retry
-                </Button>
-              )}
-            </div>
+            <Button asChild variant="outline">
+              <a href={url} target="_blank" rel="noreferrer">Open / download</a>
+            </Button>
           )}
-          {url && (
-            <div className="flex shrink-0 justify-end">
-              <Button asChild variant="outline">
-                <a href={url} target="_blank" rel="noreferrer">
-                  Open / download
-                </a>
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </AttachmentContext.Provider>
+        </div>
+      )}
+    </>
   );
+}
+
+function DownloadOriginalButton({ url, filename }: { url: string; filename: string }) {
+  const [downloading, setDownloading] = useState(false);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
+
+  async function download() {
+    if (request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setDownloading(true);
+    try {
+      const response = await fetch(url, { credentials: "omit", signal: controller.signal });
+      if (!response.ok) throw new Error();
+      const blob = await response.blob();
+      controller.signal.throwIfAborted();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      // Let the browser start reading the blob before revoking the URL.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    } catch {
+      if (!controller.signal.aborted) toast.error("Couldn't download the file. Try again.");
+    } finally {
+      request.current = null;
+      if (!controller.signal.aborted) setDownloading(false);
+    }
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      title="Download"
+      aria-label={downloading ? "Downloading file" : "Download"}
+      disabled={downloading}
+      onClick={() => void download()}
+    >
+      {downloading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+    </Button>
+  );
+}
+
+async function renderDocxPreview(blob: Blob, signal: AbortSignal) {
+  const { renderAsync } = await import("docx-preview");
+  signal.throwIfAborted();
+
+  // Render into a detached document. Only the sandboxed frame receives its HTML.
+  const preview = document.implementation.createHTMLDocument("Word document");
+  const styles = preview.createElement("div");
+  const policy = preview.createElement("meta");
+  policy.httpEquiv = "Content-Security-Policy";
+  policy.content = "default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+  preview.head.prepend(policy);
+
+  try {
+    await renderAsync(blob, preview.body, styles, {
+      ignoreWidth: true,
+      renderAltChunks: false,
+      useBase64URL: true,
+    });
+    if (!preview.body.querySelector("section.docx")) throw new Error();
+  } catch {
+    throw new Error("This Word file couldn't be previewed. You can download it.");
+  }
+  signal.throwIfAborted();
+
+  // Prevent document links from navigating the frame. Escape CSS raw-text end tags.
+  for (const link of preview.body.querySelectorAll("a")) {
+    link.removeAttribute("href");
+    link.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
+  }
+  for (const style of styles.querySelectorAll("style")) {
+    style.textContent = style.textContent?.replaceAll("<", "\\3c ") ?? "";
+    preview.head.append(style);
+  }
+  return `<!doctype html>${preview.documentElement.outerHTML}`;
 }
 
 export function AgentTextPreview({
   file,
   text,
 }: {
-  file: AgentAttachment;
+  file: AgentPreviewFile;
   text: string;
 }) {
   const markdown =

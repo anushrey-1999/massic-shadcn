@@ -81,7 +81,7 @@ export function createAgentUpload(
 }
 
 export async function putAgentUpload(
-  ticket: UploadTicket,
+  ticket: Pick<UploadTicket, "upload_url" | "required_headers">,
   file: File,
   signal?: AbortSignal,
 ) {

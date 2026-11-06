@@ -7,6 +7,7 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Badge } from "@/components/ui/badge";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import type { UnifiedPageRow } from "@/hooks/use-unified-web-optimization";
+import { parseWebPageType } from "@/lib/web-page-types";
 
 function extractPathFromUrl(url: string): string {
   if (!url) return "/";
@@ -345,7 +346,7 @@ export function getWebUnifiedPagesTableColumns({
         const fakeWebRow = {
           page_id: pageId,
           keyword: row.original.page,
-          page_type: row.original.page_type,
+          page_type: parseWebPageType(row.original.page_type),
           status: (row.original.raw?.status as string) ?? null,
         } as any;
 

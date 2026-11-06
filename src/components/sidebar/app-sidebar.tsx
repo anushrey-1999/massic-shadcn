@@ -48,6 +48,7 @@ import { normalizeDomainForFavicon } from '@/utils/utils'
 import { useCan } from '@/hooks/use-permissions'
 import { useAppSidebarCollapsed } from './use-app-sidebar-collapsed'
 import { DashboardTagFilterMenu } from '@/components/molecules/home/DashboardTagFilterMenu'
+import { AccountNotifications } from '@/components/molecules/monitoring/NotificationsSheet'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -461,12 +462,13 @@ export default function AppSidebar() {
           style={{ width: isCollapsed ? '3.5rem' : undefined }}
         >
           <SidebarHeader className={cn('shrink-0 pb-3', isCollapsed ? 'px-0' : 'px-4')}>
-            <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'justify-start')}>
+            <div className={cn('flex items-center', isCollapsed ? 'flex-col justify-center gap-2' : 'justify-between gap-2')}>
               {isCollapsed ? (
                 <img src="/massic-logo-green.svg" alt="Massic" className="h-6 w-6 opacity-60" style={{ filter: 'brightness(0)' }} />
               ) : (
                 <h1 className="text-lg font-semibold text-foreground">Massic</h1>
               )}
+              <AccountNotifications />
             </div>
           </SidebarHeader>
         <SidebarContent className="flex-1 flex flex-col overflow-hidden gap-0">

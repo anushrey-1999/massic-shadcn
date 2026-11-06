@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -23,6 +24,8 @@ interface PageHeaderProps {
     remainingDays?: number;
   };
   onUpgrade?: () => void;
+  /** Page-specific controls shown at the right of the breadcrumb strip. */
+  actions?: ReactNode;
 }
 
 export function PageHeader({
@@ -33,6 +36,7 @@ export function PageHeader({
   showAskMassic,
   trial,
   onUpgrade,
+  actions,
 }: PageHeaderProps) {
   const params = useParams();
   const rawBusinessId = (params as any)?.id as string | string[] | undefined;
@@ -113,6 +117,8 @@ export function PageHeader({
               </Button>
             </div>
           ) : null}
+
+          {actions}
 
           {businessId && effectiveShowAskMassic ? (
             <MassicAgentEntryButton key={businessId} businessId={businessId} />

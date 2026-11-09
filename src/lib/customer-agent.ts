@@ -54,6 +54,11 @@ export function agentStatus(
   return { kind: "live", badge: "Live", text: host ? `On ${host} · ${seen}` : `On your website · ${seen}` };
 }
 
+/** Saved lead notification emails; empty until the business adds some. */
+export function leadEmails(config: CustomerAgentConfig): string[] {
+  return config.leads?.notification_emails ?? [];
+}
+
 /** Share of the allowance still left, 0–100. Balances above the allowance count as 100% left. */
 export function creditsLeftPercent(balanceUsd: number, allowanceUsd: number): number {
   if (!(allowanceUsd > 0) || !Number.isFinite(balanceUsd)) return balanceUsd > 0 ? 100 : 0;

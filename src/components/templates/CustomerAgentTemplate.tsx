@@ -8,18 +8,21 @@ import { PageHeader } from "@/components/molecules/PageHeader";
 import { AgentStatusCard } from "@/components/organisms/customer-agent/AgentStatusCard";
 import { AppearanceTab } from "@/components/organisms/customer-agent/AppearanceTab";
 import { KnowledgeTab } from "@/components/organisms/customer-agent/KnowledgeTab";
+import { LeadEmailsRequiredCard } from "@/components/organisms/customer-agent/leads/LeadEmailsRequiredCard";
+import { LeadsTab } from "@/components/organisms/customer-agent/leads/LeadsTab";
 import { CustomerAgentOnboarding } from "@/components/organisms/customer-agent/onboarding/CustomerAgentOnboarding";
 import { TestAgentDialog } from "@/components/organisms/customer-agent/TestAgentDialog";
 import { useUnsavedChangesContext } from "@/components/providers/unsaved-changes-provider";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCustomerAgent, useVisitorAgentInstall } from "@/hooks/use-customer-agent";
-import { businessPageUrl, pickAppearance, previewConfig } from "@/lib/customer-agent";
+import { businessPageUrl, leadEmails, pickAppearance, previewConfig } from "@/lib/customer-agent";
 import type { CustomerAgentConfig } from "@/types/customer-agent";
 
 const TABS = [
   { value: "knowledge", label: "Knowledge" },
   { value: "appearance", label: "Appearance" },
+  { value: "leads", label: "Leads" },
 ] as const;
 
 type TabValue = (typeof TABS)[number]["value"];
@@ -37,11 +40,12 @@ interface ManageViewProps {
   businessId: string;
   config: CustomerAgentConfig;
   update: ReturnType<typeof useCustomerAgent>["update"];
+  saveLeadEmails: ReturnType<typeof useCustomerAgent>["saveLeadEmails"];
   onRefreshInstallation: () => void;
 }
 
 /** After setup: status up top, then the settings that can change any time. */
-function ManageView({ businessId, config, update, onRefreshInstallation }: ManageViewProps) {
+function ManageView({ businessId, config, update, saveLeadEmails, onRefreshInstallation }: ManageViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -52,6 +56,7 @@ function ManageView({ businessId, config, update, onRefreshInstallation }: Manag
 
   const requestedTab = searchParams.get("tab");
   const activeTab: TabValue = isTab(requestedTab) ? requestedTab : "knowledge";
+  const needsLeadEmails = leadEmails(config).length === 0;
 
   const handleTabChange = useCallback(
     (value: string) => {
@@ -75,6 +80,11 @@ function ManageView({ businessId, config, update, onRefreshInstallation }: Manag
           onRefreshInstallation={onRefreshInstallation}
         />
       </div>
+      {needsLeadEmails && activeTab !== "leads" && (
+        <div className="shrink-0">
+          <LeadEmailsRequiredCard onAdd={() => handleTabChange("leads")} />
+        </div>
+      )}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="max-w-full shrink-0 justify-start overflow-x-auto">
           {TABS.map((tab) => (
@@ -88,6 +98,9 @@ function ManageView({ businessId, config, update, onRefreshInstallation }: Manag
         </TabsContent>
         <TabsContent value="appearance" className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
           <AppearanceTab businessId={businessId} config={config} update={update} />
+        </TabsContent>
+        <TabsContent value="leads" className="mt-4 flex min-h-0 flex-1 flex-col overflow-auto">
+          <LeadsTab businessId={businessId} config={config} saveLeadEmails={saveLeadEmails} />
         </TabsContent>
       </Tabs>
       {siteKey && (
@@ -151,6 +164,7 @@ export function CustomerAgentTemplate({ businessId, businessName }: CustomerAgen
         businessId={businessId}
         config={agent.config}
         update={agent.update}
+        saveLeadEmails={agent.saveLeadEmails}
         onRefreshInstallation={refreshInstallation}
       />
     );

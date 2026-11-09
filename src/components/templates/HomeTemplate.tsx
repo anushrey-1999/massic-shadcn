@@ -27,6 +27,13 @@ import { cn } from "@/lib/utils";
 import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreviewCard";
 import type { PreviewGraph } from "@/components/molecules/home/MiniAreaChart";
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
+import {
+  BusinessListSkeleton,
+  BusinessListTable,
+  BusinessViewToggle,
+  type BusinessListRow,
+  type BusinessViewMode,
+} from "@/components/molecules/home/BusinessListTable";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import {
@@ -110,6 +117,11 @@ function getGreetingName(user: any) {
 }
 
 const HOME_SECTIONS_STORAGE_KEY = "home:sections";
+const HOME_VIEW_STORAGE_KEY = "home:activeView";
+
+function parseStoredView(value: string | null): BusinessViewMode | null {
+  return value === "list" || value === "cards" ? value : null;
+}
 
 function parseStoredHomeSections(value: string | null) {
   if (!value) return null;
@@ -140,9 +152,13 @@ export function HomeTemplate() {
   const [showActive, setShowActive] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [sectionsReady, setSectionsReady] = useState(false);
+  // Cards until the stored choice is read; a first visit stays on Cards.
+  const [viewMode, setViewMode] = useState<BusinessViewMode>("cards");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const storedView = parseStoredView(window.localStorage.getItem(HOME_VIEW_STORAGE_KEY));
+    if (storedView) setViewMode(storedView);
     const stored = parseStoredHomeSections(
       window.localStorage.getItem(HOME_SECTIONS_STORAGE_KEY)
     );
@@ -166,6 +182,10 @@ export function HomeTemplate() {
     );
   }, [sectionsReady, showActive, showOnboarding]);
 
+  const changeViewMode = (next: BusinessViewMode) => {
+    setViewMode(next);
+    window.localStorage.setItem(HOME_VIEW_STORAGE_KEY, next);
+  };
   const { profiles, sidebarDataLoading: profilesLoading } = useBusinessProfiles();
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
@@ -414,6 +434,25 @@ export function HomeTemplate() {
     });
   }, [filteredActiveBusinesses, statusMap]);
 
+  const activeRows = useMemo<BusinessListRow[]>(
+    () =>
+      sortedActiveBusinesses.map(({ preview, name, domain, uniqueId }) => {
+        const mainStats = safeJsonParse<PreviewMainStats>(preview.mainstats, {});
+        return {
+          key: uniqueId ?? domain,
+          businessId: uniqueId,
+          name: name || domain,
+          url: preview.url,
+          impressions: mainStats?.Impressions,
+          clicks: mainStats?.Clicks,
+          goals: mainStats?.goals,
+          isGa4Connected: preview.isGa4Connected,
+          healthStatus: uniqueId ? statusMap[uniqueId] : undefined,
+        };
+      }),
+    [sortedActiveBusinesses, statusMap]
+  );
+
   const selectedHealthFilterOption = HOME_SIGNAL_FILTERS.find((option) =>
     selectedSignals.includes(option.value)
   );
@@ -452,6 +491,27 @@ export function HomeTemplate() {
       window.open(url.startsWith("http") ? url : `https://${url}`, "_blank");
     }
   };
+
+  const activeHeader = (
+    <div className="flex shrink-0 flex-wrap items-center gap-3">
+      <Typography variant="h4" className="text-general-unofficial-foreground-alt">
+        Active Businesses
+      </Typography>
+      <div className="flex-1" />
+      <span className="text-xs leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+        Sorted by severity, then name
+      </span>
+      <BusinessViewToggle value={viewMode} onChange={changeViewMode} />
+    </div>
+  );
+
+  const activeList = (
+    <BusinessListTable
+      rows={activeRows}
+      onOpen={(row) => handleOpen(row.businessId, row.url)}
+      onConnectGoogle={connectGoogleAccount}
+    />
+  );
 
   return (
     <div className="bg-muted h-screen overflow-hidden">
@@ -509,15 +569,12 @@ export function HomeTemplate() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5 flex-1 overflow-hidden">
             {showActive && (
               <Card className="flex flex-col gap-3 p-4 border-none shadow-none xl:col-span-2 min-h-0 overflow-hidden">
-                <Typography
-                  variant="h4"
-                  className="text-general-unofficial-foreground-alt shrink-0"
-                >
-                  Active Businesses
-                </Typography>
+                {activeHeader}
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {activeSectionLoading ? (
+                  {activeSectionLoading && viewMode === "list" ? (
+                    <BusinessListSkeleton />
+                  ) : activeSectionLoading ? (
                     <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1">
                       {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden">
@@ -565,6 +622,8 @@ export function HomeTemplate() {
                       cardClassName="bg-white h-full flex items-center justify-center"
                       className="h-full"
                     />
+                  ) : viewMode === "list" ? (
+                    activeList
                   ) : (
                     <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 auto-rows-max">
                       {sortedActiveBusinesses.map(
@@ -664,15 +723,12 @@ export function HomeTemplate() {
                   "flex flex-col gap-3 p-4 border-none shadow-none overflow-hidden"
                 )}
               >
-                <Typography
-                  variant="h4"
-                  className="text-general-unofficial-foreground-alt"
-                >
-                  Active Businesses
-                </Typography>
+                {activeHeader}
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {activeSectionLoading ? (
+                  {activeSectionLoading && viewMode === "list" ? (
+                    <BusinessListSkeleton />
+                  ) : activeSectionLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                       {[1, 2, 3, 4, 5, 6].map((i) => (
                         <Card key={i} className="overflow-hidden">
@@ -720,6 +776,8 @@ export function HomeTemplate() {
                       cardClassName="bg-white"
                       className="h-full"
                     />
+                  ) : viewMode === "list" ? (
+                    activeList
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
                       {sortedActiveBusinesses.map(

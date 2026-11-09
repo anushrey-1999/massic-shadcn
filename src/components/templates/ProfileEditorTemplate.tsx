@@ -11,6 +11,7 @@ import { ContentCuesForm } from "@/components/organisms/profile/ContentCuesForm"
 import { LocationsForm } from "@/components/organisms/profile/LocationsForm";
 import { CompetitorsForm } from "@/components/organisms/profile/CompetitorsForm";
 import { ProfileCategoryFields } from "@/components/organisms/profile/ProfileCategoryFields";
+import { ProfileKnowledge } from "@/components/organisms/profile/ProfileKnowledge";
 import {
   ProfileReferenceDocument,
   type ProfileReferenceSource,
@@ -38,7 +39,7 @@ import {
   type ProfileValidationIssue,
 } from "@/utils/profile-form-fields";
 
-type SectionId = ProfileSectionId | "document";
+type SectionId = ProfileSectionId | "document" | "knowledge";
 
 const FULL_SECTIONS: Array<{ id: ProfileSectionId; label: string }> = [
   { id: "identity", label: "Identity" },
@@ -69,6 +70,7 @@ export function ProfileEditorTemplate({
   initialFieldsLocked = false,
   readOnlyDetails,
   referenceProfile,
+  knowledgeBusinessId,
   submissionIssues = [],
   validationFocusRequest = 0,
   customHeaderActions,
@@ -96,6 +98,7 @@ export function ProfileEditorTemplate({
   initialFieldsLocked?: boolean;
   readOnlyDetails?: ProfileReadOnlyDetails;
   referenceProfile?: ProfileReferenceSource;
+  knowledgeBusinessId?: string;
   submissionIssues?: ProfileValidationIssue[];
   validationFocusRequest?: number;
   customHeaderActions?: React.ReactNode;
@@ -120,12 +123,14 @@ export function ProfileEditorTemplate({
   const submissionIssuesRef = useRef(submissionIssues);
   submissionIssuesRef.current = submissionIssues;
   const hasReference = mode === "full" && Boolean(referenceProfile);
+  const hasKnowledge = hasReference && Boolean(knowledgeBusinessId);
   const sections = useMemo<Array<{ id: SectionId; label: string }>>(
-    () =>
-      hasReference
-        ? [...FULL_SECTIONS, { id: "document", label: "Document" }]
-        : FULL_SECTIONS,
-    [hasReference],
+    () => [
+      ...FULL_SECTIONS,
+      ...(hasReference ? [{ id: "document" as const, label: "Document" }] : []),
+      ...(hasKnowledge ? [{ id: "knowledge" as const, label: "Knowledge" }] : []),
+    ],
+    [hasReference, hasKnowledge],
   );
 
   const sectionIssueCounts = useMemo(
@@ -282,7 +287,7 @@ export function ProfileEditorTemplate({
                 {sections.map((s) => {
                   const isActive = s.id === activeSection;
                   const issueCount =
-                    s.id === "document" ? 0 : sectionIssueCounts[s.id] ?? 0;
+                    s.id === "document" || s.id === "knowledge" ? 0 : sectionIssueCounts[s.id] ?? 0;
                   return (
                     <button
                       key={s.id}
@@ -325,6 +330,7 @@ export function ProfileEditorTemplate({
 
             {/* Main */}
             <fieldset
+              hidden={activeSection === "knowledge"}
               disabled={isWorkflowProcessing && activeSection !== "document"}
               className={cn(
                 "flex-1 min-h-0 min-w-0 px-4 py-4 sm:px-6",
@@ -1003,6 +1009,11 @@ export function ProfileEditorTemplate({
                 </div>
               ) : null}
             </fieldset>
+            {hasKnowledge && knowledgeBusinessId && (
+              <div hidden={activeSection !== "knowledge"} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+                <ProfileKnowledge businessId={knowledgeBusinessId} active={activeSection === "knowledge"} />
+              </div>
+            )}
           </div>
         )}
       </ProfileEditingDisabledContext.Provider>

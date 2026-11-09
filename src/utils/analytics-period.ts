@@ -57,8 +57,14 @@ export const PERIOD_SELECTOR_GROUPS = [
   },
 ] as const
 
+/** Presets only some APIs accept. Selectors show them only when a caller opts in. */
+export const OPT_IN_TIME_PERIODS = [
+  { id: "60-days", label: "60 days", value: "60 days", group: "recent" },
+] as const
+
 export type TimePeriodPreset = (typeof TIME_PERIODS)[number]["value"]
-export type TimePeriodValue = TimePeriodPreset | `custom:${string}:${string}`
+export type OptInTimePeriod = (typeof OPT_IN_TIME_PERIODS)[number]["value"]
+export type TimePeriodValue = TimePeriodPreset | OptInTimePeriod | `custom:${string}:${string}`
 
 export interface AnalyticsPeriodRange {
   from: Date
@@ -139,8 +145,10 @@ export function isCustomTimePeriodValue(value: TimePeriodValue): value is `custo
   return Boolean(parseCustomTimePeriod(value))
 }
 
-export function getTimePeriodLabel(value: TimePeriodPreset): string {
-  return TIME_PERIODS.find((period) => period.value === value)?.label ?? value
+export function getTimePeriodLabel(value: TimePeriodPreset | OptInTimePeriod): string {
+  return (
+    [...TIME_PERIODS, ...OPT_IN_TIME_PERIODS].find((period) => period.value === value)?.label ?? value
+  )
 }
 
 export function resolveTimePeriodRange(
@@ -165,6 +173,8 @@ export function resolveTimePeriodRange(
         return { from: subDays(presetAnchorDate, 13), to: presetAnchorDate }
       case "28 days":
         return { from: subDays(presetAnchorDate, 27), to: presetAnchorDate }
+      case "60 days":
+        return { from: subDays(presetAnchorDate, 59), to: presetAnchorDate }
       case "last week": {
         const lastWeekReference = subWeeks(presetAnchorDate, 1)
         return {

@@ -16,6 +16,7 @@ declare module "@tanstack/react-table" {
     options?: Option[];
     operators?: Array<{ label: string; value: FilterOperator }>;
     range?: [number, number];
+    step?: number;
     unit?: string;
     icon?: React.FC<React.SVGProps<SVGSVGElement>>;
     apiField?: string;

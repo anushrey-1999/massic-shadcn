@@ -12,7 +12,11 @@ import {
 import { AdminEmptyState } from "./admin-states";
 import { AdminRankedCostTable } from "./admin-ranked-cost-table";
 import { formatAdminValue } from "./admin-kpi-card";
-import type { AdminApiCostData, AdminCostRankRow } from "../types";
+import type {
+  AdminApiCostBusiness,
+  AdminApiCostData,
+  AdminCostRankRow,
+} from "../types";
 
 function humanizeWorkflow(value: string) {
   return value
@@ -86,8 +90,10 @@ function businessesForAgency(
   );
 }
 
-function workflowRankRows(details: AdminApiCostData): AdminCostRankRow[] {
-  return details.workflows.map((workflow) => ({
+function workflowRankRows(
+  workflows: AdminApiCostBusiness["workflows"] | AdminApiCostData["workflows"],
+): AdminCostRankRow[] {
+  return workflows.map((workflow) => ({
     id: workflow.workflowName,
     label: humanizeWorkflow(workflow.displayName),
     sublabel: workflow.workflowName,
@@ -151,9 +157,18 @@ export function AdminCostBreakdownSection({
 }) {
   const [selectedAgency, setSelectedAgency] =
     useState<AdminCostRankRow | null>(null);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(
+    null,
+  );
   const selectedBusinesses = selectedAgency
     ? businessesForAgency(details, selectedAgency.id)
     : [];
+  const selectedBusiness = selectedBusinessId
+    ? details.businesses.find(
+        (business) => business.businessId === selectedBusinessId,
+      ) ?? null
+    : null;
+  const selectedBusinessWorkflows = selectedBusiness?.workflows ?? [];
 
   return (
     <section
@@ -253,23 +268,62 @@ export function AdminCostBreakdownSection({
         </TabsContent>
 
         <TabsContent value="business" className="m-0">
-          <div className="border-b border-general-border px-4 py-3 text-xs text-general-muted-foreground">
-            Includes business-attributed costs and standalone usage.
-          </div>
-          <AdminRankedCostTable
-            rows={businessRankRows(details.businesses)}
-            emptyTitle="No business usage recorded"
-            emptyDescription="Infer returned no business-attributed LLM costs."
-          />
+          {selectedBusiness ? (
+            <>
+              <div className="flex flex-col gap-3 border-b border-general-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">
+                    {selectedBusiness.displayName}
+                  </p>
+                  <p className="mt-1 text-xs text-general-muted-foreground">
+                    {selectedBusinessWorkflows.length} workflow
+                    {selectedBusinessWorkflows.length === 1 ? "" : "s"} · share
+                    is of this business&apos;s{" "}
+                    {formatAdminValue(
+                      "api_cost_total",
+                      selectedBusiness.cost,
+                    )}{" "}
+                    lifetime cost.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => setSelectedBusinessId(null)}
+                >
+                  <ArrowLeft />
+                  All businesses
+                </Button>
+              </div>
+              <AdminRankedCostTable
+                rows={workflowRankRows(selectedBusinessWorkflows)}
+                emptyTitle="No workflow usage for this business"
+                emptyDescription="Infer returned no per-workflow costs for this business."
+              />
+            </>
+          ) : (
+            <>
+              <div className="border-b border-general-border px-4 py-3 text-xs text-general-muted-foreground">
+                Includes business-attributed costs and standalone usage. Select
+                a business to view its workflow breakdown.
+              </div>
+              <AdminRankedCostTable
+                rows={businessRankRows(details.businesses)}
+                emptyTitle="No business usage recorded"
+                emptyDescription="Infer returned no business-attributed LLM costs."
+                onRowSelect={(row) => setSelectedBusinessId(row.id)}
+              />
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="workflow" className="m-0">
           <div className="border-b border-general-border px-4 py-3 text-xs text-general-muted-foreground">
-            Workflow totals are platform-wide and cannot be attributed to a
-            business or agency.
+            Platform-wide workflow totals across all businesses.
           </div>
           <AdminRankedCostTable
-            rows={workflowRankRows(details)}
+            rows={workflowRankRows(details.workflows)}
             emptyTitle="No workflow usage recorded"
             emptyDescription="Infer returned no workflow-level LLM costs."
           />

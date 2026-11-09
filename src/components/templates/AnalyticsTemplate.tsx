@@ -433,7 +433,11 @@ export function AnalyticsTemplate() {
   useEffect(() => {
     const tab = searchParams.get("tab");
     setSelectedTab(tab === "ai-traffic" ? "ai-traffic" : tab === "organic" ? "organic" : "all");
-  }, [searchParams]);
+    // Old `?monitoring=1` hand-over links now land on the Monitoring page.
+    if (searchParams.get("monitoring") === "1" && businessId) {
+      router.replace(`/business/${businessId}/monitoring`);
+    }
+  }, [searchParams, businessId, router]);
 
   const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
     addFilter(filter);
@@ -605,6 +609,10 @@ export function AnalyticsTemplate() {
             if (!businessId) return;
             setPrimaryDriversOpen(true);
           }}
+          onMonitoring={() => {
+            if (!businessId) return;
+            router.push(`/business/${businessId}/monitoring`);
+          }}
           onViewReports={() => {
             if (!businessId) return;
             router.push(`/business/${businessId}/reports`);
@@ -621,13 +629,19 @@ export function AnalyticsTemplate() {
             if (!businessId) return;
             router.push(`/business/${businessId}/indexing`);
           }}
+          onSmartSitemap={() => {
+            if (!businessId) return;
+            router.push(`/business/${businessId}/analytics/pages`);
+          }}
           onContentGroups={() => {
             if (!businessId) return;
             setCustomContentGroupsOpen(true);
           }}
           primaryDriversDisabled={!businessId}
+          monitoringDisabled={!businessId}
           reportsDisabled={!businessId}
           indexingDisabled={!businessId}
+          smartSitemapDisabled={!businessId}
           contentGroupsDisabled={!businessId || isGa4DataBlocked || selectedTab === "ai-traffic"}
           keywordScope={keywordScope}
           onKeywordScopeChange={handleKeywordScopeChange}

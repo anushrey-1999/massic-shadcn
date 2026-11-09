@@ -414,6 +414,7 @@ export function mergeJobAndNodeFormValues(
 
   return {
     ...jobValues,
+    calendarEvents: nodeValues.calendarEvents,
     businessName: stringValue(job.business_name) || nodeValues.businessName,
     website: stringValue(job.business_url)
       ? jobValues.website

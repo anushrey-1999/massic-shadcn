@@ -120,20 +120,18 @@ async function readImageDimensions(file: File): Promise<{ width: number | null; 
   }
 }
 
-function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
-  const pt = (pageType || "").toLowerCase();
-  if (pt === "blog") return "blog";
-  if (pt) return "page";
-  return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
-}
-
-export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
+export function WebBlogView({
+  businessId,
+  pageId,
+  type,
+}: {
+  businessId: string;
+  pageId: string;
+  type: WebActionType;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pageType = searchParams.get("pageType");
-  const intent = searchParams.get("intent");
   const keyword = searchParams.get("keyword") || "";
-  const type = getTypeFromPageType(pageType, intent);
 
   const { updateBlogContent, updatePageContent } = useWebPageActions();
   const guardPublish = useFeatureActionGuard("web.publish");

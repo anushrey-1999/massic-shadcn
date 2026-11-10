@@ -13,8 +13,6 @@ import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getWebPageTableColumns } from "./web-page-table-columns";
 
-type WebPageQuickTypeFilter = "all" | "blog" | "other" | "custom";
-
 interface WebPageTableProps {
   businessId: string;
   data: WebPageRow[];
@@ -25,8 +23,8 @@ interface WebPageTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
-  quickTypeFilter?: WebPageQuickTypeFilter;
-  onQuickTypeFilterChange?: (value: Exclude<WebPageQuickTypeFilter, "all" | "custom">) => void;
+  quickTypeFilter?: string;
+  onQuickTypeFilterChange?: (value: string) => void;
   hideActions?: boolean;
   pageSize?: number;
   pageSizeOptions?: number[];
@@ -44,7 +42,7 @@ export function WebPageTable({
   isFetching = false,
   search = "",
   onSearchChange,
-  quickTypeFilter,
+  quickTypeFilter = "all",
   onQuickTypeFilterChange,
   hideActions = false,
   pageSize = 100,
@@ -95,6 +93,7 @@ export function WebPageTable({
         const status = (row.status || "").toString().toLowerCase();
         const VIEW_ACTION_STATUSES = new Set([
           "success",
+          "stale",
           "updated",
           "update_required",
           "outline_only",
@@ -213,18 +212,13 @@ export function WebPageTable({
               />
             )}
 
-            {quickTypeFilter && onQuickTypeFilterChange && (
-              <Tabs
-                value={quickTypeFilter}
-                onValueChange={(value) => {
-                  if (value === "blog" || value === "other") {
-                    onQuickTypeFilterChange(value);
-                  }
-                }}
-                className="shrink-0"
-              >
+            {onQuickTypeFilterChange && (
+              <Tabs value={quickTypeFilter} onValueChange={onQuickTypeFilterChange}>
                 <TabsList className="h-9 rounded-md p-1">
-                  <TabsTrigger value="blog" className="h-7 rounded px-2.5 text-xs">
+                  <TabsTrigger value="all" className="h-7 rounded px-2.5 text-xs">
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger value="editorial" className="h-7 rounded px-2.5 text-xs">
                     Blogs
                   </TabsTrigger>
                   <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">
@@ -233,7 +227,7 @@ export function WebPageTable({
                 </TabsList>
               </Tabs>
             )}
-        
+
             <DataTableFilterList
               table={table}
               shallow={shallow}

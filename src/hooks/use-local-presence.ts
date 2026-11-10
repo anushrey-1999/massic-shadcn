@@ -95,41 +95,48 @@ function formatDate(dateString: string): string {
   }
 }
 
-export function useLocalPresence(
+function useLocalPresenceQuery(
+  dataset: "interactions" | "reviews",
   businessUniqueId: string | null,
-  period: TimePeriodValue = "3 months",
-  location: string = ""
+  period: TimePeriodValue,
+  location: string,
+  enabled: boolean
 ) {
-  const gate = useGoogleDataGate(businessUniqueId, "gbp")
-
-  const {
-    data: rawData,
-    isLoading,
-    isFetching,
-    error,
-    refetch,
-  } = useQuery<LocalPresenceApiResponse>({
-    queryKey: ["local-presence", businessUniqueId, period, location],
+  return useQuery<LocalPresenceApiResponse>({
+    queryKey: ["local-presence", businessUniqueId, period, location, dataset],
     queryFn: async () => {
       if (!businessUniqueId) {
         throw new Error("Missing business ID")
       }
 
       const response = await api.get<NodeApiResponse>(
-        `/local-presence/data?uniqueId=${businessUniqueId}&period=${encodeURIComponent(period)}&location=${encodeURIComponent(location)}`,
+        `/local-presence/${dataset}?uniqueId=${businessUniqueId}&period=${encodeURIComponent(period)}&location=${encodeURIComponent(location)}`,
         "node"
       )
 
       if (response.err || !response.data) {
-        return { interactions: undefined, queries: undefined, reviews: undefined }
+        return {}
       }
 
       return response.data
     },
-    enabled: gate.enabled && !!businessUniqueId,
+    enabled: enabled && !!businessUniqueId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+}
+
+export function useLocalPresence(
+  businessUniqueId: string | null,
+  period: TimePeriodValue = "3 months",
+  location: string = "",
+  includeInteractions = true
+) {
+  const gate = useGoogleDataGate(businessUniqueId, "gbp")
+  const activity = useLocalPresenceQuery("interactions", businessUniqueId, period, location, gate.enabled && includeInteractions)
+  const reviews = useLocalPresenceQuery("reviews", businessUniqueId, period, location, gate.enabled)
+  const rawData = activity.data
+  const rawReviews = reviews.data?.reviews
 
   const interactionsData = useMemo(() => {
     if (!rawData?.interactions) {
@@ -194,10 +201,10 @@ export function useLocalPresence(
       ratingsPast: { value: "0", change: 0 },
     }
 
-    if (!rawData?.reviews) return defaultMetrics
+    if (!rawReviews) return defaultMetrics
 
     try {
-      const parsed: ReviewsData = JSON.parse(rawData.reviews)
+      const parsed: ReviewsData = JSON.parse(rawReviews)
 
       return {
         avgRating: {
@@ -216,19 +223,18 @@ export function useLocalPresence(
     } catch {
       return defaultMetrics
     }
-  }, [rawData])
+  }, [rawReviews])
 
   return {
     interactionsChartData: interactionsData.chartData,
     interactionsMetric: interactionsData.metric,
     queriesData,
     reviewsData,
-    isLoading: resolveGatedLoading(gate, isLoading || isFetching),
+    isLoading: resolveGatedLoading(gate, activity.isLoading || activity.isFetching),
+    isReviewsLoading: resolveGatedLoading(gate, reviews.isLoading || reviews.isFetching),
     isConnectionBlocked: gate.isBlocked,
     hasInteractionsData: interactionsData.chartData.length > 0,
     hasQueriesData: queriesData.length > 0,
-    hasReviewsData: !!rawData?.reviews,
-    error,
-    refetch,
+    hasReviewsData: !!rawReviews,
   }
 }

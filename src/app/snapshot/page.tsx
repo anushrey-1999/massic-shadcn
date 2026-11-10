@@ -47,13 +47,13 @@ export async function generateMetadata({
     return {
       title,
       description,
-      icons: { icon: "/massic-logo-green.svg" },
       openGraph: {
         title,
         description,
         url: `/snapshot?t=${token}`,
         type: "article",
         siteName: siteMeta.name,
+        images: [siteMeta.shareImage],
       },
       twitter: {
         card: "summary",
@@ -77,13 +77,13 @@ function fallbackMetadata(): Metadata {
   return {
     title: FALLBACK_TITLE,
     description: FALLBACK_DESCRIPTION,
-    icons: { icon: "/massic-logo-green.svg" },
     openGraph: {
       title: FALLBACK_TITLE,
       description: FALLBACK_DESCRIPTION,
       url: "/snapshot",
       type: "website",
       siteName: siteMeta.name,
+      images: [siteMeta.shareImage],
     },
     twitter: {
       card: "summary",

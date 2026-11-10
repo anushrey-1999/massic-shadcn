@@ -7,15 +7,14 @@ import { AgentPlanTable } from "@/components/massic-agent/agent-plan-table";
 import { agentKeys, errorMessage, getPlan, getPlans } from "@/components/massic-agent/agent-api";
 import { agentPlanHref, agentPlansHref } from "@/components/massic-agent/agent-links";
 import type { PlanItem, ResourceType } from "@/components/massic-agent/types";
+import { WebPlanActionCell } from "@/components/massic-agent/web-plan-action-cell";
 import { SocialActionCell } from "@/components/organisms/SocialTable/social-action-cell";
-import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import type { TacticRow } from "@/types/social-types";
-import type { WebPageRow } from "@/types/web-page-types";
 import { formatPlanDate, PLAN_ACTIONS_CONFIG, planMatchesType } from "./plan-actions-config";
 
 function escapeCsv(value: unknown) {
@@ -70,29 +69,6 @@ function downloadPlan(type: ResourceType, planId: string | number, rows: PlanIte
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function WebAction({ businessId, item, index }: { businessId: string; item: PlanItem; index: number }) {
-  if (!item.page_id) return <span className="text-muted-foreground">—</span>;
-  const row: WebPageRow = {
-    id: item.page_id || `plan-page-${index}`,
-    page_id: item.page_id,
-    cluster_name: item.cluster_name || item.title || item.page_id,
-    keyword: item.cluster_name || item.title || item.page_id,
-    page_type: item.page_type || "page",
-    search_volume: item.search_volume ?? 0,
-    business_relevance_score: item.business_relevance_score ?? 0,
-    page_opportunity_score: item.page_opportunity_score ?? 0,
-    sub_topics_count: item.supporting_keyword_count ?? item.supporting_keywords?.length ?? 0,
-    coverage: item.coverage ?? 0,
-    status: item.status || "new",
-    supporting_keywords: item.supporting_keywords ?? [],
-    offerings: item.offerings ?? [],
-    business_relevance_level: item.business_relevance_level || undefined,
-    search_intent: item.search_intent || undefined,
-    slug: item.slug || undefined,
-  };
-  return <WebPageActionCell businessId={businessId} row={row} />;
 }
 
 function SocialAction({ businessId, item, index }: { businessId: string; item: PlanItem; index: number }) {
@@ -185,7 +161,7 @@ export function PlanActionsAccordion({ businessId, type, ready, readinessLoading
             : !active ? <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center"><p className="text-sm font-medium">No active {config.title.toLowerCase()} plan</p><p className="mt-1 max-w-sm text-xs text-muted-foreground">Create a new plan with Massic Agent or open plan history to review a proposed plan.</p><div className="mt-4 flex gap-2"><Button variant="outline" size="sm" onClick={viewPlans}>View plans</Button><Button size="sm" onClick={() => navigate("create")}>New plan</Button></div></div>
             : detail.isLoading ? <div className="flex h-32 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading active plan…</div>
             : detail.isError ? <div role="alert" className="flex h-32 flex-col items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-center text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>
-            : activePlan ? <AgentPlanTable plan={activePlan} type={type} showPlanHeader={false} onCreateNewPlan={openNewPlan} renderAction={(item, index) => type === "webpage_plan" ? <WebAction businessId={businessId} item={item} index={index} /> : <SocialAction businessId={businessId} item={item} index={index} />} />
+            : activePlan ? <AgentPlanTable plan={activePlan} type={type} showPlanHeader={false} onCreateNewPlan={openNewPlan} renderAction={(item, index) => type === "webpage_plan" ? <WebPlanActionCell businessId={businessId} item={item} /> : <SocialAction businessId={businessId} item={item} index={index} />} />
             : <p role="alert" className="p-4 text-sm text-destructive">The active plan does not match this strategy.</p>}
         </div>
       </Card>

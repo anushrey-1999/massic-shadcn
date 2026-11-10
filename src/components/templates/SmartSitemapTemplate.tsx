@@ -5,6 +5,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Loader2, RefreshCw, Search, X } from "lucide-react"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { PeriodSelector } from "@/components/molecules/analytics/PeriodSelector"
+import {
+  SmartSitemapKeywordCounts,
+  SmartSitemapKeywordCountsNotice,
+} from "@/components/organisms/smart-sitemap/SmartSitemapKeywordCounts"
 import { SmartSitemapOverview } from "@/components/organisms/smart-sitemap/SmartSitemapOverview"
 import { SmartSitemapPagination } from "@/components/organisms/smart-sitemap/SmartSitemapPagination"
 import { SmartSitemapTable } from "@/components/organisms/smart-sitemap/SmartSitemapTable"
@@ -84,7 +88,8 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
 
   // The URL wins so links are shareable; otherwise the last view picked on this device.
   const urlView = readView(searchParams.get("view"))
-  const [storedView, setStoredView] = useState<SitemapView | null>(null)
+  // Undefined until storage is read after mount; reads wait so the default view never fetches first.
+  const [storedView, setStoredView] = useState<SitemapView | null | undefined>(undefined)
   useEffect(() => {
     try {
       setStoredView(readView(window.localStorage.getItem(VIEW_STORAGE_KEY)))
@@ -93,6 +98,7 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
     }
   }, [])
   const view = urlView ?? storedView ?? DEFAULT_VIEW
+  const viewResolved = urlView !== null || storedView !== undefined
 
   const [searchInput, setSearchInput] = useState(urlSearch)
   const debouncedSearch = useDebounce(searchInput.trim(), 300)
@@ -126,9 +132,9 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   const listQuery = useSmartSitemapList(
     businessId,
     { ...queryParams, page, limit: PAGE_SIZE },
-    { enabled: view === "table" }
+    { enabled: viewResolved && view === "table" }
   )
-  const treeQuery = useSmartSitemapTree(businessId, queryParams, "/", { enabled: view === "tree" })
+  const treeQuery = useSmartSitemapTree(businessId, queryParams, "/", { enabled: viewResolved && view === "tree" })
 
   const listData = listQuery.data
   const treeRoot = treeQuery.data?.pages[0]
@@ -178,11 +184,14 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   )
 
   // Pages beyond the end (e.g. after a filter shrinks the list) fall back to the last page.
+  const listSettled = Boolean(listData) && !listQuery.isPlaceholderData
   useEffect(() => {
-    if (listData && listData.pagination.totalPages > 0 && page > listData.pagination.totalPages) {
+    if (listSettled && listData && listData.pagination.totalPages > 0 && page > listData.pagination.totalPages) {
       updateParams({ page: listData.pagination.totalPages > 1 ? String(listData.pagination.totalPages) : null }, false)
     }
-  }, [listData, page, updateParams])
+  }, [listSettled, listData, page, updateParams])
+
+  const listPageIds = useMemo(() => listData?.pages.map((row) => row.id) ?? [], [listData])
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -302,14 +311,22 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
                 ) : null}
               </div>
             ) : view === "table" ? (
-              <SmartSitemapTable
-                pages={listData?.pages ?? null}
-                skeletonCount={12}
-                updating={updating}
-                sort={sort}
-                onSort={changeSort}
-                pageHref={pageHref}
-              />
+              <SmartSitemapKeywordCounts
+                businessId={businessId}
+                period={period}
+                pageIds={listPageIds}
+                enabled={listSettled}
+              >
+                <SmartSitemapKeywordCountsNotice />
+                <SmartSitemapTable
+                  pages={listData?.pages ?? null}
+                  skeletonCount={12}
+                  updating={updating}
+                  sort={sort}
+                  onSort={changeSort}
+                  pageHref={pageHref}
+                />
+              </SmartSitemapKeywordCounts>
             ) : (
               <SmartSitemapTree
                 businessId={businessId}

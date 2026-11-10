@@ -27,6 +27,7 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import {
   useSmartSitemapPage,
   useSmartSitemapPageIndexing,
+  useSmartSitemapPageKeywords,
 } from "@/hooks/use-smart-sitemap";
 import {
   CHART_LINE_KEYS,
@@ -103,7 +104,12 @@ export function SmartSitemapPageTemplate({
   );
 
   const pageQuery = useSmartSitemapPage(businessId, pageId, period);
-  const indexingQuery = useSmartSitemapPageIndexing(businessId, pageId, period);
+  const indexingQuery = useSmartSitemapPageIndexing(businessId, pageId, period, {
+    enabled: tab === "indexing",
+  });
+  const keywordsQuery = useSmartSitemapPageKeywords(businessId, pageId, period, {
+    enabled: tab === "performance",
+  });
   const data = pageQuery.data;
   const updating = pageQuery.isFetching && !pageQuery.isLoading;
   const notFound =
@@ -380,7 +386,10 @@ export function SmartSitemapPageTemplate({
                     <div className="min-w-0 lg:col-span-2">
                       <SmartSitemapKeywordsPanel
                         key={`${pageId}-${period}`}
-                        keywords={data.keywords}
+                        keywords={keywordsQuery.data?.keywords}
+                        isError={keywordsQuery.isError}
+                        retrying={keywordsQuery.isFetching}
+                        onRetry={() => keywordsQuery.refetch()}
                       />
                     </div>
                     <SmartSitemapEngagementCard
@@ -418,7 +427,7 @@ export function SmartSitemapPageTemplate({
             ) : (
               <SmartSitemapIndexingPanel
                 pages={indexingQuery.data?.pages}
-                isLoading={indexingQuery.isLoading}
+                isLoading={indexingQuery.isPending}
                 isError={indexingQuery.isError}
                 isRefetching={indexingQuery.isFetching}
                 hasNextPage={Boolean(indexingQuery.hasNextPage)}

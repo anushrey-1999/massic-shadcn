@@ -92,7 +92,6 @@ export interface SmartSitemapListPage extends SitePageIdentity {
   gsc: GscMetrics | null;
   ga4: Ga4Metrics | null;
   indexing: IndexingSummary;
-  keywordCount: number;
 }
 
 export interface SmartSitemapListResult {
@@ -135,7 +134,6 @@ export interface SmartSitemapPageResult {
     ga4: Ga4Metrics | null;
   };
   series: SeriesPoint[];
-  keywords: string[];
   indexing: IndexingSummary;
   meta: {
     range: DateRange;
@@ -272,8 +270,10 @@ interface ApiEnvelope<T> {
 }
 
 const STALE_TIME = 5 * 60 * 1000;
-// Large inventories read every page and its keywords; the API can take tens of seconds.
-const REQUEST_TIMEOUT = 120000;
+// Matches the API's own read deadline, so a stuck read fails visibly instead of spinning.
+const REQUEST_TIMEOUT = 30000;
+/** The API caps one keyword-count request at this many page ids. */
+const KEYWORD_COUNT_BATCH = 100;
 
 function sitemapQueryString(
   businessId: string,
@@ -289,8 +289,16 @@ function sitemapQueryString(
   });
   if (params.search) search.set("search", params.search);
   if (params.indexingStatuses?.length)
-    search.set("indexingStatuses", params.indexingStatuses.join(","));
+    search.set("indexingStatuses", [...params.indexingStatuses].sort().join(","));
   return search.toString();
+}
+
+async function getSitemap<T>(path: string, signal: AbortSignal): Promise<T> {
+  const res = await api.get<ApiEnvelope<T>>(path, "node", {
+    timeout: REQUEST_TIMEOUT,
+    signal,
+  });
+  return res.data;
 }
 
 export function useSmartSitemapList(
@@ -298,23 +306,16 @@ export function useSmartSitemapList(
   params: SmartSitemapListParams,
   { enabled = true }: { enabled?: boolean } = {},
 ) {
-  return useQuery<SmartSitemapListResult>({
-    queryKey: ["smart-sitemap", businessId, params],
-    queryFn: async () => {
-      const query = sitemapQueryString(businessId as string, params, {
+  const query = businessId
+    ? sitemapQueryString(businessId, params, {
         page: String(params.page),
         limit: String(params.limit),
-        keywords: "count",
-      });
-      const res = await api.get<ApiEnvelope<SmartSitemapListResult>>(
-        `/smart-sitemap?${query}`,
-        "node",
-        {
-          timeout: REQUEST_TIMEOUT,
-        },
-      );
-      return res.data;
-    },
+        keywords: "none",
+      })
+    : "";
+  return useQuery<SmartSitemapListResult>({
+    queryKey: ["smart-sitemap", businessId, query],
+    queryFn: ({ signal }) => getSitemap(`/smart-sitemap?${query}`, signal),
     enabled: Boolean(businessId) && enabled,
     placeholderData: keepPreviousData,
     staleTime: STALE_TIME,
@@ -330,28 +331,54 @@ export function useSmartSitemapTree(
   parent: string,
   { enabled = true }: { enabled?: boolean } = {},
 ) {
-  return useInfiniteQuery<SitemapTreeResult>({
-    queryKey: ["smart-sitemap-tree", businessId, params, parent],
-    initialPageParam: 1,
-    queryFn: async ({ pageParam }) => {
-      const query = sitemapQueryString(businessId as string, params, {
+  const query = businessId
+    ? sitemapQueryString(businessId, params, {
         parent,
-        page: String(pageParam),
         limit: String(SITEMAP_TREE_PAGE_SIZE),
-      });
-      const res = await api.get<ApiEnvelope<SitemapTreeResult>>(
-        `/smart-sitemap/tree?${query}`,
-        "node",
-        {
-          timeout: REQUEST_TIMEOUT,
-        },
-      );
-      return res.data;
-    },
+        keywords: "none",
+      })
+    : "";
+  return useInfiniteQuery<SitemapTreeResult>({
+    queryKey: ["smart-sitemap-tree", businessId, query],
+    initialPageParam: 1,
+    queryFn: ({ pageParam, signal }) =>
+      getSitemap(`/smart-sitemap/tree?${query}&page=${pageParam}`, signal),
     getNextPageParam: (last) =>
       last.pagination.hasNextPage ? last.pagination.page + 1 : undefined,
     enabled: Boolean(businessId) && enabled,
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export interface SmartSitemapKeywordCountsResult {
+  counts: Record<string, number>;
+  meta: { range: DateRange; sources: { keywords: SourceMeta } };
+}
+
+/**
+ * Keyword counts for rows already on screen. Ids are sorted so re-sorting the same rows
+ * reuses the cached counts; pass `enabled: false` while the rows are placeholders.
+ * Counts from another period are never shown in place of loading ones.
+ */
+export function useSmartSitemapKeywordCounts(
+  businessId: string | null,
+  period: TimePeriodValue,
+  pageIds: readonly string[],
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  const ids = [...new Set(pageIds)].sort().slice(0, KEYWORD_COUNT_BATCH).join(",");
+  return useQuery<SmartSitemapKeywordCountsResult>({
+    queryKey: ["smart-sitemap-keyword-counts", businessId, period, ids],
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams({
+        businessId: businessId as string,
+        period,
+        pageIds: ids,
+      });
+      return getSitemap(`/smart-sitemap/keyword-counts?${search.toString()}`, signal);
+    },
+    enabled: Boolean(businessId && ids) && enabled,
     staleTime: STALE_TIME,
   });
 }
@@ -363,20 +390,46 @@ export function useSmartSitemapPage(
 ) {
   return useQuery<SmartSitemapPageResult>({
     queryKey: ["smart-sitemap-page", businessId, pageId, period],
-    queryFn: async () => {
+    queryFn: ({ signal }) => {
       const search = new URLSearchParams({
         businessId: businessId as string,
         period,
+        keywords: "none",
       });
-      const res = await api.get<ApiEnvelope<SmartSitemapPageResult>>(
+      return getSitemap(
         `/smart-sitemap/pages/${encodeURIComponent(pageId as string)}?${search.toString()}`,
-        "node",
-        { timeout: REQUEST_TIMEOUT },
+        signal,
       );
-      return res.data;
     },
     enabled: Boolean(businessId && pageId),
     placeholderData: keepPreviousData,
+    staleTime: STALE_TIME,
+  });
+}
+
+export interface SmartSitemapPageKeywordsResult {
+  pageId: string;
+  path: string;
+  keywords: string[];
+  meta: { range: DateRange; sources: { keywords: SourceMeta } };
+}
+
+export function useSmartSitemapPageKeywords(
+  businessId: string | null,
+  pageId: string | null,
+  period: TimePeriodValue,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  return useQuery<SmartSitemapPageKeywordsResult>({
+    queryKey: ["smart-sitemap-page-keywords", businessId, pageId, period],
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams({ businessId: businessId as string, period });
+      return getSitemap(
+        `/smart-sitemap/pages/${encodeURIComponent(pageId as string)}/keywords?${search.toString()}`,
+        signal,
+      );
+    },
+    enabled: Boolean(businessId && pageId) && enabled,
     staleTime: STALE_TIME,
   });
 }
@@ -385,26 +438,25 @@ export function useSmartSitemapPageIndexing(
   businessId: string | null,
   pageId: string | null,
   period: TimePeriodValue,
+  { enabled = true }: { enabled?: boolean } = {},
 ) {
   return useInfiniteQuery<SmartSitemapPageIndexingResult>({
     queryKey: ["smart-sitemap-page-indexing", businessId, pageId, period],
     initialPageParam: null,
-    queryFn: async ({ pageParam }) => {
+    queryFn: ({ pageParam, signal }) => {
       const search = new URLSearchParams({
         businessId: businessId as string,
         period,
         limit: "20",
       });
       if (typeof pageParam === "string") search.set("cursor", pageParam);
-      const res = await api.get<ApiEnvelope<SmartSitemapPageIndexingResult>>(
+      return getSitemap(
         `/smart-sitemap/pages/${encodeURIComponent(pageId as string)}/indexing?${search.toString()}`,
-        "node",
-        { timeout: REQUEST_TIMEOUT },
+        signal,
       );
-      return res.data;
     },
     getNextPageParam: (last) => last.pagination.nextCursor ?? undefined,
-    enabled: Boolean(businessId && pageId),
+    enabled: Boolean(businessId && pageId) && enabled,
     staleTime: STALE_TIME,
   });
 }

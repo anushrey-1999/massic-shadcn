@@ -16,6 +16,7 @@ import {
 } from "@/hooks/use-smart-sitemap"
 import { SITEMAP_COLUMNS } from "./sitemapColumns"
 import { SmartSitemapPathTooltip } from "./SmartSitemapCells"
+import { SmartSitemapKeywordCounts } from "./SmartSitemapKeywordCounts"
 import {
   SmartSitemapMessageRow,
   SmartSitemapRow,
@@ -178,8 +179,18 @@ function FolderChildren({ parent, depth }: { parent: string; depth: number }) {
 }
 
 function TreeLevel({ query, parent, depth }: { query: TreeQuery; parent: string; depth: number }) {
-  const { filtered } = useTree()
+  const { businessId, params, filtered } = useTree()
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data])
+  // One keyword-count request per loaded batch, so "show more" never refetches earlier rows.
+  const batches = useMemo(
+    () =>
+      query.data?.pages.map((page) => ({
+        key: page.pagination.page,
+        nodes: page.nodes,
+        pageIds: page.nodes.flatMap((node) => (node.type === "page" ? [node.id] : [])),
+      })) ?? [],
+    [query.data]
+  )
   const total = query.data?.pages[0]?.total ?? 0
   const remaining = Math.max(0, total - nodes.length)
   const indent = indentOf(depth) + TOGGLE_WIDTH
@@ -215,13 +226,23 @@ function TreeLevel({ query, parent, depth }: { query: TreeQuery; parent: string;
 
   return (
     <>
-      {nodes.map((node) =>
-        node.type === "folder" ? (
-          <FolderRow key={`folder:${node.path}`} node={node} depth={depth} stale={stale} />
-        ) : (
-          <PageRow key={`page:${node.id}`} node={node} parent={parent} depth={depth} stale={stale} />
-        )
-      )}
+      {batches.map((batch) => (
+        <SmartSitemapKeywordCounts
+          key={batch.key}
+          businessId={businessId}
+          period={params.period}
+          pageIds={batch.pageIds}
+          enabled={!stale}
+        >
+          {batch.nodes.map((node) =>
+            node.type === "folder" ? (
+              <FolderRow key={`folder:${node.path}`} node={node} depth={depth} stale={stale} />
+            ) : (
+              <PageRow key={`page:${node.id}`} node={node} parent={parent} depth={depth} stale={stale} />
+            )
+          )}
+        </SmartSitemapKeywordCounts>
+      ))}
       {query.isFetchNextPageError ? (
         <SmartSitemapMessageRow indent={indent}>
           <span className="text-general-muted-foreground">More pages could not be loaded.</span>

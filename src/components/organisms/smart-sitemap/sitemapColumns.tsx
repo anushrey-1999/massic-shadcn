@@ -7,6 +7,7 @@ import {
   SmartSitemapStatusCell,
   SmartSitemapStatusMix,
 } from "./SmartSitemapCells"
+import { SmartSitemapKeywordCountCell } from "./SmartSitemapKeywordCounts"
 
 export type SitemapColumnGroup = "gsc" | "ga4"
 
@@ -104,7 +105,7 @@ export const SITEMAP_COLUMNS: SitemapColumn[] = [
     align: "right",
     width: 96,
     hint: "Distinct Search Console queries for the page. Not totaled for folders.",
-    page: (row) => <SmartSitemapMetricCell value={formatCompact(row.keywordCount)} muted />,
+    page: (row) => <SmartSitemapKeywordCountCell pageId={row.id} />,
     folder: () => <SmartSitemapMetricCell value={formatCompact(null)} />,
   },
 ]

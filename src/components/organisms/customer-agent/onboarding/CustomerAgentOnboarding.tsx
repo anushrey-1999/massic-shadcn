@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { Stepper } from "@/components/ui/stepper";
 import { type useCustomerAgent, usePlaybook, useVisitorAgentInstall } from "@/hooks/use-customer-agent";
+import { leadEmails } from "@/lib/customer-agent";
 import { ONBOARDING_STEPS, type CustomerAgentConfig, type OnboardingStep } from "@/types/customer-agent";
 import { AppearanceTab } from "../AppearanceTab";
 import { Hint } from "../controls";
 import { KnowledgeTab } from "../KnowledgeTab";
 import { InstallStep } from "./InstallStep";
 import { IntroStep } from "./IntroStep";
+import { LeadsStep } from "./LeadsStep";
 import { StepFooter, StepLayout } from "./StepLayout";
 import { TestStep } from "./TestStep";
 
@@ -21,16 +23,18 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   intro: "Overview",
   knowledge: "Knowledge",
   appearance: "Appearance",
+  leads: "Lead emails",
   test: "Test",
   install: "Install",
 };
 
 const STEPS = ONBOARDING_STEPS.map((id) => ({ id, label: STEP_LABELS[id] }));
+const LEADS_INDEX = ONBOARDING_STEPS.indexOf("leads");
 
 interface CustomerAgentOnboardingProps {
   businessId: string;
   config: CustomerAgentConfig;
-  agent: Pick<ReturnType<typeof useCustomerAgent>, "update" | "saveOnboarding">;
+  agent: Pick<ReturnType<typeof useCustomerAgent>, "update" | "saveOnboarding" | "saveLeadEmails">;
   onRefreshInstallation: () => void;
 }
 
@@ -47,10 +51,14 @@ export function CustomerAgentOnboarding({
   const playbook = usePlaybook(businessId);
   const hasPlaybook = Boolean(playbook.data?.content.trim());
 
+  const hasLeadEmails = leadEmails(config).length > 0;
+  // Steps after Lead emails stay locked until an email is saved, including for setups saved before the step existed.
+  const reachable = (index: number) => hasLeadEmails || index <= LEADS_INDEX;
   const savedIndex = config.onboarding.step ? ONBOARDING_STEPS.indexOf(config.onboarding.step) : 0;
+  const startIndex = Math.max(0, hasLeadEmails ? savedIndex : Math.min(savedIndex, LEADS_INDEX));
   const [furthest, setFurthest] = useState(Math.max(0, savedIndex));
-  const [requested, setRequested] = useState(Math.max(0, savedIndex));
-  const current = enabled ? requested : 0;
+  const [requested, setRequested] = useState(startIndex);
+  const current = enabled ? (reachable(requested) ? requested : LEADS_INDEX) : 0;
 
   const goTo = (index: number) => {
     setRequested(index);
@@ -84,7 +92,9 @@ export function CustomerAgentOnboarding({
         steps={STEPS}
         currentStep={current}
         onStepClick={(index) => requestNavigation(() => goTo(index))}
-        isStepEnabled={(index) => index !== current && index <= furthest && (index === 0 || enabled)}
+        isStepEnabled={(index) =>
+          index !== current && index <= furthest && reachable(index) && (index === 0 || enabled)
+        }
         className="mb-6 max-w-[752px] shrink-0"
       />
 
@@ -120,6 +130,10 @@ export function CustomerAgentOnboarding({
             setup={{ onBack: back, onContinue: next }}
           />
         </StepLayout>
+      )}
+
+      {step === "leads" && (
+        <LeadsStep config={config} saveLeadEmails={agent.saveLeadEmails} onBack={back} onContinue={next} />
       )}
 
       {step === "test" && <TestStep businessId={businessId} config={config} onBack={back} onContinue={next} />}

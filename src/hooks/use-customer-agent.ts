@@ -1,11 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type {
   CustomerAgentConfig,
   CustomerAgentUpdate,
+  LeadStatus,
   OnboardingUpdate,
   VisitorCredits,
+  VisitorLeadList,
   VisitorSiteKey,
 } from "@/types/customer-agent";
 
@@ -20,6 +23,11 @@ export const visitorSiteKey = (businessId: string) =>
   ["massic-agent", businessId, "site-key", "visitor"] as const;
 const playbookKey = (businessId: string) =>
   ["massic-agent", businessId, "document", "receptionist_playbook"] as const;
+const visitorLeadsKey = (businessId: string, status: LeadStatus | null) =>
+  ["massic-agent", businessId, "visitor-leads", status ?? "all"] as const;
+
+const LEADS_PAGE_SIZE = 100;
+const LEADS_MAX = 1000;
 
 /** Turning the agent on creates a default playbook in the background; poll briefly until it lands. */
 const PLAYBOOK_POLL_MS = 2000;
@@ -125,6 +133,25 @@ export function useCustomerAgent(businessId: string) {
     },
   });
 
+  // Not optimistic: the form keeps the user's draft until the server accepts it.
+  const saveLeadEmails = useMutation<CustomerAgentConfig, Error, string[]>({
+    mutationFn: async (emails) => {
+      const response = await api.put<ConfigResponse>(
+        `${basePath(businessId)}/lead-notifications`,
+        "node",
+        { emails },
+      );
+      return response.config;
+    },
+    onSuccess: (config) => {
+      queryClient.setQueryData(queryKey, config);
+      toast.success("Lead emails saved");
+    },
+    onError: (error) => {
+      toast.error("Couldn't save lead emails", { description: errorMessage(error) });
+    },
+  });
+
   const refreshInstallation = useMutation<CustomerAgentConfig, Error, void>({
     mutationFn: fetchConfig,
     onSuccess: (config) => {
@@ -141,8 +168,45 @@ export function useCustomerAgent(businessId: string) {
     refetch: query.refetch,
     update,
     saveOnboarding,
+    saveLeadEmails,
     refreshInstallation,
   };
+}
+
+/**
+ * Leads the customer agent captured, newest first, up to LEADS_MAX. Infer only filters by one
+ * `status` and pages by cursor, so pages are fetched one after another for that status.
+ * Refetches on every mount, so opening the Leads tab always shows fresh data.
+ */
+export function useVisitorLeads(businessId: string, status: LeadStatus | null) {
+  const query = useInfiniteQuery({
+    queryKey: visitorLeadsKey(businessId, status),
+    queryFn: ({ pageParam }) =>
+      api.get<VisitorLeadList>("/agent/visitor/leads", "python", {
+        params: {
+          business_id: businessId,
+          limit: LEADS_PAGE_SIZE,
+          ...(status ? { status } : {}),
+          ...(pageParam ? { before: pageParam } : {}),
+        },
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.next_cursor : null),
+    enabled: Boolean(businessId),
+    retry: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+
+  const leads = useMemo(() => (query.data?.pages ?? []).flatMap((page) => page.items), [query.data]);
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = query;
+  const capped = leads.length >= LEADS_MAX;
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError && !capped) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, capped, fetchNextPage]);
+
+  return { ...query, leads, truncated: capped && hasNextPage };
 }
 
 export function useVisitorAgentInstall(businessId: string) {

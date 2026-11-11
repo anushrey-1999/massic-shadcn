@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState, type DragEvent } from "react";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileDropzoneProps {
@@ -11,6 +11,7 @@ interface FileDropzoneProps {
   onFiles: (files: File[]) => void;
   multiple?: boolean;
   disabled?: boolean;
+  busy?: boolean;
   title?: string;
   hint?: string;
   className?: string;
@@ -38,17 +39,23 @@ export function FileDropzone({
   onFiles,
   multiple = true,
   disabled = false,
-  title = "Drop files here or click to browse",
+  busy = false,
+  title = "Upload files",
   hint,
   className,
 }: FileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelId = useId();
+  const hintId = useId();
   const errorId = useId();
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const types = accept.map((extension) => extension.toUpperCase()).join(", ");
+  const unavailable = disabled || busy;
+  const limits = `${types} up to ${formatMegabytes(maxBytes)}.`;
 
   const take = (list: FileList | null) => {
+    if (unavailable) return;
     const files = Array.from(list ?? []).slice(0, multiple ? undefined : 1);
     const problems: string[] = [];
     const valid = files.filter((file) => {
@@ -63,39 +70,47 @@ export function FileDropzone({
   const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setDragging(false);
-    if (!disabled) take(event.dataTransfer.files);
+    take(event.dataTransfer.files);
   };
 
   return (
     <div className={className}>
       <button
         type="button"
-        disabled={disabled}
-        aria-describedby={errors.length ? errorId : undefined}
+        disabled={unavailable}
+        aria-busy={busy}
+        aria-labelledby={labelId}
+        aria-describedby={errors.length ? `${hintId} ${errorId}` : hintId}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault();
-          if (!disabled) setDragging(true);
+          if (!unavailable) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          "flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-general-border-three px-4 py-6 text-center transition-colors outline-none",
-          "hover:bg-general-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-          dragging && "border-general-foreground bg-general-primary-foreground",
-          disabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
+          "flex w-full cursor-pointer items-center gap-3 rounded-md border border-dashed border-general-border bg-background p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          dragging && !unavailable && "border-general-primary bg-general-primary/5",
+          unavailable ? "cursor-not-allowed opacity-60" : "hover:border-general-primary/50 hover:bg-general-primary-foreground"
         )}
       >
-        <Upload className="size-4 text-general-muted-foreground" aria-hidden />
-        <span className="text-sm font-medium text-general-foreground">{title}</span>
-        <span className="text-xs text-general-muted-foreground">
-          {hint ?? `${types} up to ${formatMegabytes(maxBytes)}`}
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-general-border bg-general-secondary text-muted-foreground">
+          {busy
+            ? <Loader2 className="size-4 animate-spin" strokeWidth={1.5} aria-hidden="true" />
+            : <Upload className="size-4" strokeWidth={1.5} aria-hidden="true" />}
+        </span>
+        <span className="min-w-0">
+          <span id={labelId} className="block text-sm font-medium text-general-foreground">{title}</span>
+          <span id={hintId} className="block text-xs text-muted-foreground">
+            {hint ?? (unavailable ? limits : `${limits} Click or drag and drop.`)}
+          </span>
         </span>
       </button>
       <input
         ref={inputRef}
         type="file"
         hidden
+        disabled={unavailable}
         multiple={multiple}
         accept={accept.map((extension) => `.${extension}`).join(",")}
         onChange={(event) => {

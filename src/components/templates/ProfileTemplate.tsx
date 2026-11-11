@@ -496,10 +496,11 @@ export default function ProfileTemplate({
   )
     .trim()
     .toLowerCase();
-  const currentPlan = !hasBusinessPlanAccess({
+  const hasCurrentPlanAccess = hasBusinessPlanAccess({
     status: currentSubscription?.status,
     plan_type: planType,
-  })
+  });
+  const currentPlan = !hasCurrentPlanAccess
     ? "No Plan"
     : planType === "core"
       ? "Core"
@@ -602,6 +603,9 @@ export default function ProfileTemplate({
             form={form}
             mode={mode}
             readOnlyDetails={mapJobToReadOnlyDetails(jobDetails)}
+            knowledgeBusinessId={
+              hasCurrentPlanAccess && planType === "growth" ? businessId : undefined
+            }
             referenceProfile={
               mode === "full" && hasBuiltProfile && jobDetails?.profile_id
                 ? {

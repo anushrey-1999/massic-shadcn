@@ -42,7 +42,7 @@ import { useProfileFormSync } from "@/hooks/use-profile-form-sync";
 import { useProfileValidation } from "@/hooks/use-profile-validation";
 import { ProfileLoadingBoundary } from "@/components/organisms/profile/ProfileLoadingBoundary";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
-import { useCurrentUserRole, useFeatureActionGuard } from "@/hooks/use-permissions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import { useSubscription } from "@/hooks/use-subscription";
 import { profileReferenceKeys } from "@/hooks/use-profile-reference";
@@ -63,8 +63,6 @@ import {
   resolveBusinessSubscription,
 } from "@/lib/subscription-status";
 import { apiErrorMessage } from "@/lib/api-error";
-import { isOwnerOrAdmin } from "@/lib/permissions";
-import { useAuthStore } from "@/store/auth-store";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -195,9 +193,6 @@ export default function ProfileTemplate({
   const hasBuiltProfile =
     jobDetails?.has_build_completed ??
     Boolean(jobDetails?.profile_id && jobDetails.profile_status === "success");
-  const role = useCurrentUserRole();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const canUseKnowledge = isAuthenticated && isOwnerOrAdmin(role);
   const mode = hasPlanAccess ? "full" : "minimal";
   const serverValues = useMemo(() => {
     const node = mapProfileDataToFormValues(
@@ -607,7 +602,7 @@ export default function ProfileTemplate({
             form={form}
             mode={mode}
             readOnlyDetails={mapJobToReadOnlyDetails(jobDetails)}
-            knowledgeBusinessId={canUseKnowledge ? businessId : undefined}
+            knowledgeBusinessId={businessId}
             referenceProfile={
               mode === "full" && hasBuiltProfile && jobDetails?.profile_id
                 ? {

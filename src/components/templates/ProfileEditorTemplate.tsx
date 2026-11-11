@@ -125,13 +125,11 @@ export function ProfileEditorTemplate({
   const hasReference = mode === "full" && Boolean(referenceProfile);
   const sections = useMemo<Array<{ id: SectionId; label: string }>>(
     () => [
-      ...(mode === "full"
-        ? FULL_SECTIONS
-        : [{ id: "identity" as const, label: "Profile details" }]),
+      ...FULL_SECTIONS,
       ...(hasReference ? [{ id: "document" as const, label: "Document" }] : []),
       ...(knowledgeBusinessId ? [{ id: "knowledge" as const, label: "Knowledge" }] : []),
     ],
-    [mode, hasReference, knowledgeBusinessId],
+    [hasReference, knowledgeBusinessId],
   );
 
   const sectionIssueCounts = useMemo(
@@ -267,8 +265,21 @@ export function ProfileEditorTemplate({
       {/* Body */}
       {notice}
       <ProfileEditingDisabledContext.Provider value={isWorkflowProcessing}>
-        <div className="flex flex-1 min-h-0 min-w-0 flex-col items-stretch md:flex-row">
-          {sections.length > 1 && (
+        {mode === "minimal" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            <CombinedProfileForm
+              extractionStatus={extractionStatus}
+              onOfferingEditorOpenChange={setOfferingEditorOpen}
+              form={form}
+              disabled={isWorkflowProcessing}
+              initialFieldsLocked={initialFieldsLocked}
+              issues={submissionIssues}
+              focusRequest={validationFocusRequest}
+              showPrimaryCategoryRepair={showPrimaryCategoryRepair}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-1 min-h-0 min-w-0 flex-col items-stretch md:flex-row">
             <aside className="flex w-full min-w-0 shrink-0 flex-col justify-between border-b border-general-border/30 bg-white md:w-[200px] md:border-b-0 md:border-r">
               <nav
                 aria-label="Profile sections"
@@ -277,7 +288,7 @@ export function ProfileEditorTemplate({
                 {sections.map((s) => {
                   const isActive = s.id === activeSection;
                   const issueCount =
-                    mode === "minimal" || s.id === "document" || s.id === "knowledge"
+                    s.id === "document" || s.id === "knowledge"
                       ? 0
                       : sectionIssueCounts[s.id] ?? 0;
                   return (
@@ -319,24 +330,7 @@ export function ProfileEditorTemplate({
                 })}
               </nav>
             </aside>
-          )}
 
-          {mode === "minimal" ? (
-            activeSection !== "knowledge" && (
-              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-                <CombinedProfileForm
-                  extractionStatus={extractionStatus}
-                  onOfferingEditorOpenChange={setOfferingEditorOpen}
-                  form={form}
-                  disabled={isWorkflowProcessing}
-                  initialFieldsLocked={initialFieldsLocked}
-                  issues={submissionIssues}
-                  focusRequest={validationFocusRequest}
-                  showPrimaryCategoryRepair={showPrimaryCategoryRepair}
-                />
-              </div>
-            )
-          ) : (
             <fieldset
               hidden={activeSection === "knowledge"}
               disabled={isWorkflowProcessing && activeSection !== "document"}
@@ -1017,19 +1011,19 @@ export function ProfileEditorTemplate({
                 </div>
               ) : null}
             </fieldset>
-          )}
-          {knowledgeBusinessId && (
-            <div
-              hidden={activeSection !== "knowledge"}
-              className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
-            >
-              <ProfileKnowledge
-                businessId={knowledgeBusinessId}
-                active={activeSection === "knowledge"}
-              />
-            </div>
-          )}
-        </div>
+            {knowledgeBusinessId && (
+              <div
+                hidden={activeSection !== "knowledge"}
+                className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+              >
+                <ProfileKnowledge
+                  businessId={knowledgeBusinessId}
+                  active={activeSection === "knowledge"}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </ProfileEditingDisabledContext.Provider>
     </Card>
   );

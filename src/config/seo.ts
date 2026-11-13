@@ -10,6 +10,12 @@ export const siteMeta = {
   description:
     "Massic helps you manage business analytics, strategy, web, social, ads, and tasks in one workspace.",
   titleTemplate: "%s | Massic",
+  shareImage: {
+    url: "/massic-share-logo.png",
+    width: 960,
+    height: 960,
+    alt: "Massic logo",
+  },
 } as const;
 
 export const pageMeta = {

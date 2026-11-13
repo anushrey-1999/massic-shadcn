@@ -15,14 +15,8 @@ import { WebBlogView } from "@/components/organisms/web-page-actions/web-blog-vi
 import { WebOutlineView } from "@/components/organisms/web-page-actions/web-outline-view";
 import { WebBlogHtmlView, WebPageHtmlView } from "@/components/organisms/web-page-actions/web-page-html-view";
 import { WebPageMarkdownFallbackView } from "@/components/organisms/web-page-actions/web-page-markdown-fallback-view";
-
-function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
-  const pt = (pageType || "").toLowerCase();
-  if (pt === "blog") return "blog";
-  if (pt) return "page";
-  // Backward compatibility: old links used intent=informational for blog
-  return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
-}
+import { UnsupportedWebPageTypeState } from "@/components/organisms/web-page-actions/unsupported-web-page-type-state";
+import { getWebPageContentType } from "@/lib/web-page-types";
 
 function getFinalContent(type: WebActionType, data: any): string {
   if (type === "blog") {
@@ -32,13 +26,18 @@ function getFinalContent(type: WebActionType, data: any): string {
   return resolvePageContent(data);
 }
 
-export function WebPageView({ businessId, pageId }: { businessId: string; pageId: string }) {
+function SupportedWebPageView({
+  businessId,
+  pageId,
+  type,
+}: {
+  businessId: string;
+  pageId: string;
+  type: WebActionType;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pageType = searchParams.get("pageType");
-  const intent = searchParams.get("intent");
   const mode = searchParams.get("mode");
-  const type = getTypeFromPageType(pageType, intent);
 
   const contentQuery = useWebActionContentQuery({
     type,
@@ -64,7 +63,7 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
   }, [mode, hasFinal, searchParams, router]);
 
   if (mode === "outline" && !hasFinal) {
-    return <WebOutlineView businessId={businessId} pageId={pageId} />;
+    return <WebOutlineView businessId={businessId} pageId={pageId} type={type} />;
   }
 
   if (mode === "final" || hasFinal) {
@@ -72,13 +71,22 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
       if (hasFormattedPageHtml || pageContentFormat === "html") {
         return <WebPageHtmlView businessId={businessId} pageId={pageId} />;
       }
-      return <WebPageMarkdownFallbackView businessId={businessId} pageId={pageId} />;
+      return <WebPageMarkdownFallbackView businessId={businessId} pageId={pageId} type={type} />;
     }
     if (hasFormattedBlogHtml) {
       return <WebBlogHtmlView businessId={businessId} pageId={pageId} />;
     }
-    return <WebBlogView businessId={businessId} pageId={pageId} />;
+    return <WebBlogView businessId={businessId} pageId={pageId} type={type} />;
   }
 
-  return <WebOutlineView businessId={businessId} pageId={pageId} />;
+  return <WebOutlineView businessId={businessId} pageId={pageId} type={type} />;
+}
+
+export function WebPageView({ businessId, pageId }: { businessId: string; pageId: string }) {
+  const searchParams = useSearchParams();
+  const type = getWebPageContentType(searchParams.get("pageType"));
+
+  if (!type) return <UnsupportedWebPageTypeState />;
+
+  return <SupportedWebPageView businessId={businessId} pageId={pageId} type={type} />;
 }

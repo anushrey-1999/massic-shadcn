@@ -10,6 +10,7 @@ import type {
   WebPageItem,
   WebPageMetrics,
 } from "@/types/web-page-types";
+import { parseWebPageType } from "@/lib/web-page-types";
 
 export function useBlogPagePlan(businessId: string) {
   const platform: ApiPlatform = "python";
@@ -30,6 +31,7 @@ export function useBlogPagePlan(businessId: string) {
         ? item.supporting_keywords.length
         : 0,
       ...item,
+      page_type: parseWebPageType(item.page_type),
       offerings: item.offerings || [],
     }));
   }, []);

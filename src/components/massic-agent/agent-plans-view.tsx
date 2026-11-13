@@ -12,6 +12,7 @@ import { agentPlanHref } from "./agent-links";
 import { AgentPlanHeader } from "./agent-plan-header";
 import { AgentPlanTable } from "./agent-plan-table";
 import type { AgentPlan, ResourceType } from "./types";
+import { WebPlanActionCell } from "./web-plan-action-cell";
 
 type PlanTab = "webpages" | "social_channels";
 
@@ -128,7 +129,17 @@ export function AgentPlansView({ businessId, initialSurface = "webpages" }: {
     <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
       {detail.isLoading ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 size-4 animate-spin" />Loading plan…</div>
         : detail.isError ? <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"><p>{errorMessage(detail.error)}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => detail.refetch()}>Retry</Button></div>
-        : detail.data && matches(detail.data.plan_type, type) ? <AgentPlanTable plan={detail.data} type={type} showPlanHeader={false} onCreateNewPlan={createNewPlan} />
+        : detail.data && matches(detail.data.plan_type, type) ? (
+          <AgentPlanTable
+            plan={detail.data}
+            type={type}
+            showPlanHeader={false}
+            onCreateNewPlan={createNewPlan}
+            renderAction={type === "webpage_plan" && detail.data.status.toLowerCase() === "active"
+              ? item => <WebPlanActionCell businessId={businessId} item={item} />
+              : undefined}
+          />
+        )
         : <p role="alert" className="text-sm text-destructive">This plan does not match the selected strategy.</p>}
     </div>
   </section>;

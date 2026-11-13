@@ -278,7 +278,7 @@ export const AgentMessageView = memo(function AgentMessageView({
   );
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(content.replace(/\[ref:\d+\]/g, ""));
       if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
       setCopied(true);
       setCopyError(false);

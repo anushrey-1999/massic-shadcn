@@ -58,6 +58,7 @@ import {
 import { getProfileWorkflowActions } from "@/lib/profile-workflow-actions";
 import {
   hasActiveCoreOrGrowthPlan,
+  hasActiveGrowthPlan,
   hasBusinessPlanAccess,
   hasWhitelistAccess,
   resolveBusinessSubscription,
@@ -496,10 +497,12 @@ export default function ProfileTemplate({
   )
     .trim()
     .toLowerCase();
-  const currentPlan = !hasBusinessPlanAccess({
+  const planSubscription = {
     status: currentSubscription?.status,
     plan_type: planType,
-  })
+  };
+  const hasKnowledgeAccess = hasActiveGrowthPlan(planSubscription, isWhitelisted);
+  const currentPlan = !hasBusinessPlanAccess(planSubscription)
     ? "No Plan"
     : planType === "core"
       ? "Core"
@@ -602,6 +605,7 @@ export default function ProfileTemplate({
             form={form}
             mode={mode}
             readOnlyDetails={mapJobToReadOnlyDetails(jobDetails)}
+            knowledgeBusinessId={hasKnowledgeAccess ? businessId : undefined}
             referenceProfile={
               mode === "full" && hasBuiltProfile && jobDetails?.profile_id
                 ? {

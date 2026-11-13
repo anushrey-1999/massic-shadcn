@@ -81,7 +81,7 @@ export type CustomerAgentBusiness = {
 };
 
 /** Guided setup order; mirrors ONBOARDING_STEPS in seedseo's customerAgentSchema. */
-export const ONBOARDING_STEPS = ["intro", "knowledge", "appearance", "test", "install"] as const;
+export const ONBOARDING_STEPS = ["intro", "knowledge", "appearance", "leads", "test", "install"] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export type CustomerAgentConfig = {
@@ -100,6 +100,44 @@ export type CustomerAgentConfig = {
   credits: {
     allowance_usd: number;
   };
+  leads: {
+    /** Where new leads are emailed every 30 minutes; required to finish setup. */
+    notification_emails: string[];
+  };
+};
+
+/** Mirrors LEAD_NOTIFICATION_EMAILS_MAX in seedseo's customerAgentSchema. */
+export const LEAD_EMAILS_MAX = 10;
+
+export const leadEmailsSchema = z
+  .array(z.string().email("Use a valid email address."))
+  .min(1, "Add at least one email.")
+  .max(LEAD_EMAILS_MAX, `Use ${LEAD_EMAILS_MAX} emails or fewer.`);
+
+export const LEAD_STATUSES = ["new", "seen", "closed"] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+
+/** Mirrors LeadResponse in massic.services.infer. */
+export type VisitorLead = {
+  id: number;
+  business_id: string;
+  thread_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  preferred_time: string | null;
+  urgency: "normal" | "urgent";
+  status: LeadStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VisitorLeadList = {
+  items: VisitorLead[];
+  limit: number;
+  next_cursor: string | null;
+  has_more: boolean;
 };
 
 export type OnboardingUpdate = {

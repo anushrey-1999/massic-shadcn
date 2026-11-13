@@ -23,9 +23,15 @@ import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
+import { getWebPageContentType } from "@/lib/web-page-types";
+
+type WebPageActionRow = Pick<WebPageRow, "page_id" | "cluster_name" | "keyword" | "status"> & {
+  page_type: WebPageRow["page_type"] | "page";
+};
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
+  "stale",
   "update_required",
   "outline_only",
   "final_only",
@@ -33,7 +39,10 @@ const VIEW_ACTION_STATUSES = new Set([
   "processing",
 ]);
 
-function getRowAction(row: WebPageRow): { icon: typeof Sparkles; label: string } | { icon: typeof Eye; label: string } {
+function getRowAction(
+  row: WebPageActionRow,
+  type: WebActionType,
+): { icon: typeof Sparkles; label: string } | { icon: typeof Eye; label: string } {
   const status = (row.status || "").toString().toLowerCase();
   const shouldView = VIEW_ACTION_STATUSES.has(status);
 
@@ -41,17 +50,13 @@ function getRowAction(row: WebPageRow): { icon: typeof Sparkles; label: string }
     return { icon: Eye, label: "View" };
   }
 
-  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
-  const label = pageType === "blog" ? "Write" : "Build";
+  const label = type === "blog" ? "Write" : "Build";
   return { icon: Sparkles, label };
 }
 
-function getType(row: WebPageRow): WebActionType {
-  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
-  return pageType === "blog" ? "blog" : "page";
-}
-
-export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageRow }) {
+export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageActionRow }) {
+  const pageType = row.page_type;
+  const type = getWebPageContentType(pageType);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getContent, startFinal, startOutline } = useWebPageActions();
@@ -64,7 +69,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const [workingAction, setWorkingAction] = React.useState<null | "outline" | "final" | "view">(null);
   const [contentLoading, setContentLoading] = React.useState(false);
   const [content, setContent] = React.useState<WebActionResponse | null>(null);
-  const action = getRowAction(row);
+
+  if (!pageType || !type) return null;
+
+  const action = getRowAction(row, type);
 
   const pageId = row.page_id;
 
@@ -74,7 +82,6 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       return;
     }
 
-    const pageType = row.page_type ?? (row as any).pageType ?? "";
     const keyword = row.cluster_name || row.keyword || "";
 
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
@@ -110,8 +117,6 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       setContentLoading(false);
     }
   };
-
-  const type = getType(row);
 
   const statusFromRow = (row.status || "").toString().toLowerCase();
   const statusFromContent = (content?.status || "").toString().toLowerCase();

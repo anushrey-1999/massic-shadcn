@@ -78,6 +78,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { parseWebPageType, type WebPageType } from "@/lib/web-page-types";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
@@ -486,23 +487,22 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
 
 type HtmlContentType = "page" | "blog";
 
-const SANITY_PAGE_TYPE_ROUTE_PREFIXES: Record<string, string[]> = {
-  "use case": ["use-cases", "solutions", "resources", "pages", "guides"],
+const SANITY_PAGE_TYPE_ROUTE_PREFIXES: Record<Exclude<WebPageType, "editorial">, readonly string[]> = {
+  offering: ["services", "products", "solutions", "offerings", "pages"],
+  offering_collection: ["collections", "services", "products", "offerings", "pages"],
   audience: ["audiences", "for", "solutions", "who-we-help", "pages"],
-  alternative: ["alternatives", "compare", "comparisons", "versus", "pages"],
-  comparison: ["comparisons", "compare", "versus", "alternatives", "pages"],
-  local: ["locations", "areas", "service-areas", "local", "pages"],
-  "product/service page": ["services", "products", "solutions", "offerings", "pages"],
-  benefits: ["benefits", "features", "why", "solutions", "pages"],
-  "reviews section": ["reviews", "testimonials", "customers", "proof", "pages"],
-  "page section": ["sections", "resources", "content", "pages", "landing"],
-  brand: ["brand", "about", "company", "story", "pages"],
+  use_case_need: ["use-cases", "solutions", "resources", "pages", "guides"],
   pricing: ["pricing", "plans", "costs", "packages", "pages"],
-  careers: ["careers", "jobs", "opportunities", "join-us", "pages"],
+  alternative: ["alternatives", "compare", "comparisons", "versus", "pages"],
+  location: ["locations", "areas", "service-areas", "local", "pages"],
+  service_area: ["service-areas", "areas", "locations", "services", "pages"],
+  comparison: ["comparisons", "compare", "versus", "alternatives", "pages"],
+  brand: ["brand", "about", "company", "story", "pages"],
 };
 
-function getSanityPageTypeRoutePrefixes(pageType: string) {
-  return SANITY_PAGE_TYPE_ROUTE_PREFIXES[pageType.trim().toLowerCase()] || ["pages", "resources", "content", "guides", "landing"];
+function getSanityPageTypeRoutePrefixes(pageType: WebPageType | null): readonly string[] | null {
+  if (!pageType || pageType === "editorial") return null;
+  return SANITY_PAGE_TYPE_ROUTE_PREFIXES[pageType];
 }
 
 function getSanityPageRouteError(value: string) {
@@ -536,6 +536,7 @@ export function WebPageHtmlView({
   const searchParams = useSearchParams();
   const keyword = searchParams.get("keyword") || "";
   const pageType = searchParams.get("pageType") || "";
+  const canonicalPageType = parseWebPageType(pageType);
   const isBlogContent = contentType === "blog";
   const contentLabel = isBlogContent ? "Blog" : "Page";
   const contentLabelLower = contentLabel.toLowerCase();
@@ -906,9 +907,11 @@ export function WebPageHtmlView({
   );
   const generatedSanityPageRoute = React.useMemo(() => {
     if (!generatedSlug) return "";
+    const prefixes = getSanityPageTypeRoutePrefixes(canonicalPageType);
+    if (!prefixes) return "";
     const leaf = generatedSlug.split("/").filter(Boolean).pop() || generatedSlug;
-    return `${getSanityPageTypeRoutePrefixes(pageType)[0]}/${leaf}`;
-  }, [generatedSlug, pageType]);
+    return `${prefixes[0]}/${leaf}`;
+  }, [canonicalPageType, generatedSlug]);
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
     if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
@@ -1650,7 +1653,7 @@ export function WebPageHtmlView({
         workflowPayload: data || {},
         contentId: String(publishContentId),
         type: publishType,
-        pageType: publishType === "page" ? pageType : null,
+        pageType: publishType === "page" ? canonicalPageType : null,
         title: String(publishTitle),
         slug: normalizedSlugForPublish || null,
         contentMarkdown: isBlogContent
@@ -1715,7 +1718,7 @@ export function WebPageHtmlView({
       publishSeoTitle,
       publishTitle,
       publishType,
-      pageType,
+      canonicalPageType,
       normalizedSlugForPublish,
       businessId,
     ]
@@ -1752,7 +1755,7 @@ export function WebPageHtmlView({
           businessId: String(businessId),
           contentId: String(publishContentId),
           type: publishType,
-          pageType: publishType === "page" ? pageType : null,
+          pageType: publishType === "page" ? canonicalPageType : null,
           slug: normalizedSlugForPublish,
         });
         const result = response?.data || null;
@@ -1777,7 +1780,7 @@ export function WebPageHtmlView({
       sanityPageRouteValidationError,
       publishContentId,
       publishType,
-      pageType,
+      canonicalPageType,
       slugCheckMutateAsync,
       contentLabel,
     ]

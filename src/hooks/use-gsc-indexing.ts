@@ -1,7 +1,6 @@
 import {
   useQuery,
   useMutation,
-  useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
@@ -123,6 +122,7 @@ export interface IndexingMovementsResult {
 
 export interface IndexingStatusResult {
   status: "queued" | "in_progress" | "completed" | "failed" | "skipped" | null
+  monitoringEnabled: boolean
   lastRunAt: string | null
   totalTracked: number
   inspectedCount: number
@@ -173,7 +173,7 @@ export interface IndexingStatusResult {
   }
   discovery: null | {
     total: number; new: number; deactivated: number; sitemap: number; gsc: number
-    both: number; truncated: boolean; runAt: string
+    both: number; ga4: number; truncated: boolean; runAt: string
   }
 }
 
@@ -182,16 +182,6 @@ export interface IndexingPageDetailsResult {
   latest: Record<string, unknown> | null
   history: Array<Record<string, unknown>>
   movements: IndexingMovementRow[]
-}
-
-export interface IndexingRunResult {
-  success: boolean
-  message: string
-  mode?: "queued" | "inline"
-  alreadyRunning?: boolean
-  state?: string
-  retryAt?: string | null
-  blockReason?: string | null
 }
 
 interface ApiEnvelope<T> {
@@ -324,37 +314,15 @@ export function useIndexingStatus(
       return res.data
     },
     enabled,
-    // Poll while an ingestion run is active so the banner/progress stays fresh.
     refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === "queued" || status === "in_progress" ? 5000 : false
+      const result = query.state.data
+      if (result?.status === "queued" || result?.status === "in_progress") return 5000
+      return result?.nextScheduledRun ? 60_000 : false
     },
     staleTime: 60 * 1000,
   })
 
   return withConnectionGate(query, gate)
-}
-
-export function useTriggerIndexing(
-  businessUniqueId: string | null,
-  website: string | null
-) {
-  const queryClient = useQueryClient()
-  return useMutation<IndexingRunResult>({
-    mutationFn: async () => {
-      const res = await api.post<IndexingRunResult>(
-        "/analytics/gsc/indexing/run",
-        "node",
-        basePayload(businessUniqueId, website)
-      )
-      return res
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["indexing-status", businessUniqueId, website],
-      })
-    },
-  })
 }
 
 export function useIndexingPageDetails(

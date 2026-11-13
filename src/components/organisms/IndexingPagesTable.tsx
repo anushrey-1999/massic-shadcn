@@ -76,6 +76,20 @@ import { cn } from "@/lib/utils"
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
+const SOURCE_LABELS = new Map([
+  ["sitemap", "Sitemap"],
+  ["gsc", "GSC"],
+  ["ga4", "GA4"],
+  ["both", "Sitemap + GSC"],
+  ["sitemap+ga4", "Sitemap + GA4"],
+  ["gsc+ga4", "GSC + GA4"],
+  ["sitemap+gsc+ga4", "Sitemap + GSC + GA4"],
+])
+
+function sourceLabel(source: string | null | undefined) {
+  return source ? SOURCE_LABELS.get(source) || source : "Tracked URL"
+}
+
 const TABS: Array<{ value: IndexingTab; label: string }> = [
   { value: "all", label: "All" },
   { value: "indexed", label: "Indexed" },
@@ -456,7 +470,7 @@ function PagesTableBody({
                       {shortUrl(row.page_url)}
                     </a>
                     <div className="mt-0.5 truncate text-[11px] text-general-muted-foreground">
-                      {row.source || "Tracked URL"}
+                      {sourceLabel(row.source)}
                     </div>
                   </TableCell>
                   <TableCell className="px-3 py-2">
@@ -764,9 +778,11 @@ export function IndexingPagesTable({
                         <SelectTrigger size="sm" className="w-full bg-white text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Any source</SelectItem>
-                          <SelectItem value="sitemap">Sitemap only</SelectItem>
-                          <SelectItem value="gsc">GSC only</SelectItem>
-                          <SelectItem value="both">Sitemap + GSC</SelectItem>
+                          {Array.from(SOURCE_LABELS, ([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {["sitemap", "gsc", "ga4"].includes(value) ? `${label} only` : label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </CompactFilterRow>
@@ -976,7 +992,7 @@ export function IndexingPagesTable({
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="rounded capitalize">{selectedPage?.inspection_tier || "new"} tier</Badge>
                       <Badge variant="outline" className="rounded capitalize">{selectedPage?.freshness_state === "fresh" ? "On schedule" : selectedPage?.freshness_state || "pending"}</Badge>
-                      <Badge variant="outline" className="rounded capitalize">{selectedPage?.source || "tracked"}</Badge>
+                      <Badge variant="outline" className="rounded">{sourceLabel(selectedPage?.source)}</Badge>
                     </div>
                   </div>
                 </section>

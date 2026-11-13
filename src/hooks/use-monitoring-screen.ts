@@ -305,8 +305,9 @@ export interface MonitoringCardDetail {
     compared?: { start: string; end: string; label: string };
   };
   whatHappened?: string[];
+  related?: { lead: string; title: string; cardId: string } | null;
   where?: MonitoringWhereView[];
-  checks?: { rows: MonitoringCheckRow[]; footer: string };
+  checks?: { rows: MonitoringCheckRow[]; summary: string | null; footer: string };
   whatToCheck?: string[];
 }
 

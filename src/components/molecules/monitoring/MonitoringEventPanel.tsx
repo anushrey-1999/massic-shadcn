@@ -34,6 +34,7 @@ interface MonitoringEventPanelProps {
   range: MonitoringRange;
   website?: string | null;
   onClose: () => void;
+  onOpenCard: (cardId: string) => void;
 }
 
 function pageUrl(website: string | null | undefined, page: string): string | null {
@@ -184,15 +185,17 @@ function WhereSection({ views, website }: { views: MonitoringWhereView[]; websit
   );
 }
 
-/** Checks that found something first, then the ones that ruled a cause out. */
-function WhySection({ rows }: { rows: MonitoringCheckRow[] }) {
+/** Only checks that found something; when none did, one "We checked: ..." paragraph instead. */
+function WhySection({ rows, summary }: { rows: MonitoringCheckRow[]; summary: string | null }) {
   const found = rows.filter((row) => row.result === "yes");
-  const ruledOut = rows.filter((row) => row.result === "no");
-  if (!found.length && !ruledOut.length) return null;
+  if (!found.length && !summary) return null;
 
   return (
     <PanelSection label="Why it may have happened">
       <div className="flex flex-col">
+        {!found.length && summary ? (
+          <p className="text-xs leading-[1.5] tracking-[0.18px] text-general-foreground">{summary}</p>
+        ) : null}
         {found.map((row, index) => (
           <div key={`${row.key}-${index}`} className="flex flex-col gap-0.5 py-1.5">
             <p className="text-xs leading-[1.5] font-medium tracking-[0.18px] text-general-foreground">
@@ -204,16 +207,6 @@ function WhySection({ rows }: { rows: MonitoringCheckRow[] }) {
             {row.partialLine ? (
               <p className="text-xs leading-[1.5] tracking-[0.18px] text-general-muted-foreground">{row.partialLine}</p>
             ) : null}
-          </div>
-        ))}
-        {ruledOut.map((row, index) => (
-          <div key={`${row.key}-${index}`} className="flex items-start gap-2.5 py-1.5">
-            <span className="flex h-[18px] w-4 shrink-0 items-center justify-center">
-              <span className="size-1.5 rounded-full bg-general-muted-foreground/60" />
-            </span>
-            <p className="text-xs leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
-              {row.name} {row.text}
-            </p>
           </div>
         ))}
       </div>
@@ -239,7 +232,14 @@ function WhatToCheck({ items }: { items: string[] }) {
   );
 }
 
-export function MonitoringEventPanel({ businessId, cardId, range, website, onClose }: MonitoringEventPanelProps) {
+export function MonitoringEventPanel({
+  businessId,
+  cardId,
+  range,
+  website,
+  onClose,
+  onOpenCard,
+}: MonitoringEventPanelProps) {
   const query = useMonitoringCard(businessId, cardId, range);
   const detail = query.data ?? null;
   const header = detail?.header;
@@ -310,13 +310,27 @@ export function MonitoringEventPanel({ businessId, cardId, range, website, onClo
                 <PanelSection label="What happened">
                   <p className="text-xs leading-[1.5] tracking-[0.18px] text-general-foreground">
                     {detail.whatHappened.join(" ")}
+                    {detail.related ? (
+                      <>
+                        {" "}
+                        {detail.related.lead}{" "}
+                        <button
+                          type="button"
+                          onClick={() => onOpenCard(detail.related!.cardId)}
+                          className="font-medium underline underline-offset-2 hover:text-general-muted-foreground"
+                        >
+                          {detail.related.title}
+                        </button>
+                        .
+                      </>
+                    ) : null}
                   </p>
                 </PanelSection>
               ) : null}
               {detail.where?.length ? (
                 <WhereSection key={detail.card.id} views={detail.where} website={website} />
               ) : null}
-              {detail.checks ? <WhySection rows={detail.checks.rows} /> : null}
+              {detail.checks ? <WhySection rows={detail.checks.rows} summary={detail.checks.summary} /> : null}
               {detail.whatToCheck ? <WhatToCheck items={detail.whatToCheck} /> : null}
             </div>
           ) : null}

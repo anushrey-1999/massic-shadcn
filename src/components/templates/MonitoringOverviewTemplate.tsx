@@ -196,6 +196,7 @@ export function MonitoringOverviewTemplate({
         range={range}
         website={website}
         onClose={closeCard}
+        onOpenCard={openCard}
       />
       <MonitoringMetricPanel
         businessId={businessId}

@@ -13,21 +13,10 @@ import {
   YAxis,
 } from "recharts"
 import { toast } from "sonner"
-import { AlertTriangle, ArrowRight, CheckCircle2, Download, Loader2, RefreshCw } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, Download, Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { IndexingPagesTable } from "@/components/organisms/IndexingPagesTable"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import {
   TableBody,
   TableCell,
@@ -62,7 +51,6 @@ import {
   useIndexingMovements,
   useIndexingStatus,
   useIndexingSummary,
-  useTriggerIndexing,
   useExportIndexing,
   type IndexingPagesParams,
   type IndexingSeriesPoint,
@@ -110,60 +98,6 @@ export function StatCard({
       ) : null}
     </div>
   )
-}
-
-export function getIndexingActionState({
-  ingestionActive,
-  mutationPending,
-  quotaRemaining,
-  quotaState,
-  blockedUntil,
-  dueCount,
-  hasRunBefore,
-}: {
-  ingestionActive: boolean
-  mutationPending: boolean
-  quotaRemaining?: number
-  quotaState?: "available" | "paused" | "daily_exhausted" | "rate_limited" | "live_disabled"
-  blockedUntil?: string | null
-  dueCount?: number
-  hasRunBefore: boolean
-}) {
-  if (ingestionActive || mutationPending) {
-    return { disabled: true, label: "Indexing...", title: "An indexing run is already in progress" }
-  }
-  if (quotaState === "live_disabled") {
-    return {
-      disabled: true,
-      label: "Live checks off in QA",
-      title: "QA live checks are limited to dedicated test properties",
-    }
-  }
-  if (quotaState === "paused" || quotaState === "rate_limited") {
-    return {
-      disabled: true,
-      label: "Google checks paused",
-      title: blockedUntil
-        ? `Checks can resume after ${formatDateTime(blockedUntil)}`
-        : "Google temporarily limited inspections for this property",
-    }
-  }
-  if (quotaState === "daily_exhausted") {
-    return {
-      disabled: true,
-      label: "Daily quota unavailable",
-      title: blockedUntil
-        ? `Google property checks can resume after ${formatDateTime(blockedUntil)}`
-        : "Google's daily property quota is unavailable",
-    }
-  }
-  if (quotaRemaining !== undefined && quotaRemaining <= 0) {
-    return { disabled: true, label: "Daily quota used", title: "Today’s 2,000-request property quota is used; monitoring resumes tomorrow" }
-  }
-  if (hasRunBefore && dueCount !== undefined && dueCount <= 0) {
-    return { disabled: true, label: "Everything is on schedule", title: "No URL is due; scheduled surveillance continues automatically" }
-  }
-  return { disabled: false, label: hasRunBefore ? "Check due URLs" : "Start monitoring", title: undefined }
 }
 
 function SectionCard({
@@ -257,9 +191,7 @@ export function IndexingTemplate() {
   })
 
   const queryClient = useQueryClient()
-  const triggerIndexing = useTriggerIndexing(businessId, website)
   const exportIndexing = useExportIndexing(businessId, website)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [chartMode, setChartMode] = useState<"status" | "activity">("status")
   const [issueFilter, setIssueFilter] = useState<string | null>(null)
   const pagesSectionRef = useRef<HTMLDivElement>(null)
@@ -284,31 +216,35 @@ export function IndexingTemplate() {
   const ingestionActive =
     status?.status === "queued" || status?.status === "in_progress"
 
-  // When a run finishes (active -> not active), the freshly ingested data won't
-  // be reflected by the cached summary/pages/movements queries. Refetch them so
-  // the page fills in without a manual refresh.
-  const wasIngestionActive = useRef(ingestionActive)
+  const runStatus = status?.status
+  const lastRunAt = status?.lastRunAt
+  const monitoringPaused = status?.monitoringEnabled === false
+  const previousRun = useRef({ businessId, ingestionActive, lastRunAt })
   useEffect(() => {
-    if (wasIngestionActive.current && !ingestionActive) {
+    const previous = previousRun.current
+    previousRun.current = { businessId, ingestionActive, lastRunAt }
+    if (previous.businessId !== businessId || ingestionActive) return
+
+    const completedSinceLastPoll =
+      runStatus === "completed" && previous.lastRunAt !== undefined && lastRunAt !== previous.lastRunAt
+    if (previous.ingestionActive || completedSinceLastPoll) {
       queryClient.invalidateQueries({ queryKey: ["indexing-summary"] })
       queryClient.invalidateQueries({ queryKey: ["indexing-pages"] })
       queryClient.invalidateQueries({ queryKey: ["indexing-movements"] })
-      if (status?.status === "completed") {
+      if (runStatus === "completed") {
         toast.success("Indexing complete. Updated index data is ready.")
       }
     }
-    wasIngestionActive.current = ingestionActive
-  }, [ingestionActive, status?.status, queryClient])
-  const hasRunBefore = Boolean(status?.lastRunAt)
-  const actionState = getIndexingActionState({
-    ingestionActive,
-    mutationPending: triggerIndexing.isPending,
-    quotaRemaining: status?.quotaRemaining,
-    quotaState: status?.quota?.state,
-    blockedUntil: status?.quota?.blockedUntil,
-    dueCount: status?.dueCount,
-    hasRunBefore,
-  })
+  }, [businessId, ingestionActive, lastRunAt, runStatus, queryClient])
+
+  let monitoringNotice: string | null = null
+  if (statusQuery.isConnectionBlocked) {
+    monitoringNotice = "Connect Google Search Console to start daily monitoring."
+  } else if (monitoringPaused) {
+    monitoringNotice = "Scheduled indexing is paused for this business."
+  } else if (!ingestionActive && !lastRunAt && status?.nextScheduledRun && status.quota.state === "available") {
+    monitoringNotice = `The first check is scheduled for ${formatDateTime(status.nextScheduledRun)}.`
+  }
 
   const handleExport = () => {
     exportIndexing.mutate(
@@ -318,29 +254,6 @@ export function IndexingTemplate() {
         onError: () => toast.error("Could not export indexing data."),
       }
     )
-  }
-
-  const handleStartIndexing = () => {
-    triggerIndexing.mutate(undefined, {
-      onSuccess: (res) => {
-        setConfirmOpen(false)
-        if (res?.alreadyRunning) {
-          toast.info("An indexing run is already in progress.")
-        } else {
-          toast.success(
-            res?.message || "Indexing started. Progress will update below."
-          )
-        }
-        statusQuery.refetch()
-      },
-      onError: (error) => {
-        setConfirmOpen(false)
-        const message =
-          (error as { response?: { data?: { error?: string } } })?.response
-            ?.data?.error || "Failed to start indexing. Please try again."
-        toast.error(message)
-      },
-    })
   }
 
   const chartConfig = useMemo<ChartConfig>(() => {
@@ -385,8 +298,8 @@ export function IndexingTemplate() {
         <div className="flex w-full max-w-[1224px] flex-col gap-3 px-4 py-4 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-lg font-semibold text-foreground">Indexing</h1>
-            <p className="text-xs text-general-muted-foreground">
-              Latest known Google index status, monitored incrementally each day.
+            <p className="text-xs text-general-muted-foreground" role="status">
+              {monitoringNotice || "Latest known Google index status, monitored incrementally each day."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -412,56 +325,6 @@ export function IndexingTemplate() {
               {exportIndexing.isPending ? "Exporting" : "Export CSV"}
             </Button>
 
-            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-              <AlertDialogTrigger asChild>
-                <Button
-                  className="h-9"
-                  disabled={actionState.disabled}
-                  title={actionState.title}
-                >
-                  {ingestionActive || triggerIndexing.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {actionState.label}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {hasRunBefore
-                      ? "Check due URLs now?"
-                      : "Start monitoring this site?"}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    We&apos;ll inspect the highest-priority URLs that are due and
-                    update their latest known Google status. Large sites rotate
-                    through URLs over multiple days within the property quota.
-                    {status
-                      ? ` ${formatNumber(status.quotaRemaining)} of ${formatNumber(status.quotaLimit)} property requests remain today.`
-                      : ""}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={triggerIndexing.isPending}>
-                    Cancel
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={(event) => {
-                      event.preventDefault()
-                      handleStartIndexing()
-                    }}
-                    disabled={triggerIndexing.isPending}
-                  >
-                    {triggerIndexing.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    Check due URLs
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           </div>
         </div>
       </div>
@@ -556,7 +419,10 @@ export function IndexingTemplate() {
               <AlertTriangle className="mt-0.5 h-4 w-4 text-general-muted-foreground" />
               <div>
                 <p className="text-sm font-medium text-foreground">The latest check did not finish</p>
-                <p className="mt-1 text-xs text-general-muted-foreground">Your last known index data is still available. Retry when the connection is ready.</p>
+                <p className="mt-1 text-xs text-general-muted-foreground">
+                  Your last known index data is still available.
+                  {!monitoringPaused && " Eligible URLs will be checked on a future scheduled run."}
+                </p>
               </div>
             </div>
           ) : null}
@@ -566,16 +432,19 @@ export function IndexingTemplate() {
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    {status.coverage.baselineComplete ? <CheckCircle2 className="h-4 w-4" /> : <Loader2 className="h-4 w-4" />}
+                    {status.coverage.baselineComplete ? <CheckCircle2 className="h-4 w-4" /> : null}
                     {status.coverage.baselineComplete
                       ? "Full baseline coverage"
-                      : `Building baseline · ${status.coverage.percent}% covered`}
+                      : `Baseline coverage · ${status.coverage.percent}% covered`}
                   </div>
                   <p className="mt-1 text-xs text-general-muted-foreground">
                     {formatNumber(status.coverage.known)} of {formatNumber(status.coverage.tracked)} URLs have a known Google status
                     {status.coverage.pending
-                      ? ` · ${formatNumber(status.coverage.pending)} waiting for a first check · about ${status.backlog.estimatedRuns} remaining run${status.backlog.estimatedRuns === 1 ? "" : "s"}`
+                      ? ` · ${formatNumber(status.coverage.pending)} waiting for a first check`
                       : ` · ${formatNumber(status.freshness.overdue)} overdue`}.
+                    {!monitoringPaused && status.coverage.pending > 0
+                      ? ` About ${status.backlog.estimatedRuns} remaining run${status.backlog.estimatedRuns === 1 ? "" : "s"}.`
+                      : null}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-3 xl:min-w-[700px] xl:grid-cols-5">
@@ -591,7 +460,7 @@ export function IndexingTemplate() {
                     {status.surveillance ? <p className="mt-0.5 text-[11px] text-general-muted-foreground">unique pages · ~{status.surveillance.estimatedFullCycleDays}-day full cycle</p> : null}
                   </div>
                   <div><p className="text-general-muted-foreground">Quota today</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.quota.attempted)} / {formatNumber(status.quota.limit)}</p>{status.quota.remaining <= 0 ? <p className="mt-0.5 text-[11px] text-general-muted-foreground">Resets {formatDateTime(status.quota.resetAt)}</p> : null}</div>
-                  <div><p className="text-general-muted-foreground">Next scheduled run</p><p className="mt-1 font-medium text-foreground">{formatDateTime(status.nextScheduledRun)}</p></div>
+                  <div><p className="text-general-muted-foreground">Next scheduled run</p><p className="mt-1 font-medium text-foreground">{monitoringPaused ? "Paused" : formatDateTime(status.nextScheduledRun)}</p></div>
                 </div>
               </div>
               {!status.coverage.baselineComplete ? (

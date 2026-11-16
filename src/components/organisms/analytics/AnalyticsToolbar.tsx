@@ -36,10 +36,12 @@ interface AnalyticsToolbarProps {
   onViewReports: () => void;
   onCampaignTracking: () => void;
   onIndexing: () => void;
+  onSmartSitemap: () => void;
   onContentGroups: () => void;
   primaryDriversDisabled?: boolean;
   reportsDisabled?: boolean;
   indexingDisabled?: boolean;
+  smartSitemapDisabled?: boolean;
   contentGroupsDisabled?: boolean;
 
   keywordScope: AnalyticsKeywordScope;
@@ -73,10 +75,12 @@ export function AnalyticsToolbar({
   onViewReports,
   onCampaignTracking,
   onIndexing,
+  onSmartSitemap,
   onContentGroups,
   primaryDriversDisabled = false,
   reportsDisabled = false,
   indexingDisabled = false,
+  smartSitemapDisabled = false,
   contentGroupsDisabled = false,
   keywordScope,
   onKeywordScopeChange,
@@ -172,9 +176,11 @@ export function AnalyticsToolbar({
             onViewReports={onViewReports}
             onCampaignTracking={onCampaignTracking}
             onIndexing={onIndexing}
+            onSmartSitemap={onSmartSitemap}
             onContentGroups={onContentGroups}
             reportsDisabled={reportsDisabled || isIngestionActive}
             indexingDisabled={indexingDisabled}
+            smartSitemapDisabled={smartSitemapDisabled}
             contentGroupsDisabled={contentGroupsDisabled}
           />
         </div>

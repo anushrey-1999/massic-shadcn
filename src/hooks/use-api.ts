@@ -157,6 +157,9 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
       return response;
     },
     (error: AxiosError) => {
+      if (axios.isCancel(error)) {
+        return Promise.reject(error);
+      }
       if (error.response) {
         const url = error.config?.url || "";
         const status = error.response.status;

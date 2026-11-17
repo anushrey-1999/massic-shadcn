@@ -51,9 +51,12 @@ export function useBusinessCreation({
   connection,
   initialProgress,
   onProgress,
+  includeCategories = false,
 }: {
   isPitch: boolean;
   locationOptions: LocationOption[];
+  /** Save user-chosen categories with the business and its job. */
+  includeCategories?: boolean;
   connection?: BusinessConnection;
   initialProgress?: CreationProgress;
   onProgress?: (progress: CreationProgress) => void;
@@ -165,12 +168,15 @@ export function useBusinessCreation({
           values.website,
           values.primaryLocation,
           values.serviceAreaType,
+          ...(includeCategories ? [values.primaryCategory] : []),
         ]);
         if (
           !progress.current.profileSaved ||
           progress.current.savedIdentity !== identity
         ) {
-          const payload = selectCombinedBusinessPayload(nodePayload);
+          const payload = selectCombinedBusinessPayload(nodePayload, {
+            includePrimaryCategory: includeCategories,
+          });
           // Main's GSC identity is the raw selected property, not the normalized Infer URL.
           if (connection) delete payload.Website;
           await updateCreatedBusinessProfileSafely(business.UniqueId, payload, {
@@ -188,6 +194,7 @@ export function useBusinessCreation({
           values,
           locationOptions,
           preserveExistingFields: true,
+          includeCategories,
         });
         checkpoint({ jobCreated: true });
 
@@ -205,6 +212,7 @@ export function useBusinessCreation({
     [
       createBusiness,
       createJob,
+      includeCategories,
       isPitch,
       locationOptions,
       connection,

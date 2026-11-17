@@ -2,7 +2,7 @@ import { useMemo } from "react"
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import type { BusinessProfile } from "@/store/business-store"
-import { hasGbpLink } from "@/lib/business-locations"
+import { gbpLocations } from "@/lib/business-locations"
 
 /**
  * Google integrations a business can have linked. Every Google-backed analytics
@@ -42,13 +42,8 @@ const DISCONNECTED: BusinessConnectionsState = {
 }
 
 /**
- * Mirrors the Node API's `buildConnectionFlagsFromBusinessProfile`
- * (controllers/gsc/businessPreviewsDb.controller.js) so the client and server
- * agree on what "connected" means.
- *
- * GBP additionally requires a linked Google account here: the server-side flag
- * only tracks onboarding progress, whereas this one decides whether an API call
- * can possibly succeed.
+ * Analytics eligibility comes from the saved credential for each source.
+ * Declaring that a business has no GBP locations completes onboarding only.
  */
 export function deriveBusinessConnections(
   profile: BusinessProfile | null | undefined
@@ -56,12 +51,14 @@ export function deriveBusinessConnections(
   const linkedAuthId = String(profile?.LinkedAuthId || "").trim()
   const propertyId = String(profile?.PropertyId || "").trim()
   const hasGoogleAuth = Boolean(linkedAuthId)
-  const hasLocations = profile?.NoLocationExist === true || hasGbpLink(profile?.Locations)
+  const hasGscConnection =
+    hasGoogleAuth && profile?.GscIngestionStatus !== "disconnected"
+  const hasGbpAccount = gbpLocations(profile?.Locations).some(location => Boolean(location.AuthId))
 
   return {
-    isGscConnected: hasGoogleAuth,
-    isGa4Connected: hasGoogleAuth && Boolean(propertyId),
-    isGbpConnected: hasGoogleAuth && hasLocations,
+    isGscConnected: hasGscConnection,
+    isGa4Connected: Boolean(profile?.Ga4AuthId && propertyId),
+    isGbpConnected: hasGbpAccount,
   }
 }
 

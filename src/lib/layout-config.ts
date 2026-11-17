@@ -5,6 +5,7 @@
 export const routesWithoutSidebar: string[] = [
   '/login',
   '/signup',
+  '/signin-google',
   '/team-signup',
   '/wordpress/connect',
   '/snapshot',

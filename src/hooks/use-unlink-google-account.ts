@@ -78,9 +78,11 @@ export function useUnlinkGoogleAccount() {
         // Best-effort: UI will still refresh other queries.
       }
 
-      // Refresh UI data
-      queryClient.invalidateQueries({ queryKey: ["businessProfiles"] });
-      queryClient.invalidateQueries({ queryKey: ["linkedBusinesses"] });
+      // Resolve the mutation only after active connection/profile views refresh.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["businessProfiles"] }),
+        queryClient.invalidateQueries({ queryKey: ["linkedBusinesses"] }),
+      ]);
     },
   });
 }

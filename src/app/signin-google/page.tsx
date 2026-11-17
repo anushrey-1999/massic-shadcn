@@ -10,6 +10,16 @@ import { toast } from "sonner";
 
 type CallbackStatus = "loading" | "success" | "error";
 
+function getSafeReturnPath(state: string | null) {
+  if (!state) return "/settings";
+  try {
+    const parsed = JSON.parse(window.atob(state)) as { returnTo?: string };
+    return parsed.returnTo?.startsWith("/") ? parsed.returnTo : "/settings";
+  } catch {
+    return "/settings";
+  }
+}
+
 interface StoreAuthPayload {
   UserUniqueId: string;
   AuthCode: string;
@@ -42,6 +52,7 @@ function GoogleCallbackContent() {
       if (processingRef.current || status === "success" || status === "error") return;
 
       const code = searchParams.get("code");
+      const returnTo = getSafeReturnPath(searchParams.get("state"));
 
       if (!code) {
         setStatus("error");
@@ -109,8 +120,8 @@ function GoogleCallbackContent() {
         toast.success("Google account connected successfully!");
 
         setTimeout(() => {
-          router.push("/settings");
-        }, 1500);
+          router.replace(returnTo);
+        }, 800);
 
       } catch (error: any) {
         console.error("Error in Google callback:", error);
@@ -150,7 +161,7 @@ function GoogleCallbackContent() {
             Connection Successful!
           </h1>
           <p className="text-muted-foreground text-sm">
-            Redirecting you back to settings...
+            Taking you back...
           </p>
         </>
       )}
@@ -165,10 +176,12 @@ function GoogleCallbackContent() {
             {errorMessage}
           </p>
           <button
-            onClick={() => router.push("/settings")}
+            onClick={() =>
+              router.replace(getSafeReturnPath(searchParams.get("state")))
+            }
             className="text-primary underline text-sm hover:no-underline"
           >
-            Return to Settings
+            Go back
           </button>
         </>
       )}

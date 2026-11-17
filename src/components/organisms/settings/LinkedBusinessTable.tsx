@@ -10,7 +10,6 @@ import { DataTableColumnHeader } from "@/components/filter-table/data-table-colu
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { flexRender } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
-import TextWithPill from "@/components/molecules/TextWithPill";
 import {
   TableElement,
   TableHeader,
@@ -19,19 +18,6 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -46,12 +32,10 @@ import {
   AlertCircle,
   Building2,
   Loader2,
-  ChevronDown,
   Crown,
   Eye,
   Link2,
   UserRoundCheck,
-  X,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -67,6 +51,7 @@ import {
   CustomSelect,
   type CustomSelectOption,
 } from "@/components/molecules/settings/CustomSelect";
+import { Ga4SearchableSelect } from "@/components/molecules/settings/Ga4SearchableSelect";
 import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import {
@@ -153,136 +138,37 @@ const removeScDomainPrefix = (url: string) => {
   return url.replace(/^sc-domain:/, "");
 };
 
-interface Ga4SearchableSelectProps {
-  options: GA4Property[];
-  selectedPropertyId?: string;
-  selectedGa4?: GA4Property | null;
-  onChange: (propertyId: string | null) => void;
-  disabled?: boolean;
-}
-
-function Ga4SearchableSelect({
-  options,
-  selectedPropertyId,
-  selectedGa4,
-  onChange,
-  disabled = false,
-}: Ga4SearchableSelectProps) {
-  const [open, setOpen] = useState(false);
-  const showClearButton = !!selectedGa4 && !disabled;
-
-  useEffect(() => {
-    if (disabled) setOpen(false);
-  }, [disabled]);
-
-  return (
-    <Popover
-      open={!disabled && open}
-      onOpenChange={(nextOpen) => {
-        if (!disabled) setOpen(nextOpen);
-      }}
-    >
-      <PopoverTrigger asChild>
-	        <Button
-	          variant="outline"
-	          role="combobox"
-	          aria-expanded={open}
-	          disabled={disabled}
-	          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal disabled:cursor-not-allowed"
-	        >
-          {selectedGa4 ? (
-            <div className="flex items-center justify-between w-full gap-1 overflow-hidden">
-              <TextWithPill
-                displayName={selectedGa4.displayName || selectedGa4.propertyDisplayName || ""}
-                propertyId={selectedGa4.propertyId}
-                accountName={selectedGa4.accountName}
-                accountId={selectedGa4.accountId}
-              />
-              <div className="flex items-center gap-1 shrink-0">
-                {showClearButton && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (disabled) return;
-                      onChange(null);
-                      setOpen(false);
-                    }}
-                  >
-                    <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                  </span>
-                )}
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between w-full">
-              <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-            </div>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search GA4 property..." />
-          <CommandList className="max-h-[320px]">
-            <CommandEmpty>No GA4 properties found.</CommandEmpty>
-            <CommandGroup>
-              {options.map((ga4) => {
-                const isSelected = selectedPropertyId === ga4.propertyId;
-                const searchValue = [
-                  ga4.displayName,
-                  ga4.propertyDisplayName,
-                  ga4.propertyId,
-                  ga4.accountName,
-                  ga4.accountId,
-                ].filter(Boolean).join(" ");
-
-                return (
-                  <CommandItem
-                    key={ga4.propertyId}
-                    value={searchValue}
-                    className="cursor-pointer"
-                    onSelect={() => {
-                      if (disabled) return;
-                      onChange(ga4.propertyId);
-                      setOpen(false);
-                    }}
-                  >
-                    <div className="flex w-full items-center justify-between gap-2 py-1.5">
-                      <TextWithPill
-                        displayName={ga4.displayName || ga4.propertyDisplayName || ""}
-                        propertyId={ga4.propertyId}
-                        accountName={ga4.accountName}
-                        accountId={ga4.accountId}
-                      />
-                      {isSelected && <Check className="h-4 w-4 shrink-0" />}
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 interface GbpCellApi {
   allGBP: GBPLocation[];
   localBusinesses: LinkedBusiness[];
   totalGbps: number;
   isReadOnly: boolean;
   onGbpChange: (siteUrl: string, selectedLocationIds: string[]) => void;
+}
+
+function connectionChanges(row: LinkedBusiness) {
+  const profile = row.businessProfile;
+  if (!profile?.Id) return { ga4: false, gbp: false };
+
+  const savedProperty = row.linkedPropertyId;
+  const savedPropertyId = String(savedProperty?.PropertyId || savedProperty?.propertyId || "");
+  const selectedProperty = row.ga4Cleared ? undefined : row.selectedGa4;
+  const ga4 = (selectedProperty?.propertyId ?? "") !== savedPropertyId ||
+    Boolean(savedPropertyId && selectedProperty && selectedProperty.authId !== savedProperty?.authId);
+
+  if (row.noLocation || profile.NoLocationExist) {
+    return { ga4, gbp: Boolean(row.noLocation) !== Boolean(profile.NoLocationExist) };
+  }
+  const saved = new Map(gbpLocations(profile.Locations).map(location => [
+    normalizeGbpLocationId(location.Name), location.AuthId ?? undefined,
+  ]));
+  const selected = row.selectedGbp ?? [];
+  return {
+    ga4,
+    gbp: saved.size !== selected.length ||
+      selected.some(location => !saved.has(getGbpSelectionKey(location)) ||
+        saved.get(getGbpSelectionKey(location)) !== location.authId),
+  };
 }
 
 const GbpCellContext = React.createContext<GbpCellApi | null>(null);
@@ -461,46 +347,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const businessKey = localBusiness.siteUrl || localBusiness.id;
           if (!businessKey) return;
 
-          // Check if this business has unsaved GA4 changes
-          const hasGa4Changes = (() => {
-            const originalGa4Id =
-              localBusiness.linkedPropertyId?.PropertyId ||
-              localBusiness.linkedPropertyId?.propertyId;
-
-            if (localBusiness.ga4Cleared && originalGa4Id) return true;
-            if (localBusiness.selectedGa4 && originalGa4Id) {
-              return localBusiness.selectedGa4.propertyId !== originalGa4Id;
-            }
-            if (localBusiness.selectedGa4 && !originalGa4Id) return true;
-            return false;
-          })();
-
-          // Check if this business has unsaved GBP changes
-          const hasGbpChanges = (() => {
-            if (!localBusiness.businessProfile?.Id) return false;
-
-            const backendNoLocationExist = localBusiness.businessProfile?.NoLocationExist === true;
-            const currentNoLocation = localBusiness.noLocation === true;
-
-            if (backendNoLocationExist !== currentNoLocation) return true;
-            if (currentNoLocation && backendNoLocationExist) return false;
-
-            const selectedGbpLocations = (localBusiness.selectedGbp || [])
-              .filter((gbp: any) => !gbp.isNoLocationOption)
-              .map((gbp: any) => gbp.location);
-            const businessLocations = gbpLocations(
-              localBusiness.businessProfile?.Locations
-            ).map((location) => location.Name);
-
-            if (selectedGbpLocations.length !== businessLocations.length) return true;
-
-            const selectedSet = new Set(selectedGbpLocations);
-            for (const loc of businessLocations) {
-              if (!selectedSet.has(loc)) return true;
-            }
-
-            return false;
-          })();
+          const { ga4: hasGa4Changes, gbp: hasGbpChanges } = connectionChanges(localBusiness);
 
           // If this business has unsaved changes, store it
           if (hasGa4Changes || hasGbpChanges) {
@@ -514,14 +361,18 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const localChanges = businessKey ? localChangesMap.get(businessKey) : undefined;
 
           if (localChanges) {
-            // Preserve the local changes (selectedGa4, selectedGbp, noLocation, ga4Cleared, gbpCleared)
+            const changes = connectionChanges(localChanges);
             return {
               ...apiBusiness,
-              selectedGa4: localChanges.selectedGa4,
-              selectedGbp: localChanges.selectedGbp,
-              noLocation: localChanges.noLocation,
-              ga4Cleared: localChanges.ga4Cleared,
-              gbpCleared: localChanges.gbpCleared,
+              ...(changes.ga4 ? {
+                selectedGa4: localChanges.selectedGa4,
+                ga4Cleared: localChanges.ga4Cleared,
+              } : {}),
+              ...(changes.gbp ? {
+                selectedGbp: localChanges.selectedGbp,
+                noLocation: localChanges.noLocation,
+                gbpCleared: localChanges.gbpCleared,
+              } : {}),
             };
           }
 
@@ -561,45 +412,18 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     );
   };
 
-  const handleGa4Change = (siteUrl: string, propertyId: string | null) => {
+  const handleGa4Change = (siteUrl: string, selectedGa4: GA4Property | null) => {
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
     }
     if (!canEditConnectedBusinessForSite(siteUrl)) return;
-    setLocalBusinesses((prev) =>
-      prev.map((b) => {
-        if (b.siteUrl === siteUrl) {
-          if (propertyId === null) {
-            // Clear selection and set flag to indicate explicit clear
-            return {
-              ...b,
-              selectedGa4: undefined,
-              ga4Cleared: true,
-              ga4PagePathScope: undefined,
-            };
-          }
-          const linkedGa4PropertyId =
-            b.linkedPropertyId?.PropertyId || b.linkedPropertyId?.propertyId;
-          const selectedGa4 =
-            b.matchedGa4Multiple?.find((ga4) => ga4.propertyId === propertyId) ||
-            (b.matchedGa4?.propertyId === propertyId ? b.matchedGa4 : undefined) ||
-            unmatchedGa4.find((ga4) => ga4.propertyId === propertyId) ||
-            allGA4.find((ga4) => ga4.propertyId === propertyId) ||
-            (linkedGa4PropertyId === propertyId
-              ? {
-                displayName: b.linkedPropertyId!.displayName,
-                propertyId: String(linkedGa4PropertyId),
-                accountName: b.linkedPropertyId!.accountName,
-                accountId: b.linkedPropertyId!.accountId,
-              }
-              : undefined);
-          // When selecting, clear the ga4Cleared flag
-          return { ...b, selectedGa4, ga4Cleared: false };
-        }
-        return b;
-      })
-    );
+    setLocalBusinesses(prev => prev.map(business => business.siteUrl === siteUrl ? {
+      ...business,
+      selectedGa4: selectedGa4 ?? undefined,
+      ga4Cleared: !selectedGa4,
+      ga4PagePathScope: selectedGa4 ? business.ga4PagePathScope : undefined,
+    } : business));
   };
 
   const handleInitialGa4ScopeChange = (siteUrl: string, value: string) => {
@@ -730,7 +554,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       row.businessProfile?.IsActive !== true &&
       !hasRequiredGscAccess(row.permissionLevel)
     ) return;
-    await linkPropertyMutation.mutateAsync({ business: row });
+    await linkPropertyMutation.mutateAsync({
+      business: { ...row, authId: "" },
+      changes: connectionChanges(row),
+    });
   };
 
   const handleToggleLink = async (row: LinkedBusiness) => {
@@ -1088,7 +915,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={selectedGa4 || null}
-                onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                onChange={value => handleGa4Change(
+                  rowData.siteUrl || "",
+                  ga4Options.find(option => option.propertyId === value) ?? null,
+                )}
                 disabled={isReadOnly || isGscAccessInsufficient}
               />
             );
@@ -1104,25 +934,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               rowData.linkedPropertyId?.propertyId ||
               (rowData.linkedPropertyId as any)?.GoogleAnalyticsPropertyId;
 
-            const findGa4ByPropertyId = (propertyId: string | null | undefined): GA4Property | undefined => {
-              if (!propertyId) return undefined;
-              const normalized = String(propertyId);
-              if (rowData.matchedGa4?.propertyId === normalized) return rowData.matchedGa4;
-              const fromMultiple = (rowData.matchedGa4Multiple || []).find((g) => String(g.propertyId) === normalized);
-              if (fromMultiple) return fromMultiple;
-              return allGA4.find((g) => String(g.propertyId) === normalized) ||
-                unmatchedGa4.find((g) => String(g.propertyId) === normalized);
-            };
-
             const optionMap = new Map<string, GA4Property>();
             if (linkedGa4PropertyId && rowData.linkedPropertyId) {
-              const enriched = findGa4ByPropertyId(String(linkedGa4PropertyId));
-              optionMap.set(String(linkedGa4PropertyId), {
-                displayName: enriched?.displayName || rowData.linkedPropertyId.displayName,
-                propertyId: String(linkedGa4PropertyId),
-                accountName: enriched?.accountName || rowData.linkedPropertyId.accountName,
-                accountId: enriched?.accountId || rowData.linkedPropertyId.accountId,
-              });
+              const propertyId = String(linkedGa4PropertyId);
+              optionMap.set(propertyId, { ...rowData.linkedPropertyId, propertyId });
             }
             if (rowData.matchedGa4 && !unavailableGa4Ids.has(rowData.matchedGa4.propertyId)) {
               optionMap.set(rowData.matchedGa4.propertyId, rowData.matchedGa4);
@@ -1145,6 +960,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               }
             });
 
+            if (linkedGa4PropertyId && rowData.linkedPropertyId) {
+              const propertyId = String(linkedGa4PropertyId);
+              optionMap.set(propertyId, { ...rowData.linkedPropertyId, propertyId });
+            }
             const ga4Options = Array.from(optionMap.values());
 
             // For already-linked businesses without a saved linkedPropertyId, do not prefill from matched suggestions.
@@ -1168,7 +987,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={displayGa4}
-                onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                onChange={value => handleGa4Change(
+                  rowData.siteUrl || "",
+                  ga4Options.find(option => option.propertyId === value) ?? null,
+                )}
                 disabled={isReadOnly || isGscAccessInsufficient}
               />
             );
@@ -1202,65 +1024,8 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const hasGsc = !!rowData.siteUrl || !!rowData.displayName;
           const hasRequiredAccess = hasRequiredGscAccess(rowData.permissionLevel);
 
-          // Check if GA4 has been edited (user selected a different GA4 than what's saved)
-          const checkGa4Edited = () => {
-            if (!hasBusinessProfile) return false;
-
-            // Determine the original GA4 property ID (only from saved linkedPropertyId)
-            // matchedGa4 is a suggestion, not a saved linkage.
-            const originalGa4Id =
-              rowData.linkedPropertyId?.PropertyId ||
-              rowData.linkedPropertyId?.propertyId;
-
-            // If GA4 was cleared and there was an original, it's a change
-            if (rowData.ga4Cleared && originalGa4Id) {
-              return true;
-            }
-
-            // If there's a selectedGa4, compare with original
-            if (rowData.selectedGa4 && originalGa4Id) {
-              return rowData.selectedGa4.propertyId !== originalGa4Id;
-            }
-
-            // If there's a selectedGa4 but no original, it means user selected one for the first time
-            if (rowData.selectedGa4 && !originalGa4Id) {
-              return true;
-            }
-            return false;
-          };
-
-          // Check if GBP has been edited (compare current selection with backend locations)
-          const checkGbpEdited = () => {
-            if (!hasBusinessProfile) return false;
-
-            // Check NoLocationExist status change
-            const backendNoLocationExist =
-              rowData.businessProfile?.NoLocationExist === true;
-            const currentNoLocation = rowData.noLocation === true;
-
-            if (backendNoLocationExist !== currentNoLocation) return true;
-
-            // If both are "no location", no changes
-            if (currentNoLocation && backendNoLocationExist) return false;
-
-            // Compare selected GBP locations with backend locations
-            const selectedGbpLocations = (rowData.selectedGbp || [])
-              .filter((gbp: any) => !gbp.isNoLocationOption)
-              .map((gbp: any) => gbp.location);
-            const businessLocations = gbpLocations(
-              rowData.businessProfile?.Locations
-            ).map((location) => location.Name);
-            if (selectedGbpLocations.length !== businessLocations.length)
-              return true;
-
-            const selectedSet = new Set(selectedGbpLocations);
-            for (const loc of businessLocations) {
-              if (!selectedSet.has(loc)) return true;
-            }
-
-            return false;
-          };
-          const hasChanges = checkGa4Edited() || checkGbpEdited();
+          const changes = connectionChanges(rowData);
+          const hasChanges = changes.ga4 || changes.gbp;
 
           if (
             !isReadOnly &&

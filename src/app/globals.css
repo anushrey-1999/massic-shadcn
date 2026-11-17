@@ -34,6 +34,19 @@
   animation: floatUpDown 2s ease-in-out infinite;
 }
 
+@keyframes progressIndeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-progress-indeterminate {
+  animation: progressIndeterminate 1.4s ease-in-out infinite;
+}
+
 @keyframes adminPageEnter {
   from {
     opacity: 0;

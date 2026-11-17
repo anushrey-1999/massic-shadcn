@@ -20,6 +20,7 @@ export interface CustomSelectOption {
 
 interface CustomSelectProps {
   options: CustomSelectOption[];
+  ariaLabel?: string;
   value: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
@@ -29,11 +30,13 @@ interface CustomSelectProps {
   maxWidth?: string;
   disabled?: boolean;
   loading?: boolean;
+  modal?: boolean;
   renderSelected?: (option: CustomSelectOption, onRemove: () => void) => React.ReactNode;
 }
 
 export function CustomSelect({
   options,
+  ariaLabel,
   value,
   onChange,
   placeholder = "Select options",
@@ -43,6 +46,7 @@ export function CustomSelect({
   maxWidth = "300px",
   disabled = false,
   loading = false,
+  modal = false,
   renderSelected,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
@@ -113,8 +117,9 @@ export function CustomSelect({
       {!disabled ? (
         <span
           onClick={(e) => handleRemove(option.value, e)}
-          className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0"
+          className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-general-foreground"
           role="button"
+          aria-label={`Remove ${option.label}`}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -139,12 +144,13 @@ export function CustomSelect({
           if (!nextOpen) setSearchValue("");
         }
       }}
-      modal={false}
+      modal={modal}
     >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           type="button"
+          aria-label={ariaLabel}
           disabled={disabled}
           className={`min-h-10 h-auto w-full justify-start px-2 py-1.5 disabled:cursor-not-allowed disabled:border-general-border disabled:bg-general-secondary disabled:text-general-foreground disabled:opacity-100 disabled:shadow-none ${className}`}
           style={maxWidth === "100%" ? undefined : { maxWidth }}
@@ -168,12 +174,12 @@ export function CustomSelect({
                 )}
               </>
             ) : (
-              <span className="text-xs font-normal text-general-muted-foreground/70">{placeholder}</span>
+              <span className="text-xs font-normal text-general-muted-foreground">{placeholder}</span>
             )}
             {loading ? (
-              <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin opacity-50" />
+              <Loader2 className="ml-auto h-4 w-4 shrink-0 motion-safe:animate-spin text-general-muted-foreground" />
             ) : (
-              <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-general-muted-foreground" />
             )}
           </div>
         </Button>
@@ -181,7 +187,7 @@ export function CustomSelect({
       <PopoverContent
         className="z-[100] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] overflow-hidden bg-white p-0"
         align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={event => { if (!modal) event.preventDefault(); }}
       >
         <Command shouldFilter={false} className="overflow-hidden">
           <CommandInput

@@ -22,6 +22,7 @@ export function CombinedProfileForm({
   extractionStatus,
   onOfferingEditorOpenChange,
   showPrimaryCategoryRepair = false,
+  showCategories = false,
 }: {
   form: any;
   disabled?: boolean;
@@ -32,6 +33,8 @@ export function CombinedProfileForm({
   extractionStatus?: OfferingExtractionStatus;
   onOfferingEditorOpenChange?: (open: boolean) => void;
   showPrimaryCategoryRepair?: boolean;
+  /** Edit primary, secondary and tagged categories as part of Identity. */
+  showCategories?: boolean;
 }) {
   const issuesRef = useRef(issues);
   const summaryIssues = getProfileSummaryIssues(issues);
@@ -71,8 +74,16 @@ export function CombinedProfileForm({
             deriveName={deriveName}
             className="md:grid-cols-2"
           />
+          {showCategories ? (
+            <ProfileCategoryFields
+              form={form}
+              disabled={disabled}
+              showCustomerTypes={false}
+              className="grid gap-4 md:grid-cols-2"
+            />
+          ) : null}
         </section>
-        {showPrimaryCategoryRepair ? (
+        {showPrimaryCategoryRepair && !showCategories ? (
           <section className="space-y-4">
             <h2 className="border-b border-general-border pb-3 text-base font-medium">
               Classification

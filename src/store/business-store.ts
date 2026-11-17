@@ -51,12 +51,13 @@ export interface BusinessProfile {
   LinkedAuthId?: string | null;
   /** GA4 property resolved from the PropertyIds table by Website. Empty string when GA4 is not linked. */
   PropertyId?: string | null;
+  Ga4AuthId?: string | null;
   /** Set by the profile flow when the business explicitly has no physical locations. */
   NoLocationExist?: boolean;
   IsActive?: boolean;
   IsPitch?: boolean;
   isWhitelisted?: boolean;
-  GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | 'disconnected' | null;
   Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   IndexingStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   IndexingLastRunAt?: string | null;

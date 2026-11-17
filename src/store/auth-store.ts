@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import Cookies from "js-cookie";
 import { decodeJwt } from "@/utils/jwt";
+import { useSignupStore } from "@/store/signup-store";
 
 const TOKEN_KEY = "token";
 const USER_KEY = "user";
@@ -61,6 +62,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
   logout: () => {
     Cookies.remove(TOKEN_KEY, { path: "/" });
     Cookies.remove(USER_KEY, { path: "/" });
+    // Onboarding progress belongs to the signed-in user, not the browser.
+    useSignupStore.getState().reset();
     set({
       token: null,
       user: null,

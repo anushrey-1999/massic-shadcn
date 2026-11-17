@@ -33,8 +33,8 @@ interface AnalyticsToolbarProps {
   filterChips?: ReactNode;
 
   onPrimaryDrivers: () => void;
-  onViewReports: () => void;
-  onCampaignTracking: () => void;
+  onViewReports?: () => void;
+  onCampaignTracking?: () => void;
   onIndexing: () => void;
   onSmartSitemap: () => void;
   onContentGroups: () => void;

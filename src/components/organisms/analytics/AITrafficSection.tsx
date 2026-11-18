@@ -530,6 +530,7 @@ export function AITrafficSection({
             {!pageScope && data.current.ai.sessions === 0 && (
               <Alert className="flex items-center gap-2">
                 <Info className="size-4 shrink-0 text-general-muted-foreground" />
+
                 <AlertDescription>
                   No AI Assistant sessions reported for this period.
                 </AlertDescription>

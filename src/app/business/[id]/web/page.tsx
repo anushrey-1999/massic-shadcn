@@ -12,8 +12,6 @@ import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanne
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
-import { useQueryClient } from '@tanstack/react-query'
-import { useUnifiedWebOptimization } from '@/hooks/use-unified-web-optimization'
 import { cn } from '@/lib/utils'
 import { parseAsString, parseAsStringEnum, useQueryStates } from 'nuqs'
 import { Typography } from '@/components/ui/typography'
@@ -92,22 +90,6 @@ export default function BusinessWebPage({ params }: PageProps) {
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
   }, [params])
-
-  // Prefetch unified pages in background so data is ready when the user switches to All Pages
-  const queryClient = useQueryClient()
-  const { fetchUnifiedPages } = useUnifiedWebOptimization()
-  React.useEffect(() => {
-    if (!businessId) return
-    const queryKey = ['unified-web-optimization', businessId]
-    const existing = queryClient.getQueryState(queryKey)
-    // Skip prefetch if we already know data doesn't exist (NO_SNAPSHOT 404)
-    if ((existing?.error as any)?.code === 'NO_SNAPSHOT') return
-    queryClient.prefetchQuery({
-      queryKey,
-      queryFn: () => fetchUnifiedPages(businessId),
-      staleTime: 1000 * 60,
-    })
-  }, [businessId, queryClient, fetchUnifiedPages])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)

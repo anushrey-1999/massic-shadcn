@@ -135,10 +135,12 @@ function CopyArchitectureHtml(props: RendererProps) {
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" className="ms-2" onClick={() => void copyHtml()} disabled={copying}>
-        <Copy aria-hidden />
-        {copying ? "Copying…" : "Copy HTML"}
-      </Button>
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={() => void copyHtml()} disabled={copying}>
+          <Copy aria-hidden />
+          {copying ? "Copying…" : "Copy HTML"}
+        </Button>
+      </div>
       {renderExport && createPortal(
         <div aria-hidden className="invisible pointer-events-none fixed top-0 -left-[10000px] w-[56rem]">
           <ArchitectureExportMode.Provider value>

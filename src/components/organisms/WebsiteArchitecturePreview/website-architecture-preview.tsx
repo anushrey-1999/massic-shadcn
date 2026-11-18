@@ -39,8 +39,8 @@ export function WebsiteArchitecturePreview({ businessId, pageId }: { businessId:
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="w-full max-w-4xl space-y-5">
-          <Button asChild variant="outline" size="sm" className="transition-colors focus-visible:ring-2 focus-visible:ring-foreground active:opacity-80 motion-reduce:transition-none">
-            <Link href={backHref}><ArrowLeft aria-hidden />Back to Web Architecture</Link>
+          <Button asChild variant="ghost" className="gap-2">
+            <Link href={backHref}><ArrowLeft aria-hidden className="h-4 w-4" />Back</Link>
           </Button>
           <EntitlementsGuard
             entitlement="web"

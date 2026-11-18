@@ -11,23 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDataTable } from "@/hooks/use-data-table";
+import { ARCHITECTURE_QUERY_KEYS } from "@/lib/website-architecture-navigation";
 import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
 import { getWebsiteArchitectureColumns } from "./website-architecture-table-columns";
-
-export const ARCHITECTURE_QUERY_KEYS = {
-  page: "architecturePage",
-  perPage: "architecturePerPage",
-  search: "architectureSearch",
-  sort: "architectureSort",
-  filters: "architectureFilters",
-  joinOperator: "architectureJoinOperator",
-};
 
 interface WebsiteArchitectureTableProps {
   data: WebsiteArchitecturePage[];
   pageCount: number;
   isLoading: boolean;
-  isFetching: boolean;
   search: string;
   onSearchChange: (value: string) => void;
   quickTypeFilter: string;
@@ -37,7 +28,7 @@ interface WebsiteArchitectureTableProps {
 }
 
 export function WebsiteArchitectureTable({
-  data, pageCount, isLoading, isFetching, search, onSearchChange,
+  data, pageCount, isLoading, search, onSearchChange,
   quickTypeFilter, onQuickTypeFilterChange,
   canDownload, onDownload,
 }: WebsiteArchitectureTableProps) {
@@ -51,6 +42,7 @@ export function WebsiteArchitectureTable({
     enableAdvancedFilter: true,
     initialState: {
       pagination: { pageIndex: 0, pageSize: 100 },
+      columnPinning: { right: ["actions"] },
       columnVisibility: {
         name: false, keyword: false, page_subtype: false, current_url: false,
         parent_page_id: false, page_id: false, business_applicability: false,
@@ -66,8 +58,10 @@ export function WebsiteArchitectureTable({
     <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-background p-4 flex flex-col overflow-hidden">
       <DataTable
         table={table}
+        fitToWidth
         isLoading={isLoading}
-        isFetching={isFetching}
+        loadingRowCount={6}
+        aria-busy={isLoading}
         pageSizeOptions={[10, 30, 50, 100, 200]}
         showPagination={!isLoading && pageCount > 0}
         emptyMessage="No web pages found. Try adjusting your search or filters."

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { isAxiosError } from "axios";
-import { useApi } from "./use-api";
+import { getBaseURLByPlatform, useApi } from "./use-api";
 import type {
   GetWebsiteArchitectureParams,
   WebsiteArchitectureExport,
@@ -11,6 +11,9 @@ import type {
 } from "@/types/website-architecture-types";
 
 const READ_PAGE_SIZE = 1000;
+
+// QA also uses Infer v1 for older features. Website Architecture only has v2 routes.
+export const websiteArchitectureApiBase = getBaseURLByPlatform("python").replace(/\/v1\/?$/, "/v2");
 
 export function useWebsiteArchitecture() {
   const { execute } = useApi<WebsiteArchitectureResponse>({ platform: "python" });
@@ -42,7 +45,9 @@ export function useWebsiteArchitecture() {
         pageQuery.set("page_size", String(pageSize));
         if (activeFilters.length) pageQuery.set("filters", JSON.stringify(activeFilters));
 
-        const response = await execute(`/strategies/website-architecture?${pageQuery}`, { method: "GET", signal });
+        const response = await execute(`/strategies/website-architecture?${pageQuery}`, {
+          method: "GET", baseURL: websiteArchitectureApiBase, signal,
+        });
         const status = response.status.toLowerCase();
         if (["error", "failed", "failure"].includes(status)) {
           throw new Error("Website architecture could not be loaded.");
@@ -112,7 +117,7 @@ export function useWebsiteArchitecture() {
     async (businessId: string, signal?: AbortSignal): Promise<WebsiteArchitectureExport> => {
       const baseQuery = new URLSearchParams({ business_id: businessId, summary: "true" });
       const read = (path: string, query: URLSearchParams) =>
-        execute(`${path}?${query}`, { method: "GET", signal });
+        execute(`${path}?${query}`, { method: "GET", baseURL: websiteArchitectureApiBase, signal });
 
       const readPages = async (): Promise<WebsiteArchitectureResponse> => {
         const firstQuery = new URLSearchParams(baseQuery);

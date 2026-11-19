@@ -21,11 +21,14 @@ export function useProfileValidation(
   values: BusinessInfoFormData,
   storedPrimaryCategory: string | undefined,
   sectionMode: "minimal" | "full",
+  /** Minimal mode also edits categories, so validate the classification section. */
+  { includeClassification = false }: { includeClassification?: boolean } = {},
 ) {
   const client = useQueryClient();
   const catalogRequired =
     Boolean(values.primaryCategory || storedPrimaryCategory) ||
-    sectionMode === "full";
+    sectionMode === "full" ||
+    includeClassification;
   const catalog = useIndustries(catalogRequired);
   const specialtiesRequired =
     sectionMode === "full" &&
@@ -65,7 +68,9 @@ export function useProfileValidation(
           "identity",
           "offerings",
           "competitors",
-          ...(repairPrimaryCategory ? ["classification" as const] : []),
+          ...(repairPrimaryCategory || includeClassification
+            ? ["classification" as const]
+            : []),
         ];
   const options = { sectionMode, visibleSections, industries: catalog.data };
   const catalogIssues = validatePrimaryCategory(

@@ -268,7 +268,7 @@ export function useSetPassword() {
 
 export interface SignupCredentials {
   email: string;
-  password: string;
+  password?: string;
   firstName: string;
   lastName: string;
   orgName: string;

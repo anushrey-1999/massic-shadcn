@@ -20,6 +20,7 @@ import { fetchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { normalizeDomainForFavicon } from "@/utils/utils";
 import {
   businessConnectionPayload,
+  type ConnectionChanges,
   connectionFromLinkedBusiness,
   toGbpLocationPayload as mapGbpSelection,
 } from "@/lib/business-connections";
@@ -34,6 +35,8 @@ export interface GA4Property {
   propertyId: string;
   accountName: string;
   accountId: string;
+  authId?: string;
+  emailId?: string | null;
 }
 
 export interface GBPLocation {
@@ -43,6 +46,8 @@ export interface GBPLocation {
   account?: string;
   websiteUri?: string;
   label?: string;
+  authId?: string;
+  emailId?: string | null;
 }
 
 export interface BusinessProfile {
@@ -53,6 +58,16 @@ export interface BusinessProfile {
   Locations?: BusinessLocation[];
   Name?: string;
   Website?: string;
+  LinkedAuthId?: string | null;
+  Ga4AuthId?: string | null;
+  GscIngestionStatus?:
+    | "queued"
+    | "in_progress"
+    | "completed"
+    | "failed"
+    | "skipped"
+    | "disconnected"
+    | null;
 }
 
 export interface LinkedBusiness {
@@ -75,13 +90,22 @@ export interface LinkedBusiness {
   ga4Cleared?: boolean;
   ga4PagePathScope?: string | null;
   gbpCleared?: boolean;
+  gscCleared?: boolean;
+}
+
+export interface GoogleAccountOption {
+  authId: string;
+  emailId: string | null;
+  profilePictureUrl?: string | null;
 }
 
 export interface FetchBusinessesResponse {
   businesses: LinkedBusiness[];
   allGBP: GBPLocation[];
+  allGSC?: LinkedBusiness[];
   allGA4: GA4Property[];
   unmatchedGa4: GA4Property[];
+  googleAccounts?: GoogleAccountOption[];
 }
 
 /** GBP location entries as persisted in `BusinessProfile.Locations`. */
@@ -91,6 +115,7 @@ interface GbpLocationPayload {
   Url: string;
   Name: string;
   AccountName: string;
+  AuthId?: string;
 }
 
 /**
@@ -116,10 +141,11 @@ interface CreateBusinessPayload {
     website: string;
     displayName: string;
     locationType: string;
-    propertyId: string;
+    propertyId?: string;
+    ga4AuthId?: string;
     ga4PagePathScope?: string | null;
-    locations: GbpLocationPayload[];
-    NoLocationExist: boolean;
+    locations?: GbpLocationPayload[];
+    NoLocationExist?: boolean;
     category: string;
     brandVoice: string;
     productsServices: any[];
@@ -135,10 +161,13 @@ interface CreateBusinessPayload {
 interface LinkPropertyPayload {
   websiteUri: string;
   businessUniqueId?: string;
+  linkedAuthId?: string;
+  gscCleared?: boolean;
   propertyId?: string;
+  ga4AuthId?: string;
   ga4PagePathScope?: string | null;
-  locations: GbpLocationPayload[];
-  NoLocationExist: boolean;
+  locations?: GbpLocationPayload[];
+  NoLocationExist?: boolean;
 }
 
 interface BusinessStatusPayload {
@@ -163,6 +192,7 @@ interface CreateAgencyBusinessVariables {
   businesses: LinkedBusiness[];
   mergeExisting?: boolean;
   mergeTargetUniqueId?: string;
+  changes?: ConnectionChanges;
   suppressDuplicateToast?: boolean;
   suppressErrorToast?: boolean;
   suppressSuccessToast?: boolean;
@@ -195,14 +225,10 @@ export function useFetchBusinesses() {
 
       const data = response.data || { businesses: [], allGBP: [], allGA4: [], unmatchedGa4: [] };
 
-      const findGa4ByPropertyId = (propertyId: string | null | undefined, business: LinkedBusiness): GA4Property | undefined => {
-        if (!propertyId) return undefined;
-        const normalized = String(propertyId);
-        if (business.matchedGa4?.propertyId === normalized) return business.matchedGa4;
-        const fromMultiple = business.matchedGa4Multiple?.find((g) => String(g.propertyId) === normalized);
-        if (fromMultiple) return fromMultiple;
-        return (data.unmatchedGa4 || []).find((g) => String(g.propertyId) === normalized);
-      };
+      const accountEmails = new Map(data.googleAccounts?.map(account => [account.authId, account.emailId]));
+      const liveGa4ByAccount = new Map((data.allGA4 ?? []).map(property => [
+        `${property.authId}:${property.propertyId}`, property,
+      ]));
 
       // Saved links are authoritative. A fuzzy suggestion must not claim a GBP
       // location that is already persisted on a connected business.
@@ -219,7 +245,8 @@ export function useFetchBusinesses() {
         const selectedGbp = getSelectedGbp(
           business,
           data.allGBP || [],
-          persistedGbpLocationIds
+          persistedGbpLocationIds,
+          accountEmails,
         );
         const noLocation = business.businessProfile?.NoLocationExist === true;
 
@@ -231,19 +258,22 @@ export function useFetchBusinesses() {
           | string
           | undefined;
 
-        const linkedGa4Details = hasSavedLinkedProperty
-          ? findGa4ByPropertyId(linkedPropertyIdRaw, business)
+        const savedGa4AuthId = business.businessProfile?.Ga4AuthId ?? business.linkedPropertyId?.authId;
+        const linkedGa4Details = savedGa4AuthId
+          ? liveGa4ByAccount.get(`${savedGa4AuthId}:${linkedPropertyIdRaw}`)
           : undefined;
 
         // Only prefill GA4 when there is a saved linked property.
         // If the business is already linked but linkedPropertyId is null, do not prefill from matched suggestions.
-        const selectedGa4 = business.selectedGa4 ||
+        const selectedGa4 =
           (hasSavedLinkedProperty ? {
-            displayName: linkedGa4Details?.displayName || business.linkedPropertyId!.displayName,
+            authId: savedGa4AuthId ?? undefined,
+            emailId: savedGa4AuthId ? accountEmails.get(savedGa4AuthId) : undefined,
+            displayName: linkedGa4Details?.displayName || business.linkedPropertyId!.displayName || String(linkedPropertyIdRaw ?? ""),
             propertyId: String(linkedGa4Details?.propertyId || linkedPropertyIdRaw || business.linkedPropertyId!.PropertyId || business.linkedPropertyId!.propertyId),
-            accountName: linkedGa4Details?.accountName || business.linkedPropertyId!.accountName,
-            accountId: linkedGa4Details?.accountId || business.linkedPropertyId!.accountId,
-          } : (!isAlreadyLinked ? (business.matchedGa4 || business.matchedGa4Multiple?.[0]) : undefined));
+            accountName: linkedGa4Details?.accountName || business.linkedPropertyId!.accountName || "",
+            accountId: linkedGa4Details?.accountId || business.linkedPropertyId!.accountId || "",
+          } : (!isAlreadyLinked ? (business.selectedGa4 || business.matchedGa4 || business.matchedGa4Multiple?.[0]) : undefined));
 
         return { ...business, selectedGbp, noLocation, selectedGa4 };
       });
@@ -268,7 +298,8 @@ function getGbpKey(gbp: Pick<GBPLocation, "locationId" | "location">): string {
 function getSelectedGbp(
   business: LinkedBusiness,
   allGBP: GBPLocation[],
-  persistedGbpLocationIds: ReadonlySet<string>
+  persistedGbpLocationIds: ReadonlySet<string>,
+  accountEmails: ReadonlyMap<string, string | null>,
 ): GBPLocation[] {
   const { businessProfile, matchedGbp } = business;
 
@@ -282,19 +313,22 @@ function getSelectedGbp(
     }
 
     const liveLocationsById = new Map(
-      allGBP.map((gbp) => [getGbpKey(gbp), gbp])
+      allGBP.map((gbp) => [`${gbp.authId}:${getGbpKey(gbp)}`, gbp])
     );
 
     return gbpLocations(businessProfile.Locations).map((savedLocation) => {
       const locationId = gbpLocationId(savedLocation);
-      const liveLocation = liveLocationsById.get(locationId);
+      const authId = savedLocation.AuthId ?? undefined;
+      const liveLocation = authId ? liveLocationsById.get(`${authId}:${locationId}`) : undefined;
       const title =
         liveLocation?.title || savedLocation.DisplayName?.trim() || locationId;
       const resolvedLocation: GBPLocation = {
         title,
         locationId,
-        location: liveLocation?.location || savedLocation.Name,
-        account: liveLocation?.account || savedLocation.AccountName || undefined,
+        authId,
+        emailId: authId ? accountEmails.get(authId) : undefined,
+        location: savedLocation.Name,
+        account: savedLocation.AccountName || liveLocation?.account || undefined,
         websiteUri: liveLocation?.websiteUri || savedLocation.Url || undefined,
       };
 
@@ -334,6 +368,7 @@ export function useCreateAgencyBusiness() {
       businesses,
       mergeExisting = false,
       mergeTargetUniqueId,
+      changes,
     }: CreateAgencyBusinessVariables) => {
       if (!userUniqueId) {
         throw new Error("User not authenticated");
@@ -341,7 +376,7 @@ export function useCreateAgencyBusiness() {
 
       const validBusinesses = businesses.filter((b) => {
         const hasGsc = b.siteUrl || b.displayName;
-        return !b.linkedPropertyId && hasGsc;
+        return (mergeExisting || !b.linkedPropertyId) && hasGsc;
       });
 
       if (validBusinesses.length === 0) {
@@ -365,23 +400,28 @@ export function useCreateAgencyBusiness() {
           accountUniqueId: authId,
           mergeExisting,
           mergeTargetUniqueId,
-          businesses: businessList.map((b) => ({
-            name: b.title || "",
-            description: "",
-            website: b.siteUrl || "",
-            displayName: b.title || "",
-            locationType: "global",
-            ...businessConnectionPayload(connectionFromLinkedBusiness(b)),
-            category: "",
-            brandVoice: "",
-            productsServices: [],
-            customerPersonas: null,
-            sellingPoints: null,
-            businessObjective: "",
-            competitors: null,
-            uniqueId: "",
-            userUniqueId,
-          })),
+          businesses: businessList.map((b) => {
+            const { propertyId, ga4AuthId, ga4PagePathScope, locations, NoLocationExist } =
+              businessConnectionPayload(connectionFromLinkedBusiness(b));
+            return {
+              name: b.title || "",
+              description: "",
+              website: b.siteUrl || "",
+              displayName: b.title || "",
+              locationType: "global",
+              ...(changes?.ga4 === false ? {} : { propertyId, ga4AuthId, ga4PagePathScope }),
+              ...(changes?.gbp === false ? {} : { locations, NoLocationExist }),
+              category: "",
+              brandVoice: "",
+              productsServices: [],
+              customerPersonas: null,
+              sellingPoints: null,
+              businessObjective: "",
+              competitors: null,
+              uniqueId: "",
+              userUniqueId,
+            };
+          }),
         };
 
         try {
@@ -479,24 +519,40 @@ export function useCreateAgencyBusiness() {
 export function useLinkPropertyId() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { business: LinkedBusiness }>({
-    mutationFn: async ({ business }) => {
+  return useMutation<
+    void,
+    Error,
+    {
+      business: LinkedBusiness;
+      changes?: ConnectionChanges;
+      suppressSuccessToast?: boolean;
+      suppressErrorToast?: boolean;
+    }
+  >({
+    mutationFn: async ({ business, changes }) => {
       const selectedGa4 = business.selectedGa4;
 
       const payload: LinkPropertyPayload = {
         websiteUri: business.siteUrl,
         businessUniqueId: business.businessProfile?.UniqueId,
-        locations: toGbpLocationPayload(business),
-        NoLocationExist: business.noLocation || false,
+        ...(business.authId ? { linkedAuthId: business.authId } : {}),
+        ...(business.gscCleared === true ? { gscCleared: true } : {}),
+        ...(changes?.gbp === false ? {} : {
+          locations: toGbpLocationPayload(business),
+          NoLocationExist: business.noLocation || false,
+        }),
       };
 
       // Only send GA4 when explicitly changed.
-      if (business.ga4Cleared === true) {
-        payload.propertyId = "";
-      } else if (selectedGa4?.propertyId) {
-        payload.propertyId = selectedGa4.propertyId;
-        if (!business.linkedPropertyId && business.ga4PagePathScope !== undefined) {
-          payload.ga4PagePathScope = business.ga4PagePathScope;
+      if (changes?.ga4 !== false) {
+        if (business.ga4Cleared === true) {
+          payload.propertyId = "";
+        } else if (selectedGa4?.propertyId) {
+          payload.propertyId = selectedGa4.propertyId;
+          payload.ga4AuthId = selectedGa4.authId;
+          if (!business.linkedPropertyId && business.ga4PagePathScope !== undefined) {
+            payload.ga4PagePathScope = business.ga4PagePathScope;
+          }
         }
       }
 
@@ -510,12 +566,15 @@ export function useLinkPropertyId() {
         throw new Error(apiErrorMessage({ response: { data: response } }, "Failed to link property"));
       }
     },
-    onSuccess: () => {
-      toast.success("Changes saved successfully");
+    onSuccess: (_, variables) => {
+      if (!variables.suppressSuccessToast) {
+        toast.success("Changes saved successfully");
+      }
       queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });
       queryClient.invalidateQueries({ queryKey: ["businessProfiles"] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      if (variables.suppressErrorToast) return;
       toast.error("Failed to save changes", {
         description: apiErrorMessage(error),
       });

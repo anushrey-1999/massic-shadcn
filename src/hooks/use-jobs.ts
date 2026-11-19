@@ -14,6 +14,7 @@ import type {
 import {
   buildCreateJobRequest,
   buildUpdateJobRequest,
+  selectJobCategoryFields,
 } from "@/utils/profile-v2-mappers";
 import { serializeJobRequest } from "@/utils/profile-job-request";
 
@@ -131,6 +132,7 @@ export interface CreateJobParams {
   locationOptions?: LocationOption[];
   /** Setup retries may find extracted offerings that must not be replaced. */
   preserveExistingFields?: boolean;
+  includeCategories?: boolean;
 }
 
 export function useCreateJob() {
@@ -143,11 +145,13 @@ export function useCreateJob() {
       values,
       locationOptions = [],
       preserveExistingFields = false,
+      includeCategories = false,
     }) => {
       const request: CreateJobRequest = buildCreateJobRequest(
         businessId,
         values,
         locationOptions,
+        { includeCategories },
       );
       // A previous create may have succeeded before its follow-up GET failed.
       // Resolve that job before retrying, so creation never duplicates it.
@@ -165,13 +169,22 @@ export function useCreateJob() {
       }
       if (existing?.job_id) {
         assertJobIdentity(existing, businessId);
-        if (!preserveExistingFields || existing.business_name !== values.businessName) {
+        if (
+          !preserveExistingFields ||
+          includeCategories ||
+          existing.business_name !== values.businessName
+        ) {
           await api.put(
             `/jobs/${encodeURIComponent(businessId)}`,
             "python",
             preserveExistingFields
-              ? { business_name: values.businessName }
-              : buildUpdateJobRequest(values, locationOptions, "minimal"),
+              ? {
+                  business_name: values.businessName,
+                  ...(includeCategories ? selectJobCategoryFields(request) : {}),
+                }
+              : buildUpdateJobRequest(values, locationOptions, "minimal", {
+                  includeCategories,
+                }),
           );
         }
       } else {
@@ -198,6 +211,7 @@ export interface UpdateJobParams {
   values: BusinessInfoFormData;
   locationOptions?: LocationOption[];
   includePrimaryCategory?: boolean;
+  includeCategories?: boolean;
 }
 
 export function useUpdateJob() {
@@ -211,12 +225,13 @@ export function useUpdateJob() {
       locationOptions = [],
       mode = "full",
       includePrimaryCategory = false,
+      includeCategories = false,
     }) => {
       const request: UpdateJobRequest = buildUpdateJobRequest(
         values,
         locationOptions,
         mode,
-        { includePrimaryCategory },
+        { includePrimaryCategory, includeCategories },
       );
       await api.put<unknown>(
         `/jobs/${encodeURIComponent(businessId)}`,

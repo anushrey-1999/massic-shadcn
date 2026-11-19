@@ -1,10 +1,15 @@
 import * as React from "react";
+import { BusinessShell } from "./business-shell";
 
-export default function BusinessLayout({
+export default async function BusinessLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
   params: Promise<{ id: string }>;
 }) {
-  return children;
+  const { id } = await params;
+  return (
+    <BusinessShell businessId={id}>{children}</BusinessShell>
+  );
 }

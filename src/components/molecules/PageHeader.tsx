@@ -8,6 +8,7 @@ import { Typography } from "../ui/typography";
 import { useParams } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { MassicAgentEntryButton } from "@/components/massic-agent/massic-agent-entry-button";
+import { useIsFreeBusinessAccount } from "@/hooks/use-is-free-business-account";
 
 interface BreadcrumbItem {
   label: string;
@@ -44,14 +45,16 @@ export function PageHeader({
     ? rawBusinessId[0]
     : rawBusinessId || null;
 
+  const isFreeBusinessAccount = useIsFreeBusinessAccount();
   const { data: jobDetails } = useJobByBusinessId(
-    showAskMassic === undefined ? businessId : null
+    showAskMassic === undefined && !isFreeBusinessAccount ? businessId : null
   );
 
   const effectiveShowAskMassic =
-    typeof showAskMassic === "boolean"
+    !isFreeBusinessAccount &&
+    (typeof showAskMassic === "boolean"
       ? showAskMassic
-      : Boolean(jobDetails?.job_id);
+      : Boolean(jobDetails?.job_id));
 
   return (
     <div className="w-full border-b border-border bg-foreground-light">

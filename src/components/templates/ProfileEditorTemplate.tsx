@@ -81,6 +81,7 @@ export function ProfileEditorTemplate({
   className,
   extractionStatus,
   showPrimaryCategoryRepair = false,
+  showMinimalCategories = false,
 }: {
   form: any;
   mode?: "minimal" | "full";
@@ -109,6 +110,8 @@ export function ProfileEditorTemplate({
   className?: string;
   extractionStatus?: OfferingExtractionStatus;
   showPrimaryCategoryRepair?: boolean;
+  /** Lets minimal mode edit categories under Identity. */
+  showMinimalCategories?: boolean;
 }) {
   const { locationOptions, locationsLoading } = useBusinessStore(
     (state) => state.profileForm,
@@ -276,6 +279,7 @@ export function ProfileEditorTemplate({
               issues={submissionIssues}
               focusRequest={validationFocusRequest}
               showPrimaryCategoryRepair={showPrimaryCategoryRepair}
+              showCategories={showMinimalCategories}
             />
           </div>
         ) : (

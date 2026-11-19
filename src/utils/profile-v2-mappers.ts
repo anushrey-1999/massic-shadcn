@@ -265,8 +265,19 @@ export function buildJobWriteFields(
   }) as JobWriteFields;
 }
 
+export interface CombinedJobFieldOptions {
+  /** Send user-chosen categories so Infer does not derive its own on create. */
+  includeCategories?: boolean;
+}
+
+export function selectJobCategoryFields(fields: JobWriteFields): JobWriteFields {
+  const { primary_category, secondary_category, categories_tagged } = fields;
+  return { primary_category, secondary_category, categories_tagged };
+}
+
 export function selectCombinedJobFields(
   fields: JobWriteFields,
+  { includeCategories = false }: CombinedJobFieldOptions = {},
 ): JobWriteFields {
   const {
     business_name,
@@ -285,6 +296,7 @@ export function selectCombinedJobFields(
     service_area_type,
     offerings,
     competitors,
+    ...(includeCategories ? selectJobCategoryFields(fields) : {}),
   };
 }
 
@@ -292,9 +304,13 @@ export function buildCreateJobRequest(
   businessId: string,
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = [],
+  options: CombinedJobFieldOptions = {},
 ): CreateJobRequest {
   return {
-    ...selectCombinedJobFields(buildJobWriteFields(values, locationOptions)),
+    ...selectCombinedJobFields(
+      buildJobWriteFields(values, locationOptions),
+      options,
+    ),
     business_id: businessId,
   };
 }
@@ -303,10 +319,11 @@ export function buildUpdateJobRequest(
   values: BusinessInfoFormData,
   locationOptions: LocationOption[] = [],
   mode: "minimal" | "full" = "full",
-  options: { includePrimaryCategory?: boolean } = {},
+  options: { includePrimaryCategory?: boolean } & CombinedJobFieldOptions = {},
 ): UpdateJobRequest {
   const fields = buildJobWriteFields(values, locationOptions);
-  const request = mode === "minimal" ? selectCombinedJobFields(fields) : fields;
+  const request =
+    mode === "minimal" ? selectCombinedJobFields(fields, options) : fields;
   if (options.includePrimaryCategory)
     request.primary_category = fields.primary_category;
   delete request.business_url;

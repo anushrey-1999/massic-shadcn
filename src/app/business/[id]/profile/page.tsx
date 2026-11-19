@@ -16,6 +16,7 @@ import {
   useJobByBusinessId,
   useUpdateJob,
 } from "@/hooks/use-jobs";
+import { useIsFreeBusinessAccount } from "@/hooks/use-is-free-business-account";
 import { useLocations } from "@/hooks/use-locations";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { useBusinessStore } from "@/store/business-store";
@@ -50,6 +51,7 @@ export default function BusinessProfilePage() {
   });
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
+  const isFreeBusinessAccount = useIsFreeBusinessAccount();
   const { setLocationOptions, setLocationsLoading, setCurrentBusinessId } =
     useBusinessStore();
 
@@ -213,6 +215,7 @@ export default function BusinessProfilePage() {
         values: formValues,
         mode,
         includePrimaryCategory,
+        includeCategories: isFreeBusinessAccount,
         locationOptions,
       });
     } else {
@@ -220,6 +223,7 @@ export default function BusinessProfilePage() {
         businessId,
         values: formValues,
         locationOptions,
+        includeCategories: isFreeBusinessAccount,
       });
       jobExistsAfterSave = true;
     }

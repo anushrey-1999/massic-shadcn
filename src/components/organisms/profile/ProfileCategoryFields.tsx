@@ -22,6 +22,7 @@ interface ProfileCategoryFieldsProps {
   disabled?: boolean;
   className?: string;
   primaryOnly?: boolean;
+  showCustomerTypes?: boolean;
 }
 
 const CUSTOMER_TYPE_OPTIONS = [
@@ -34,6 +35,7 @@ export function ProfileCategoryFields({
   disabled = false,
   className = "flex flex-col gap-6",
   primaryOnly = false,
+  showCustomerTypes = true,
 }: ProfileCategoryFieldsProps) {
   const profileDisabled = useProfileEditingDisabled();
   disabled = disabled || profileDisabled;
@@ -202,22 +204,24 @@ export function ProfileCategoryFields({
               </div>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2">
-            <Typography variant="small" className="text-sm font-medium">
-              Customer types
-            </Typography>
-            <CustomSelect
-              options={CUSTOMER_TYPE_OPTIONS}
-              value={customerTypes}
-              onChange={(next) => {
-                if (!disabled) form.setFieldValue("customerTypes", next);
-              }}
-              placeholder="Select customer types"
-              maxWidth="100%"
-              className="rounded-md border-input bg-white text-general-foreground shadow-none"
-              disabled={disabled}
-            />
-          </div>
+          {showCustomerTypes ? (
+            <div className="flex flex-col gap-2">
+              <Typography variant="small" className="text-sm font-medium">
+                Customer types
+              </Typography>
+              <CustomSelect
+                options={CUSTOMER_TYPE_OPTIONS}
+                value={customerTypes}
+                onChange={(next) => {
+                  if (!disabled) form.setFieldValue("customerTypes", next);
+                }}
+                placeholder="Select customer types"
+                maxWidth="100%"
+                className="rounded-md border-input bg-white text-general-foreground shadow-none"
+                disabled={disabled}
+              />
+            </div>
+          ) : null}
         </>
       )}
     </div>

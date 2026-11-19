@@ -254,6 +254,7 @@ function extractCreatedBusinessFromResponse(
         Website: node.Website ?? node.website,
         IsPitch: node.IsPitch ?? node.isPitch,
         LinkedAuthId: node.LinkedAuthId ?? node.linkedAuthId,
+        Ga4AuthId: node.Ga4AuthId ?? node.ga4AuthId,
       } as Partial<BusinessProfile>;
     }
 

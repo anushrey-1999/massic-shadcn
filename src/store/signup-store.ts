@@ -1,48 +1,44 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type SignupStep =
   | "initial"
-  | "emailForm"
-  | "userTypeSelection"
-  | "agencyWorkspace"
-  | "businessProfile"
-  | "connectGoogle";
+  | "googleSignIn"
+  | "businessDetails"
+  | "creatingBusiness"
+  | "connectSources";
 
 export type UserType = "AGENCY" | "BUSINESS";
+export type SignupDataSource = "ga4" | "gsc" | "gbp";
 
 interface UserSignupData {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
-  confirmPassword: string;
   googleToken: string;
-}
-
-interface AgencyData {
-  agencyName: string;
-  website: string;
 }
 
 interface BusinessData {
   businessName: string;
   website: string;
+  primaryLocation: string;
+  serviceAreaType: string;
 }
 
 interface SignupState {
   step: SignupStep;
-  userType: UserType;
+  userType: UserType | null;
   userSignupData: UserSignupData;
-  agencyData: AgencyData;
   businessData: BusinessData;
-  isSignupFlow: boolean;
+  businessId: string | null;
+  profileBuildRequested: boolean;
 
   setStep: (step: SignupStep) => void;
-  setUserType: (userType: UserType) => void;
+  setUserType: (userType: UserType | null) => void;
   setUserSignupData: (data: Partial<UserSignupData>) => void;
-  setAgencyData: (data: Partial<AgencyData>) => void;
   setBusinessData: (data: Partial<BusinessData>) => void;
-  setIsSignupFlow: (isSignupFlow: boolean) => void;
+  setBusinessId: (businessId: string | null) => void;
+  setProfileBuildRequested: (requested: boolean) => void;
   reset: () => void;
 }
 
@@ -50,51 +46,96 @@ const initialUserSignupData: UserSignupData = {
   firstName: "",
   lastName: "",
   email: "",
-  password: "",
-  confirmPassword: "",
   googleToken: "",
-};
-
-const initialAgencyData: AgencyData = {
-  agencyName: "",
-  website: "",
 };
 
 const initialBusinessData: BusinessData = {
   businessName: "",
   website: "",
+  primaryLocation: "",
+  serviceAreaType: "",
 };
 
-export const useSignupStore = create<SignupState>()((set) => ({
-  step: "initial",
-  userType: "AGENCY",
-  userSignupData: initialUserSignupData,
-  agencyData: initialAgencyData,
-  businessData: initialBusinessData,
-  isSignupFlow: false,
+function normalizeSignupStep(step: unknown): SignupStep {
+  switch (step) {
+    case "googleSignIn":
+    case "businessDetails":
+    case "creatingBusiness":
+    case "connectSources":
+      return step;
+    case "businessCategories":
+      return "businessDetails";
+    case "profileReview":
+      return "initial";
+    case "initial":
+    case "userTypeSelection":
+    default:
+      return "initial";
+  }
+}
 
-  setStep: (step) => set({ step }),
-  setUserType: (userType) => set({ userType }),
-  setUserSignupData: (data) =>
-    set((state) => ({
-      userSignupData: { ...state.userSignupData, ...data },
-    })),
-  setAgencyData: (data) =>
-    set((state) => ({
-      agencyData: { ...state.agencyData, ...data },
-    })),
-  setBusinessData: (data) =>
-    set((state) => ({
-      businessData: { ...state.businessData, ...data },
-    })),
-  setIsSignupFlow: (isSignupFlow) => set({ isSignupFlow }),
-  reset: () =>
-    set({
+function normalizeBusinessData(
+  data: Partial<BusinessData> | undefined,
+): BusinessData {
+  return {
+    businessName: data?.businessName ?? "",
+    website: data?.website ?? "",
+    primaryLocation: data?.primaryLocation ?? "",
+    serviceAreaType: data?.serviceAreaType ?? "",
+  };
+}
+
+export const useSignupStore = create<SignupState>()(
+  persist(
+    (set) => ({
       step: "initial",
-      userType: "AGENCY",
+      userType: null,
       userSignupData: initialUserSignupData,
-      agencyData: initialAgencyData,
       businessData: initialBusinessData,
-      isSignupFlow: false,
+      businessId: null,
+      profileBuildRequested: false,
+
+      setStep: (step) => set({ step }),
+      setUserType: (userType) => set({ userType }),
+      setUserSignupData: (data) =>
+        set((state) => ({
+          userSignupData: { ...state.userSignupData, ...data },
+        })),
+      setBusinessData: (data) =>
+        set((state) => ({
+          businessData: { ...state.businessData, ...data },
+        })),
+      setBusinessId: (businessId) => set({ businessId }),
+      setProfileBuildRequested: (profileBuildRequested) =>
+        set({ profileBuildRequested }),
+      reset: () =>
+        set({
+          step: "initial",
+          userType: null,
+          userSignupData: initialUserSignupData,
+          businessData: initialBusinessData,
+          businessId: null,
+          profileBuildRequested: false,
+        }),
     }),
-}));
+    {
+      name: "massic-free-business-signup",
+      partialize: (state) => ({
+        step: state.step,
+        userType: state.userType,
+        businessData: state.businessData,
+        businessId: state.businessId,
+        profileBuildRequested: state.profileBuildRequested,
+      }),
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<SignupState>;
+        return {
+          ...current,
+          ...saved,
+          step: normalizeSignupStep(saved.step),
+          businessData: normalizeBusinessData(saved.businessData),
+        };
+      },
+    },
+  ),
+);

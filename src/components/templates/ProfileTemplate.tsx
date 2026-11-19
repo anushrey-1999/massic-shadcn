@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CircleAlert,
   FileText,
@@ -83,6 +83,12 @@ import {
   type ProfileValidationIssue,
 } from "@/utils/profile-form-fields";
 import type { JobResponse } from "@/types/profile-v2";
+import { useIsFreeBusinessAccount } from "@/hooks/use-is-free-business-account";
+import {
+  FreeBusinessConnectionsDialog,
+  useFreeBusinessConnectionsDialog,
+} from "@/components/organisms/signup/FreeBusinessConnectionsDialog";
+import { useSignupStore } from "@/store/signup-store";
 
 interface ProfileTemplateProps {
   businessId: string;
@@ -131,8 +137,13 @@ export default function ProfileTemplate({
   onAgentProfileRefresh,
 }: ProfileTemplateProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
+  const isFreeBusinessAccount = useIsFreeBusinessAccount();
+  const resetSignup = useSignupStore((state) => state.reset);
+  const isOnboardingReview =
+    isFreeBusinessAccount && searchParams.get("onboarding") === "1";
   const locationOptions = useBusinessStore(
     (state) => state.profileForm.locationOptions,
   );
@@ -165,6 +176,8 @@ export default function ProfileTemplate({
   const [planOpen, setPlanOpen] = useState(false);
   const [planPurpose, setPlanPurpose] = useState<"analysis" | "agent">("analysis");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { open: connectionsOpen, onOpenChange: setConnectionsOpen } =
+    useFreeBusinessConnectionsDialog();
   const [saveConfirm, setSaveConfirm] = useState(false);
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
   const [confirmAction, setConfirmAction] =
@@ -215,6 +228,7 @@ export default function ProfileTemplate({
     values,
     serverValues.primaryCategory,
     mode,
+    { includeClassification: isFreeBusinessAccount },
   );
   const { isDirty, isHydrated, markSaved, markSaveFailed } = useProfileFormSync(
     {
@@ -225,6 +239,12 @@ export default function ProfileTemplate({
     },
   );
   const { allowNavigation } = useUnsavedChangesGuard({ isDirty });
+  const completeOnboarding = () => {
+    resetSignup();
+    allowNavigation(() =>
+      router.replace(`/business/${businessId}/analytics`),
+    );
+  };
   const serverProcessing =
     jobDetails?.profile_status === "processing" ||
     isOrchestrationActive(jobDetails);
@@ -363,6 +383,7 @@ export default function ProfileTemplate({
       setIssues([]);
       setValidationMode(null);
       toast.success("Business profile saved");
+      if (isOnboardingReview) completeOnboarding();
     } catch (error) {
       markSaveFailed();
       toast.error("Couldn't save business profile", {
@@ -582,14 +603,17 @@ export default function ProfileTemplate({
           loading={
             isLoading ||
             initialReadLoading ||
-            (!isWhitelisted &&
+            (!isFreeBusinessAccount &&
+              !isWhitelisted &&
               (subscription.loading || !subscription.isFetched)) ||
             validation.catalogLoading ||
             !isHydrated
           }
           error={
             readError ??
-            (isWhitelisted ? null : subscription.error) ??
+            (isFreeBusinessAccount || isWhitelisted
+              ? null
+              : subscription.error) ??
             validation.catalogError
           }
           onRetry={() =>
@@ -617,9 +641,32 @@ export default function ProfileTemplate({
             extractionStatus={jobDetails?.offering_extraction}
             submissionIssues={validation.displayIssues(issues)}
             showPrimaryCategoryRepair={validation.repairPrimaryCategory}
+            showMinimalCategories={isFreeBusinessAccount}
             validationFocusRequest={focusRequest}
             notice={
               <>
+                {isFreeBusinessAccount ? (
+                  isOnboardingReview ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-general-border bg-general-secondary p-4 sm:p-5">
+                      <div>
+                        <h2 className="text-sm font-medium">
+                          Review your free profile
+                        </h2>
+                        <p className="mt-1 text-xs text-general-muted-foreground">
+                          Check your category, offerings, and competitors. Save
+                          any changes before continuing.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={completeOnboarding}
+                        disabled={isDirty}
+                      >
+                        Continue to analytics
+                      </Button>
+                    </div>
+                  ) : null
+                ) : null}
                 {notice}
                 {readError ? (
                   <div
@@ -650,7 +697,9 @@ export default function ProfileTemplate({
                   ? "No unsaved changes."
                   : undefined
             }
-            showAnalyzeBusiness={workflowActions.analyze.visible}
+            showAnalyzeBusiness={
+              !isFreeBusinessAccount && workflowActions.analyze.visible
+            }
             analyzeDisabled={workflowActions.analyze.disabled}
             analyzePending={checkingPlan || analysis.isPending}
             analyzeDisabledReason={workflowActions.analyze.disabledReason}
@@ -658,81 +707,104 @@ export default function ProfileTemplate({
             busyReason="Wait for the current business operation to finish."
             initialFieldsLocked={Boolean(jobDetails?.job_id)}
             customHeaderActions={
-              jobDetails?.job_id && onAgentProfileRefresh ? (
+              !isFreeBusinessAccount &&
+              jobDetails?.job_id &&
+              onAgentProfileRefresh ? (
                 <ProfileAgentButton agent={profileAgent} />
               ) : undefined
             }
             trailingHeaderActions={
-              <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Profile settings"
-                    title="Profile settings"
-                  >
-                    <Settings className="size-4" aria-hidden="true" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="w-64 max-w-[calc(100vw-2rem)] space-y-1 p-2"
-                  aria-label="Profile settings"
+              isFreeBusinessAccount ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Data connections"
+                  title="Data connections"
+                  onClick={() => setConnectionsOpen(true)}
                 >
-                  {(
-                    [
-                      { action: "search", Icon: RefreshCw },
-                      { action: "context", Icon: FileText },
-                    ] as const
-                  ).map(({ action, Icon }) => (
+                  <Settings className="size-4" aria-hidden="true" />
+                </Button>
+              ) : (
+                <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+                  <PopoverTrigger asChild>
                     <Button
-                      key={action}
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Profile settings"
+                      title="Profile settings"
+                    >
+                      <Settings className="size-4" aria-hidden="true" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    className="w-64 max-w-[calc(100vw-2rem)] space-y-1 p-2"
+                    aria-label="Profile settings"
+                  >
+                    {(
+                      [
+                        { action: "search", Icon: RefreshCw },
+                        { action: "context", Icon: FileText },
+                      ] as const
+                    ).map(({ action, Icon }) => (
+                      <Button
+                        key={action}
+                        type="button"
+                        variant="ghost"
+                        disabled={workflowActions[action].disabled}
+                        title={workflowActions[action].disabledReason}
+                        className="w-full justify-start gap-2"
+                        onClick={() => {
+                          if (
+                            workflowActions[action].disabled ||
+                            operationRef.current ||
+                            !guardAnalyze()
+                          )
+                            return;
+                          setSettingsOpen(false);
+                          setConfirmAction(action);
+                        }}
+                      >
+                        <Icon className="size-4" aria-hidden="true" />
+                        {ACTIONS[action].title}
+                      </Button>
+                    ))}
+                    <Button
                       type="button"
                       variant="ghost"
-                      disabled={workflowActions[action].disabled}
-                      title={workflowActions[action].disabledReason}
-                      className="w-full justify-start gap-2"
+                      disabled={
+                        locked || !business?.Id || business.IsActive === false
+                      }
+                      className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => {
-                        if (
-                          workflowActions[action].disabled ||
-                          operationRef.current ||
-                          !guardAnalyze()
-                        )
-                          return;
-                        setSettingsOpen(false);
-                        setConfirmAction(action);
+                        if (guardUnlink()) {
+                          setSettingsOpen(false);
+                          setUnlinkConfirm(true);
+                        }
                       }}
                     >
-                      <Icon className="size-4" aria-hidden="true" />
-                      {ACTIONS[action].title}
+                      <Unlink className="size-4" aria-hidden="true" />
+                      Unlink business
                     </Button>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={
-                      locked || !business?.Id || business.IsActive === false
-                    }
-                    className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      if (guardUnlink()) {
-                        setSettingsOpen(false);
-                        setUnlinkConfirm(true);
-                      }
-                    }}
-                  >
-                    <Unlink className="size-4" aria-hidden="true" />
-                    Unlink business
-                  </Button>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              )
             }
             className="flex-1"
           />
         </ProfileLoadingBoundary>
       </div>
-      <ProfileAgentDialog businessId={businessId} agent={profileAgent} />
+      {!isFreeBusinessAccount ? (
+        <ProfileAgentDialog businessId={businessId} agent={profileAgent} />
+      ) : null}
+      <FreeBusinessConnectionsDialog
+        open={connectionsOpen}
+        onOpenChange={setConnectionsOpen}
+        businessId={businessId}
+        website={business?.Website ?? values.website}
+      />
       <ProfileActionConfirmDialog
         action={saveConfirm ? "save" : null}
         onCancel={() => setSaveConfirm(false)}
@@ -741,7 +813,7 @@ export default function ProfileTemplate({
           void save();
         }}
       />
-      <PlanModal
+      {!isFreeBusinessAccount ? <PlanModal
         open={planOpen && !isWhitelisted}
         onClose={() => setPlanOpen(false)}
         showDismissButton
@@ -765,7 +837,7 @@ export default function ProfileTemplate({
               closeAllModals: () => setPlanOpen(false),
             });
         }}
-      />
+      /> : null}
       <AlertDialog
         open={confirmAction !== null}
         onOpenChange={(open) => {

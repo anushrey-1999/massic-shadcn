@@ -70,8 +70,10 @@ const TOOLBAR_BUTTON_CLASS = ANALYTICS_TOOLBAR_BUTTON_CLASS;
 const TOOLBAR_ICON_CLASS = "size-[13.25px] shrink-0";
 
 interface AnalyticsNavigationMenuProps {
-  onViewReports: () => void;
-  onCampaignTracking: () => void;
+  /** Omit to hide the Reports item. */
+  onViewReports?: () => void;
+  /** Omit to hide the Campaign tracking item. */
+  onCampaignTracking?: () => void;
   onIndexing: () => void;
   onSmartSitemap: () => void;
   onContentGroups: () => void;
@@ -108,14 +110,16 @@ export function AnalyticsNavigationMenu({
         <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
           Go to
         </DropdownMenuLabel>
-        <DropdownMenuItem
-          className="h-8 cursor-pointer gap-2"
-          onSelect={onViewReports}
-          disabled={reportsDisabled}
-        >
-          <span className="flex-1">Reports</span>
-          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </DropdownMenuItem>
+        {onViewReports ? (
+          <DropdownMenuItem
+            className="h-8 cursor-pointer gap-2"
+            onSelect={onViewReports}
+            disabled={reportsDisabled}
+          >
+            <span className="flex-1">Reports</span>
+            <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           className="h-8 cursor-pointer gap-2"
           onSelect={onIndexing}
@@ -134,11 +138,13 @@ export function AnalyticsNavigationMenu({
           <span className="flex-1">Sitemap</span>
           <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         </DropdownMenuItem>
-        <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>
-          <Megaphone className="size-4 shrink-0" />
-          <span className="flex-1">Campaign tracking</span>
-          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </DropdownMenuItem>
+        {onCampaignTracking ? (
+          <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>
+            <Megaphone className="size-4 shrink-0" />
+            <span className="flex-1">Campaign tracking</span>
+            <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
           Configure

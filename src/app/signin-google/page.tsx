@@ -3,12 +3,23 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle, CheckCircle } from "lucide-react";
+import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 
 type CallbackStatus = "loading" | "success" | "error";
+
+function getSafeReturnPath(state: string | null) {
+  if (!state) return "/settings";
+  try {
+    const parsed = JSON.parse(window.atob(state)) as { returnTo?: string };
+    return parsed.returnTo?.startsWith("/") ? parsed.returnTo : "/settings";
+  } catch {
+    return "/settings";
+  }
+}
 
 interface StoreAuthPayload {
   UserUniqueId: string;
@@ -42,6 +53,7 @@ function GoogleCallbackContent() {
       if (processingRef.current || status === "success" || status === "error") return;
 
       const code = searchParams.get("code");
+      const returnTo = getSafeReturnPath(searchParams.get("state"));
 
       if (!code) {
         setStatus("error");
@@ -109,8 +121,8 @@ function GoogleCallbackContent() {
         toast.success("Google account connected successfully!");
 
         setTimeout(() => {
-          router.push("/settings");
-        }, 1500);
+          router.replace(returnTo);
+        }, 800);
 
       } catch (error: any) {
         console.error("Error in Google callback:", error);
@@ -130,8 +142,12 @@ function GoogleCallbackContent() {
     <div className="max-w-md w-full mx-auto p-8 text-center">
       {status === "loading" && (
         <>
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2">
+          <MassicAmoebaLoader
+            size={52}
+            label="Connecting your Google account"
+            className="mx-auto mb-6"
+          />
+          <h1 className="mb-2 text-xl font-medium">
             Connecting your Google account...
           </h1>
           <p className="text-muted-foreground text-sm mb-4">
@@ -146,11 +162,11 @@ function GoogleCallbackContent() {
       {status === "success" && (
         <>
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2">
+          <h1 className="mb-2 text-xl font-medium">
             Connection Successful!
           </h1>
           <p className="text-muted-foreground text-sm">
-            Redirecting you back to settings...
+            Taking you back...
           </p>
         </>
       )}
@@ -158,17 +174,19 @@ function GoogleCallbackContent() {
       {status === "error" && (
         <>
           <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2 text-destructive">
+          <h1 className="mb-2 text-xl font-medium text-destructive">
             Connection Failed
           </h1>
           <p className="text-muted-foreground text-sm mb-4">
             {errorMessage}
           </p>
           <button
-            onClick={() => router.push("/settings")}
+            onClick={() =>
+              router.replace(getSafeReturnPath(searchParams.get("state")))
+            }
             className="text-primary underline text-sm hover:no-underline"
           >
-            Return to Settings
+            Go back
           </button>
         </>
       )}
@@ -179,8 +197,12 @@ function GoogleCallbackContent() {
 function LoadingFallback() {
   return (
     <div className="max-w-md w-full mx-auto p-8 text-center">
-      <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-6" />
-      <h1 className="text-xl font-semibold mb-2">Loading...</h1>
+      <MassicAmoebaLoader
+        size={52}
+        label="Loading Google connection"
+        className="mx-auto mb-6"
+      />
+      <h1 className="mb-2 text-xl font-medium">Loading...</h1>
     </div>
   );
 }

@@ -77,7 +77,7 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  if (token && (pathname === "/login" || pathname === "/signup")) {
+  if (token && pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

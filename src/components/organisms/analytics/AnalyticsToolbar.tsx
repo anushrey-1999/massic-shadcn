@@ -33,9 +33,9 @@ interface AnalyticsToolbarProps {
   filterChips?: ReactNode;
 
   onPrimaryDrivers: () => void;
-  onMonitoring: () => void;
-  onViewReports: () => void;
-  onCampaignTracking: () => void;
+  onMonitoring?: () => void;
+  onViewReports?: () => void;
+  onCampaignTracking?: () => void;
   onIndexing: () => void;
   onSmartSitemap: () => void;
   onContentGroups: () => void;
@@ -150,27 +150,29 @@ export function AnalyticsToolbar({
                 : "What changed in your traffic and why"}
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-auto min-h-10 shrink-0 rounded-[8px] px-4 py-[9.5px] text-sm leading-[1.5] font-medium tracking-[0.07px]"
-                  onClick={onMonitoring}
-                  disabled={monitoringDisabled || isIngestionActive}
-                  style={isIngestionActive ? { pointerEvents: "none" } : undefined}
-                >
-                  Monitoring
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              {isIngestionActive
-                ? DATA_READY_TOOLTIP
-                : "Daily performance monitoring: alerts, metrics and notifications"}
-            </TooltipContent>
-          </Tooltip>
+          {onMonitoring ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-auto min-h-10 shrink-0 rounded-[8px] px-4 py-[9.5px] text-sm leading-[1.5] font-medium tracking-[0.07px]"
+                    onClick={onMonitoring}
+                    disabled={monitoringDisabled || isIngestionActive}
+                    style={isIngestionActive ? { pointerEvents: "none" } : undefined}
+                  >
+                    Monitoring
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>
+                {isIngestionActive
+                  ? DATA_READY_TOOLTIP
+                  : "Daily performance monitoring: alerts, metrics and notifications"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-3">

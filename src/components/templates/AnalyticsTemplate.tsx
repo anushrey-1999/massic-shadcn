@@ -48,6 +48,21 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
 import { ALL_TAB_METRIC_KEYS, CHART_LINE_KEYS } from "@/utils/analytics-metrics";
+import { useIsFreeBusinessAccount } from "@/hooks/use-is-free-business-account";
+import { isFreeBusinessRoute } from "@/lib/business-navigation";
+import {
+  FreeBusinessConnectionsDialog,
+  useFreeBusinessConnectionsDialog,
+} from "@/components/organisms/signup/FreeBusinessConnectionsDialog";
+import { FreeBusinessConnectionState } from "@/components/organisms/signup/FreeBusinessConnectionState";
+import {
+  GoogleSourceGate,
+  GoogleSourceEmptyState,
+  GoogleSourceGateProvider,
+  GoogleSourceNotices,
+} from "@/components/molecules/analytics/GoogleSourceGate";
+import { GOOGLE_SOURCE_ORDER } from "@/lib/google-sources";
+import { Loader } from "@/components/ui/loader";
 
 const ALL_GROUP_BY_OPTIONS: AnalyticsGroupBy[] = ["day", "week", "month"];
 
@@ -221,6 +236,8 @@ export function AnalyticsTemplate() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [customContentGroupsOpen, setCustomContentGroupsOpen] = useState(false);
   const [primaryDriversOpen, setPrimaryDriversOpen] = useState(false);
+  const { open: connectionsOpen, onOpenChange: setConnectionsOpen } =
+    useFreeBusinessConnectionsDialog();
   const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -271,7 +288,36 @@ export function AnalyticsTemplate() {
       null) as Ga4IngestionStatus;
   const isBusinessActive =
     ((profileData as any)?.IsActive ?? (businessProfile as any)?.IsActive) !== false;
-  const { isGa4Connected } = useBusinessConnections(businessId);
+  const connections = useBusinessConnections(businessId);
+  const { isGa4Connected } = connections;
+  const isFreeBusinessAccount = useIsFreeBusinessAccount();
+  const hasAnyGoogleConnection =
+    connections.isGscConnected ||
+    connections.isGa4Connected ||
+    connections.isGbpConnected;
+  const isFreeBusinessLoading = isFreeBusinessAccount && !connections.isResolved;
+  const isFreeBusinessEmpty =
+    isFreeBusinessAccount && connections.isResolved && !hasAnyGoogleConnection;
+  const isFreeBusinessMissingGa4 =
+    isFreeBusinessAccount &&
+    connections.isResolved &&
+    hasAnyGoogleConnection &&
+    !connections.isGa4Connected;
+  const showGa4ConnectOnly =
+    isFreeBusinessMissingGa4 && selectedTab !== "organic";
+  // Business users get the toolbar only once Search Console backs it.
+  const showToolbar = !isFreeBusinessAccount || connections.isGscConnected;
+  const canOpenBusinessPage = (segment: string) =>
+    !isFreeBusinessAccount ||
+    (businessId !== null &&
+      isFreeBusinessRoute(`/business/${businessId}/${segment}`, businessId));
+  const sourceGate = useMemo(
+    () =>
+      isFreeBusinessAccount && businessId
+        ? { businessId, onConnect: () => setConnectionsOpen(true) }
+        : null,
+    [businessId, isFreeBusinessAccount, setConnectionsOpen],
+  );
   const ga4ScopeQuery = useGa4Scope(businessId, {
     enabled: Boolean(
       businessId && !profileDataLoading && isBusinessActive && isGa4Connected
@@ -479,6 +525,11 @@ export function AnalyticsTemplate() {
   );
 
   useEffect(() => {
+    if (connections.isResolved && !showToolbar && selectedTab !== "all")
+      handleTabChange("all");
+  }, [connections.isResolved, handleTabChange, selectedTab, showToolbar]);
+
+  useEffect(() => {
     if (availableGroupByOptions.includes(groupBy)) return;
     setGroupBy(getFallbackAnalyticsGrouping(groupBy, availableGroupByOptions));
   }, [availableGroupByOptions, groupBy]);
@@ -574,202 +625,255 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        <AnalyticsToolbar
-          scope={selectedTab}
-          onScopeChange={handleTabChange}
-          ga4ScopePath={
-            ga4IngestionStatus === "completed" && !isGa4ScopeReplacementPending
-              ? currentGa4Scope
-              : null
-          }
-          ga4ScopeTitle={analyticsScopeLabel(currentGa4Scope)}
-          periodSelector={
-            <PeriodSelector
-              value={selectedPeriod}
-              onValueChange={setSelectedPeriod}
-              groupBy={groupBy}
-              onGroupByChange={setGroupBy}
-              disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
-                (option) => !availableGroupByOptions.includes(option)
-              )}
-              className="w-auto cursor-pointer"
-              ingestionActive={selectedTab !== "ai-traffic" && isGscIngestionActive}
-              disabled={isGa4DataBlocked}
-            />
-          }
-          filterChips={
-            selectedTab !== "ai-traffic" && filters.length > 0 ? (
-              <OrganicDeepdiveHeader
-                filters={filters}
-                onRemoveFilter={removeFilter}
+        {showToolbar ? (
+          <AnalyticsToolbar
+            scope={selectedTab}
+            onScopeChange={handleTabChange}
+            ga4ScopePath={
+              ga4IngestionStatus === "completed" && !isGa4ScopeReplacementPending
+                ? currentGa4Scope
+                : null
+            }
+            ga4ScopeTitle={analyticsScopeLabel(currentGa4Scope)}
+            periodSelector={
+              <PeriodSelector
+                value={selectedPeriod}
+                onValueChange={setSelectedPeriod}
+                groupBy={groupBy}
+                onGroupByChange={setGroupBy}
+                disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
+                  (option) => !availableGroupByOptions.includes(option)
+                )}
+                className="w-auto cursor-pointer"
+                ingestionActive={selectedTab !== "ai-traffic" && isGscIngestionActive}
+                disabled={isGa4DataBlocked}
               />
-            ) : null
-          }
-          onPrimaryDrivers={() => {
-            if (!businessId) return;
-            setPrimaryDriversOpen(true);
-          }}
-          onMonitoring={() => {
-            if (!businessId) return;
-            router.push(`/business/${businessId}/monitoring`);
-          }}
-          onViewReports={() => {
-            if (!businessId) return;
-            router.push(`/business/${businessId}/reports`);
-          }}
-          onCampaignTracking={() => {
-            if (!businessId) return;
-            captureCampaignImpactEvent("campaign_tracking_opened", {
-              business_id: businessId,
-              origin: "analytics_toolbar",
-            });
-            router.push(`/business/${businessId}/analytics/campaigns`);
-          }}
-          onIndexing={() => {
-            if (!businessId) return;
-            router.push(`/business/${businessId}/indexing`);
-          }}
-          onSmartSitemap={() => {
-            if (!businessId) return;
-            router.push(`/business/${businessId}/analytics/pages`);
-          }}
-          onContentGroups={() => {
-            if (!businessId) return;
-            setCustomContentGroupsOpen(true);
-          }}
-          primaryDriversDisabled={!businessId}
-          monitoringDisabled={!businessId}
-          reportsDisabled={!businessId}
-          indexingDisabled={!businessId}
-          smartSitemapDisabled={!businessId}
-          contentGroupsDisabled={!businessId || isGa4DataBlocked || selectedTab === "ai-traffic"}
-          keywordScope={keywordScope}
-          onKeywordScopeChange={handleKeywordScopeChange}
-          showKeywordScope={selectedTab === "organic"}
-          metricKeys={selectedTab === "ai-traffic" ? ["clicks", "sessions"] : headerMetricKeys}
-          metricLabels={selectedTab === "ai-traffic" ? { clicks: "AI Assistant sessions", sessions: "Organic Search sessions" } : undefined}
-          visibleLines={selectedTab === "ai-traffic" ? aiVisibleLines : visibleLines}
-          onLineToggle={selectedTab === "ai-traffic" ? handleAILineToggle : handleChartLineToggle}
-          isIngestionActive={selectedTab === "ai-traffic" ? isGa4DataBlocked : isToolbarDataBlocked}
-          isDataBlocked={isGa4DataBlocked}
-        />
+            }
+            filterChips={
+              selectedTab !== "ai-traffic" && filters.length > 0 ? (
+                <OrganicDeepdiveHeader
+                  filters={filters}
+                  onRemoveFilter={removeFilter}
+                />
+              ) : null
+            }
+            onPrimaryDrivers={() => {
+              if (!businessId) return;
+              setPrimaryDriversOpen(true);
+            }}
+            onMonitoring={
+              canOpenBusinessPage("monitoring")
+                ? () => {
+                    if (!businessId) return;
+                    router.push(`/business/${businessId}/monitoring`);
+                  }
+                : undefined
+            }
+            onViewReports={
+              canOpenBusinessPage("reports")
+                ? () => router.push(`/business/${businessId}/reports`)
+                : undefined
+            }
+            onCampaignTracking={
+              canOpenBusinessPage("analytics/campaigns")
+                ? () => {
+                    if (!businessId) return;
+                    captureCampaignImpactEvent("campaign_tracking_opened", {
+                      business_id: businessId,
+                      origin: "analytics_toolbar",
+                    });
+                    router.push(`/business/${businessId}/analytics/campaigns`);
+                  }
+                : undefined
+            }
+            onIndexing={() => {
+              if (!businessId) return;
+              router.push(`/business/${businessId}/indexing`);
+            }}
+            onSmartSitemap={() => {
+              if (!businessId) return;
+              router.push(`/business/${businessId}/analytics/pages`);
+            }}
+            onContentGroups={() => {
+              if (!businessId) return;
+              setCustomContentGroupsOpen(true);
+            }}
+            primaryDriversDisabled={!businessId}
+            monitoringDisabled={!businessId}
+            reportsDisabled={!businessId}
+            indexingDisabled={!businessId}
+            smartSitemapDisabled={!businessId}
+            contentGroupsDisabled={!businessId || isGa4DataBlocked || selectedTab === "ai-traffic"}
+            keywordScope={keywordScope}
+            onKeywordScopeChange={handleKeywordScopeChange}
+            showKeywordScope={selectedTab === "organic"}
+            metricKeys={selectedTab === "ai-traffic" ? ["clicks", "sessions"] : headerMetricKeys}
+            metricLabels={selectedTab === "ai-traffic" ? { clicks: "AI Assistant sessions", sessions: "Organic Search sessions" } : undefined}
+            visibleLines={selectedTab === "ai-traffic" ? aiVisibleLines : visibleLines}
+            onLineToggle={selectedTab === "ai-traffic" ? handleAILineToggle : handleChartLineToggle}
+            isIngestionActive={selectedTab === "ai-traffic" ? isGa4DataBlocked : isToolbarDataBlocked}
+            isDataBlocked={isGa4DataBlocked}
+          />
+        ) : null}
       </div>
 
       {/* Tab Content */}
-      <div className="w-full max-w-[1224px] flex flex-col">
-        {isGa4DataBlocked ? (
-          <Ga4IngestionPanel
-            status={ga4IngestionStatus}
-            stage={
-              ga4ScopeQuery.data?.stage ??
-              profileForGa4Scope?.Ga4IngestionStage ??
-              null
-            }
-            progress={ga4ScopeQuery.data?.progress}
-            error={
-              ga4ScopeQuery.data?.error ??
-              profileForGa4Scope?.Ga4IngestionError ??
-              null
-            }
-            retryError={ga4ScopeQuery.saveError?.message}
-            isRetrying={ga4ScopeQuery.isSaving}
-            canRetry={Boolean(businessId && ga4ScopeQuery.data)}
-            onRetry={() => {
-              if (!businessId || !ga4ScopeQuery.data) return;
-              void ga4ScopeQuery
-                .updateScope({
-                  businessUniqueId: businessId,
-                  pagePathScope: ga4ScopeQuery.data.desiredPagePathScope,
-                })
-                .catch(() => undefined);
-            }}
-            onEditScope={() => {
-              if (!businessId) return;
-              router.push(
-                `/settings?ga4ScopeBusinessId=${encodeURIComponent(businessId)}`
-              );
-            }}
-          />
-        ) : selectedTab === "ai-traffic" ? (
-          <AITrafficSection
-            businessId={businessId}
-            period={selectedPeriod}
-            groupBy={groupBy}
-            scopeRevision={desiredGa4ScopeRevision}
-            visibleLines={aiVisibleLines}
-            onAvailableGroupingsChange={setAvailableGroupByOptions}
-          />
-        ) : topicKeywordLookupPending ? (
-          <div className="p-7">
-            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
-              Loading topic keywords...
-            </div>
-          </div>
-        ) : shouldResolveTopicKeywords && topicKeywordsError ? (
-          <div className="p-7">
-            <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-lg bg-white p-6 text-center">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-              <p className="font-medium text-destructive">Failed to load topic keywords</p>
-              <p className="text-sm text-muted-foreground">
-                {topicKeywordsErrorData instanceof Error
-                  ? topicKeywordsErrorData.message
-                  : "An error occurred"}
-              </p>
-              <Button onClick={() => refetchTopicKeywords()}>Try Again</Button>
-            </div>
-          </div>
-        ) : topicKeywordLookupEmpty ? (
-          <div className="p-7">
-            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
-              No keywords were found for this topic.
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="p-7 pb-10">
-              <OrganicPerformanceSection
-                period={selectedPeriod}
-                visibleLines={overviewVisibleLines}
-                onLegendToggle={handleChartLineToggle}
-                filters={filtersForApi}
-                funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
-                ga4TrafficScope={ga4TrafficScope}
-                groupBy={groupBy}
-                onAvailableGroupingsChange={setAvailableGroupByOptions}
-                isIngestionActive={isGscIngestionActive}
-              />
-            </div>
-            <DiscoveryPerformanceSection
-              period={selectedPeriod}
-              visibleMetrics={overviewVisibleLines}
-              filters={filtersForApi}
-              onSelectFilter={isGscIngestionActive ? undefined : handleOverviewFilterSelect}
-              onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
-              hideTopQueries={selectedTab === "all"}
-              hideHowYouRank={selectedTab === "all"}
-              ga4TrafficScope={ga4TrafficScope}
-              isIngestionActive={isGscIngestionActive}
+      <GoogleSourceGateProvider value={sourceGate}>
+        <div className="w-full max-w-[1224px] flex flex-col">
+          {isFreeBusinessLoading || isFreeBusinessEmpty ? null : (
+            <GoogleSourceNotices
+              sources={selectedTab === "ai-traffic" ? ["ga4"] : GOOGLE_SOURCE_ORDER}
+              unlocks={{
+                ga4:
+                  selectedTab === "ai-traffic"
+                    ? "visits from AI assistants"
+                    : "traffic sources, conversions and tracked actions",
+                gbp: "how your locations perform in local search",
+              }}
             />
-            {showDeferredSections ? (
-              <>
-                <SourcesSection
+          )}
+          {isFreeBusinessLoading ? (
+            <Loader className="min-h-[420px]" />
+          ) : isFreeBusinessEmpty && businessId ? (
+            <FreeBusinessConnectionState
+              businessId={businessId}
+              businessName={businessName}
+              onConnect={() => setConnectionsOpen(true)}
+            />
+          ) : showGa4ConnectOnly ? (
+            <div className="p-7">
+              <GoogleSourceEmptyState
+                source="ga4"
+                unlocks="traffic sources, conversions and tracked actions"
+                className="min-h-[420px] rounded-lg border border-general-border bg-white"
+              >
+                {null}
+              </GoogleSourceEmptyState>
+            </div>
+          ) : isGa4DataBlocked ? (
+            <Ga4IngestionPanel
+              status={ga4IngestionStatus}
+              stage={
+                ga4ScopeQuery.data?.stage ??
+                profileForGa4Scope?.Ga4IngestionStage ??
+                null
+              }
+              progress={ga4ScopeQuery.data?.progress}
+              error={
+                ga4ScopeQuery.data?.error ??
+                profileForGa4Scope?.Ga4IngestionError ??
+                null
+              }
+              retryError={ga4ScopeQuery.saveError?.message}
+              isRetrying={ga4ScopeQuery.isSaving}
+              canRetry={Boolean(businessId && ga4ScopeQuery.data)}
+              onRetry={() => {
+                if (!businessId || !ga4ScopeQuery.data) return;
+                void ga4ScopeQuery
+                  .updateScope({
+                    businessUniqueId: businessId,
+                    pagePathScope: ga4ScopeQuery.data.desiredPagePathScope,
+                  })
+                  .catch(() => undefined);
+              }}
+              onEditScope={() => {
+                if (!businessId) return;
+                router.push(
+                  isFreeBusinessAccount
+                    ? `/business/${businessId}/profile`
+                    : `/settings?ga4ScopeBusinessId=${encodeURIComponent(businessId)}`
+                );
+              }}
+            />
+          ) : selectedTab === "ai-traffic" ? (
+            <GoogleSourceGate source="ga4">
+              <AITrafficSection
+                businessId={businessId}
+                period={selectedPeriod}
+                groupBy={groupBy}
+                scopeRevision={desiredGa4ScopeRevision}
+                visibleLines={aiVisibleLines}
+                onAvailableGroupingsChange={setAvailableGroupByOptions}
+              />
+            </GoogleSourceGate>
+          ) : topicKeywordLookupPending ? (
+            <div className="p-7">
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+                Loading topic keywords...
+              </div>
+            </div>
+          ) : shouldResolveTopicKeywords && topicKeywordsError ? (
+            <div className="p-7">
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-lg bg-white p-6 text-center">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="font-medium text-destructive">Failed to load topic keywords</p>
+                <p className="text-sm text-muted-foreground">
+                  {topicKeywordsErrorData instanceof Error
+                    ? topicKeywordsErrorData.message
+                    : "An error occurred"}
+                </p>
+                <Button onClick={() => refetchTopicKeywords()}>Try Again</Button>
+              </div>
+            </div>
+          ) : topicKeywordLookupEmpty ? (
+            <div className="p-7">
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+                No keywords were found for this topic.
+              </div>
+            </div>
+          ) : (
+            <>
+              <GoogleSourceGate source="gsc">
+                <div className="p-7 pb-10">
+                  <OrganicPerformanceSection
+                    period={selectedPeriod}
+                    visibleLines={overviewVisibleLines}
+                    onLegendToggle={handleChartLineToggle}
+                    filters={filtersForApi}
+                    funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
+                    ga4TrafficScope={ga4TrafficScope}
+                    groupBy={groupBy}
+                    onAvailableGroupingsChange={setAvailableGroupByOptions}
+                    isIngestionActive={isGscIngestionActive}
+                  />
+                </div>
+                <DiscoveryPerformanceSection
                   period={selectedPeriod}
-                  hideChannelsChart={selectedTab === "organic"}
+                  visibleMetrics={overviewVisibleLines}
+                  filters={filtersForApi}
+                  onSelectFilter={isGscIngestionActive ? undefined : handleOverviewFilterSelect}
+                  onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
+                  hideTopQueries={selectedTab === "all"}
+                  hideHowYouRank={selectedTab === "all"}
                   ga4TrafficScope={ga4TrafficScope}
+                  isIngestionActive={isGscIngestionActive}
                 />
-                {selectedTab === "all" ? (
-                  <ConversionOverviewSection period={selectedPeriod} />
-                ) : null}
-                <ConversionSection
-                  period={selectedPeriod}
-                  ga4TrafficScope={ga4TrafficScope}
-                />
-                <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
-              </>
-            ) : null}
-          </>
-        )}
-      </div>
+              </GoogleSourceGate>
+              {showDeferredSections ? (
+                <>
+                  <GoogleSourceGate source="ga4">
+                    <SourcesSection
+                      period={selectedPeriod}
+                      hideChannelsChart={selectedTab === "organic"}
+                      ga4TrafficScope={ga4TrafficScope}
+                    />
+                    {selectedTab === "all" ? (
+                      <ConversionOverviewSection period={selectedPeriod} />
+                    ) : null}
+                    <ConversionSection
+                      period={selectedPeriod}
+                      ga4TrafficScope={ga4TrafficScope}
+                    />
+                  </GoogleSourceGate>
+                  <GoogleSourceGate source="gbp">
+                    <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+                  </GoogleSourceGate>
+                </>
+              ) : null}
+            </>
+          )}
+        </div>
+      </GoogleSourceGateProvider>
 
       <CustomContentGroupsModal
         open={customContentGroupsOpen}
@@ -786,6 +890,14 @@ export function AnalyticsTemplate() {
         businessId={businessId}
         businessName={businessName}
       />
+      {businessId ? (
+        <FreeBusinessConnectionsDialog
+          open={connectionsOpen}
+          onOpenChange={setConnectionsOpen}
+          businessId={businessId}
+          website={businessProfile?.Website ?? profileData?.Website ?? ""}
+        />
+      ) : null}
     </div>
   );
 }

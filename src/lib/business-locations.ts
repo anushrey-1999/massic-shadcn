@@ -34,6 +34,7 @@ export interface BusinessLocation {
   Name: string | null;
   /** Google account resource name `accounts/{id}`; null for physical addresses. */
   AccountName: string | null;
+  AuthId?: string | null;
   Url: string | null;
   Address: BusinessLocationAddress | null;
   TimeZone: string | null;

@@ -5,6 +5,8 @@ import { useBusinessStore } from "@/store/business-store";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useSubscription } from "@/hooks/use-subscription";
 import { hasBusinessPlanAccess } from "@/lib/subscription-status";
+import { USER_ROLE_IDS } from "@/lib/user-roles";
+import { useAuthStore } from "@/store/auth-store";
 
 export type EntitlementKey =
   | "analytics"
@@ -31,6 +33,8 @@ export function useEntitlementGate({
   alertMessage,
 }: UseEntitlementGateArgs) {
   const { profiles } = useBusinessStore();
+  const user = useAuthStore((state) => state.user);
+  const isBusinessAccount = user?.roleid === USER_ROLE_IDS.BUSINESS;
 
   // Derive agency-level whitelist status from profiles
   const isAgencyWhitelisted = React.useMemo(() => {
@@ -70,10 +74,6 @@ export function useEntitlementGate({
       : undefined;
 
   const planType = React.useMemo(() => {
-    if (isAgencyWhitelisted) return "whitelisted";
-    if (isCanceled) return "no_plan";
-    if (isTrialActive) return "free_trial";
-
     const plan = business?.SubscriptionItems?.plan_type;
     if (
       hasBusinessPlanAccess(business?.SubscriptionItems) &&
@@ -82,8 +82,18 @@ export function useEntitlementGate({
     ) {
       return plan.toLowerCase();
     }
+    if (isBusinessAccount) return "free";
+    if (isAgencyWhitelisted) return "whitelisted";
+    if (isCanceled) return "no_plan";
+    if (isTrialActive) return "free_trial";
     return "no_plan";
-  }, [business, isAgencyWhitelisted, isCanceled, isTrialActive]);
+  }, [
+    business,
+    isAgencyWhitelisted,
+    isBusinessAccount,
+    isCanceled,
+    isTrialActive,
+  ]);
 
   const entitlements = React.useMemo(() => {
     if (planType === "whitelisted") {
@@ -99,6 +109,22 @@ export function useEntitlementGate({
         massicAgent: true,
         customerAgent: true,
         actions: true,
+      };
+    }
+
+    if (planType === "free") {
+      return {
+        analytics: true,
+        strategy: false,
+        web: false,
+        webOptimize: false,
+        ads: false,
+        aiChat: false,
+        content: false,
+        reviews: false,
+        massicAgent: false,
+        customerAgent: false,
+        actions: false,
       };
     }
 
@@ -146,6 +172,7 @@ export function useEntitlementGate({
 
   const hasPlanSignal =
     !effectiveBusinessId ||
+    isBusinessAccount ||
     isAgencyWhitelisted ||
     isTrialActive ||
     typeof business?.SubscriptionItems?.status === "string" ||
@@ -153,6 +180,7 @@ export function useEntitlementGate({
 
   const gateLoading =
     !!effectiveBusinessId &&
+    !isBusinessAccount &&
     (!subscriptionFetched || subscriptionLoading || (profileDataLoading && !hasPlanSignal));
 
   const getCurrentPlan = React.useCallback(() => {
@@ -164,8 +192,9 @@ export function useEntitlementGate({
     ) {
       return plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase();
     }
+    if (isBusinessAccount) return "Free";
     return "No Plan";
-  }, [business]);
+  }, [business, isBusinessAccount]);
 
   const computedAlertMessage = React.useMemo(() => {
     if (isAgencyWhitelisted) {
@@ -191,6 +220,10 @@ export function useEntitlementGate({
           ? ` Your trial expires in ${remainingTrialDays} day${remainingTrialDays === 1 ? "" : "s"}.`
           : "";
       return `You're on a free trial. Upgrade to access this feature.${trialDaysMessage}`;
+    }
+
+    if (planType === "free") {
+      return `Your Free plan does not include this feature. Upgrade to ${requiredPlan} to access it.`;
     }
 
     if (current === "No Plan") {

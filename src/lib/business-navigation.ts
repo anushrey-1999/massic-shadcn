@@ -1,3 +1,5 @@
+import { webArchitectureTabEnabled } from '@/config/web-page-features'
+
 const ANALYTICS_ROUTE_SEGMENTS = [
   'analytics',
   'monitoring',
@@ -38,4 +40,9 @@ export function isBusinessProfileRoute(pathname: string, businessId: string) {
   return PROFILE_ROUTE_SEGMENTS.some((segment) =>
     isPathWithin(pathname, `/business/${businessId}/${segment}`)
   )
+}
+
+export function businessWebHref(businessId: string) {
+  const path = webArchitectureTabEnabled ? 'web/v2' : 'web'
+  return `/business/${businessId}/${path}`
 }

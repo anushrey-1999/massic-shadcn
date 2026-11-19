@@ -23,6 +23,8 @@ interface WebsiteArchitectureTableProps {
   onSearchChange: (value: string) => void;
   quickTypeFilter: string;
   onQuickTypeFilterChange: (value: string) => void;
+  showQuickTypeFilter?: boolean;
+  showDownload?: boolean;
   canDownload: boolean;
   onDownload: () => void;
 }
@@ -30,6 +32,7 @@ interface WebsiteArchitectureTableProps {
 export function WebsiteArchitectureTable({
   data, pageCount, isLoading, search, onSearchChange,
   quickTypeFilter, onQuickTypeFilterChange,
+  showQuickTypeFilter = true, showDownload = true,
   canDownload, onDownload,
 }: WebsiteArchitectureTableProps) {
   const columns = React.useMemo(() => getWebsiteArchitectureColumns(), []);
@@ -69,32 +72,36 @@ export function WebsiteArchitectureTable({
         <div role="toolbar" aria-label="Website architecture table controls" className="flex w-full flex-wrap items-start justify-between gap-2 p-1">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <DataTableSearch value={search} onChange={onSearchChange} placeholder="Search pages, titles..." />
-            <Tabs value={quickTypeFilter} onValueChange={onQuickTypeFilterChange}>
-              <TabsList className="h-9 rounded-md p-1">
-                <TabsTrigger value="all" className="h-7 rounded px-2.5 text-xs">All</TabsTrigger>
-                <TabsTrigger value="editorial" className="h-7 rounded px-2.5 text-xs">Blogs</TabsTrigger>
-                <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">Other pages</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {showQuickTypeFilter && (
+              <Tabs value={quickTypeFilter} onValueChange={onQuickTypeFilterChange}>
+                <TabsList className="h-9 rounded-md p-1">
+                  <TabsTrigger value="all" className="h-7 rounded px-2.5 text-xs">All</TabsTrigger>
+                  <TabsTrigger value="editorial" className="h-7 rounded px-2.5 text-xs">Blogs</TabsTrigger>
+                  <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">Other pages</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             <DataTableFilterList table={table} shallow={shallow} debounceMs={debounceMs} throttleMs={throttleMs} align="start" />
           </div>
           <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-9 font-normal"
-                  aria-label="Download website architecture"
-                  disabled={!canDownload}
-                  onClick={onDownload}
-                >
-                  <Download className="size-4 text-muted-foreground" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Download</TooltipContent>
-            </Tooltip>
+            {showDownload && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-9 font-normal"
+                    aria-label="Download website architecture"
+                    disabled={!canDownload}
+                    onClick={onDownload}
+                  >
+                    <Download className="size-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Download</TooltipContent>
+              </Tooltip>
+            )}
             <DataTableSortList table={table} align="start" />
             <div className="[&>button]:flex">
               <DataTableViewOptions table={table} align="end" />

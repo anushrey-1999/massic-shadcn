@@ -20,7 +20,10 @@ import {
 } from "@/hooks/use-website-architecture-content";
 import { architecturePreviewHref, getArchitectureAction } from "@/lib/website-architecture-navigation";
 import type { ArchitectureContentArtifact } from "@/types/website-architecture-content-types";
-import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
+import type {
+  WebsiteArchitecturePage,
+  WebsiteArchitectureScope,
+} from "@/types/website-architecture-types";
 
 type ArtifactQuery = UseQueryResult<ArchitectureContentArtifact | null, Error>;
 const ContentActions = createContext<{
@@ -87,10 +90,12 @@ export function WebsiteArchitectureActionCell({ page }: { page: WebsiteArchitect
 export function WebsiteArchitectureActions({
   businessId,
   pages,
+  v2Scope,
   children,
 }: {
   businessId: string;
   pages: WebsiteArchitecturePage[];
+  v2Scope?: WebsiteArchitectureScope;
   children: ReactNode;
 }) {
   const client = useQueryClient();
@@ -163,16 +168,24 @@ export function WebsiteArchitectureActions({
 
   useEffect(() => {
     if (!selected || !selectedReady || mutation.isPending || submitLock.current) return;
-    router.push(architecturePreviewHref(businessId, selected, search, selectedStatus === "processing"));
+    router.push(
+      architecturePreviewHref(
+        businessId,
+        selected,
+        search,
+        selectedStatus === "processing",
+        v2Scope,
+      ),
+    );
     setSelected(null);
-  }, [businessId, mutation.isPending, router, search, selected, selectedReady, selectedStatus]);
+  }, [businessId, mutation.isPending, router, search, selected, selectedReady, selectedStatus, v2Scope]);
 
   const submit = (page: WebsiteArchitecturePage, instructions: string) => {
     if (submitLock.current || !guardGenerate()) return;
     submitLock.current = true;
     mutation.mutate({ pageId: page.page_id, instructions }, {
       onSuccess: (inFlight) => {
-        router.push(architecturePreviewHref(businessId, page, search, inFlight));
+        router.push(architecturePreviewHref(businessId, page, search, inFlight, v2Scope));
         setSelected(null);
       },
       onSettled: () => { submitLock.current = false; },
@@ -182,7 +195,13 @@ export function WebsiteArchitectureActions({
   return (
     <ContentActions.Provider value={{
       byPageId,
-      href: (page, inFlight) => architecturePreviewHref(businessId, page, search, inFlight),
+      href: (page, inFlight) => architecturePreviewHref(
+        businessId,
+        page,
+        search,
+        inFlight,
+        v2Scope,
+      ),
       open: (page, button) => {
         mutation.reset();
         trigger.current = button;

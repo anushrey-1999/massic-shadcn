@@ -1,6 +1,7 @@
 "use client"
 
 import React from 'react'
+import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
@@ -165,6 +166,13 @@ export default function BusinessWebPage({ params }: PageProps) {
                       </Typography>
                       <ContentUsageInfo businessId={businessId} feature="blogs_pages" />
                     </div>
+                  )}
+                  {webArchitectureTabEnabled && (
+                    <Button asChild variant="outline" size="sm" className="shrink-0">
+                      <Link href={`/business/${encodeURIComponent(businessId)}/web/v2`}>
+                        V2
+                      </Link>
+                    </Button>
                   )}
                   <Button
                     variant="ghost"

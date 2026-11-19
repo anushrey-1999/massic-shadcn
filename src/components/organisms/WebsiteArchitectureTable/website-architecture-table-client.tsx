@@ -16,7 +16,11 @@ import {
   getWebPageTypesForQuickFilter,
   type WebPageQuickTypeFilter,
 } from "@/lib/web-page-types";
-import type { WebsiteArchitectureExport, WebsiteArchitecturePage } from "@/types/website-architecture-types";
+import type {
+  WebsiteArchitectureExport,
+  WebsiteArchitecturePage,
+  WebsiteArchitectureScope,
+} from "@/types/website-architecture-types";
 import { WebsiteArchitectureActions } from "./website-architecture-content-actions";
 import { WebsiteArchitectureDownloadDialog } from "./website-architecture-download-dialog";
 import { WebsiteArchitectureTable } from "./website-architecture-table";
@@ -88,7 +92,25 @@ const stateParsers = {
   joinOperator: parseAsStringEnum(["and", "or"]).withDefault("and"),
 };
 
-export function WebsiteArchitectureTableClient({ businessId }: { businessId: string }) {
+interface WebsiteArchitectureTableClientProps {
+  businessId: string;
+  scope?: WebsiteArchitectureScope;
+  showQuickTypeFilter?: boolean;
+  showDownload?: boolean;
+  showCount?: boolean;
+  onTotalCountChange?: (totalCount: number | null) => void;
+  returnToV2?: boolean;
+}
+
+export function WebsiteArchitectureTableClient({
+  businessId,
+  scope = "all",
+  showQuickTypeFilter = true,
+  showDownload = true,
+  showCount = true,
+  onTotalCountChange,
+  returnToV2 = false,
+}: WebsiteArchitectureTableClientProps) {
   const [state, setState] = useQueryStates(stateParsers, {
     urlKeys: ARCHITECTURE_QUERY_KEYS,
     clearOnDefault: true,
@@ -96,7 +118,15 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
   });
   const page = Math.max(1, state.page);
   const perPage = [10, 30, 50, 100, 200].includes(state.perPage) ? state.perPage : 100;
-  const signature = JSON.stringify([businessId, perPage, state.search, state.sort, state.filters, state.joinOperator]);
+  const signature = JSON.stringify([
+    businessId,
+    scope,
+    perPage,
+    state.search,
+    state.sort,
+    state.filters,
+    state.joinOperator,
+  ]);
   const previousSignature = React.useRef(signature);
   const needsPageReset = previousSignature.current !== signature && page !== 1;
 
@@ -110,7 +140,10 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
   const [isDownloadOpen, setIsDownloadOpen] = React.useState(false);
   const query = useQuery({
     queryKey: ["website-architecture", businessId, page, signature],
-    queryFn: ({ signal }) => fetchWebsiteArchitecture({ ...state, businessId, page, perPage }, signal),
+    queryFn: ({ signal }) => fetchWebsiteArchitecture(
+      { ...state, businessId, page, perPage, scope },
+      signal,
+    ),
     enabled: Boolean(businessId) && !needsPageReset,
     staleTime: 1000 * 60 * 5,
     refetchOnMount: "always",
@@ -174,6 +207,10 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
   const pages = notFound ? [] : query.data?.data ?? [];
   const loadingRows = query.isLoading || query.isPlaceholderData || needsPageReset;
 
+  React.useEffect(() => {
+    onTotalCountChange?.(loadingRows ? null : totalCount ?? null);
+  }, [loadingRows, onTotalCountChange, totalCount]);
+
   if ((query.isError && !notFound) || pending) {
     return (
       <div className="flex flex-1 flex-col items-start gap-3 rounded-lg bg-background p-5">
@@ -190,10 +227,16 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-      <p role="status" className="min-h-5 px-4 text-sm text-muted-foreground">
-        {loadingRows ? "Loading pages…" : totalCount != null ? `${formatVolume(totalCount)} pages` : ""}
-      </p>
-      <WebsiteArchitectureActions businessId={businessId} pages={pages}>
+      {showCount && (
+        <p role="status" className="min-h-5 px-4 text-sm text-muted-foreground">
+          {loadingRows ? "Loading pages…" : totalCount != null ? `${formatVolume(totalCount)} pages` : ""}
+        </p>
+      )}
+      <WebsiteArchitectureActions
+        businessId={businessId}
+        pages={pages}
+        v2Scope={returnToV2 ? scope : undefined}
+      >
         <WebsiteArchitectureTable
           data={pages}
           pageCount={notFound ? 0 : query.data?.pageCount ?? 0}
@@ -202,16 +245,20 @@ export function WebsiteArchitectureTableClient({ businessId }: { businessId: str
           onSearchChange={(search) => void setState({ search, page: 1 })}
           quickTypeFilter={quickTypeFilter}
           onQuickTypeFilterChange={handleQuickTypeFilter}
+          showQuickTypeFilter={showQuickTypeFilter}
+          showDownload={showDownload}
           canDownload={!query.isLoading && !needsPageReset && (totalCount ?? 0) > 0}
           onDownload={() => setIsDownloadOpen(true)}
         />
       </WebsiteArchitectureActions>
-      <WebsiteArchitectureDownloadDialog
-        isOpen={isDownloadOpen}
-        onClose={() => setIsDownloadOpen(false)}
-        defaultFilename="website-architecture"
-        onDownload={handleDownload}
-      />
+      {showDownload && (
+        <WebsiteArchitectureDownloadDialog
+          isOpen={isDownloadOpen}
+          onClose={() => setIsDownloadOpen(false)}
+          defaultFilename="website-architecture"
+          onDownload={handleDownload}
+        />
+      )}
     </div>
   );
 }

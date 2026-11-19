@@ -8,7 +8,11 @@ import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
 import { useAuthStore } from '@/store/auth-store'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
+import {
+  businessWebHref,
+  isBusinessAnalyticsRoute,
+  isBusinessProfileRoute,
+} from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -365,7 +369,10 @@ export default function SingleBusinessSidebar() {
 
         <SidebarMenu className="gap-0.5">
           {businessNavItems.map((item) => {
-            const itemHref = `/business/${business.UniqueId}/${item.slug}`
+            const itemHref =
+              item.slug === 'web'
+                ? businessWebHref(business.UniqueId)
+                : `/business/${business.UniqueId}/${item.slug}`
             const itemBasePath = `/business/${business.UniqueId}/${item.slug}`
             let isActive = false
             if (item.slug === 'analytics') {

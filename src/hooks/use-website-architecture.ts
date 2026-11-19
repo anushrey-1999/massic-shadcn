@@ -12,6 +12,12 @@ import type {
 
 const READ_PAGE_SIZE = 1000;
 
+interface WebsiteArchitectureApiFilter {
+  field: string;
+  value: string | string[] | null;
+  operator: string;
+}
+
 // QA also uses Infer v1 for older features. Website Architecture only has v2 routes.
 export const websiteArchitectureApiBase = getBaseURLByPlatform("python").replace(/\/v1\/?$/, "/v2");
 
@@ -31,15 +37,24 @@ export function useWebsiteArchitecture() {
       // The API silently ignores unsupported sort fields and rejects unsupported filters.
       const sort = params.sort.filter((item) => item.field === "title");
       if (sort.length) query.set("sort", JSON.stringify(sort));
-      const filters = params.filters
+      const filters: WebsiteArchitectureApiFilter[] = params.filters
         .map(({ field, value, operator }) => ({
           field: field === "sources" ? "source" : field,
           value,
           operator,
         }))
         .filter((filter) => ["page_type", "disposition", "source"].includes(filter.field));
+      const baseFilters: WebsiteArchitectureApiFilter[] = params.scope === "new-pages"
+        ? [{ field: "current_url", operator: "eq", value: null }]
+        : params.scope === "optimize"
+          ? [{ field: "current_url", operator: "ne", value: null }]
+          : [];
 
-      const readPage = async (page: number, pageSize: number, activeFilters: typeof filters): Promise<WebsiteArchitectureResult> => {
+      const readPage = async (
+        page: number,
+        pageSize: number,
+        activeFilters: WebsiteArchitectureApiFilter[],
+      ): Promise<WebsiteArchitectureResult> => {
         const pageQuery = new URLSearchParams(query);
         pageQuery.set("page", String(page));
         pageQuery.set("page_size", String(pageSize));
@@ -63,7 +78,7 @@ export function useWebsiteArchitecture() {
         };
       };
 
-      const collect = async (activeFilters: typeof filters): Promise<WebsiteArchitectureResult> => {
+      const collect = async (activeFilters: WebsiteArchitectureApiFilter[]): Promise<WebsiteArchitectureResult> => {
         const first = await readPage(1, READ_PAGE_SIZE, activeFilters);
         if (first.status !== "success" || first.pageCount <= 1) return first;
         const items = [...first.data];
@@ -81,12 +96,14 @@ export function useWebsiteArchitecture() {
       };
 
       if (params.joinOperator !== "or" || filters.length < 2) {
-        return readPage(params.page, params.perPage, filters);
+        return readPage(params.page, params.perPage, [...baseFilters, ...filters]);
       }
 
       // The route only supports AND. Build OR from complete server-filtered sets,
-      // never from just the currently displayed page or from duplicate URL paths.
-      const pages = await Promise.all(filters.map((filter) => collect([filter])));
+      // while keeping the tab's immutable current_url scope on every branch.
+      const pages = await Promise.all(
+        filters.map((filter) => collect([...baseFilters, filter])),
+      );
       const unfinished = pages.find((page) => page.status !== "success");
       if (unfinished) return unfinished;
       const unique = new Map(pages.flatMap((page) => page.data).map((page) => [page.page_id, page]));

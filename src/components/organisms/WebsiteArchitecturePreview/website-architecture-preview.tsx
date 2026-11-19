@@ -21,6 +21,7 @@ export function WebsiteArchitecturePreview({ businessId, pageId }: { businessId:
   const { profileData } = useBusinessProfileById(businessId);
   const search = useSearchParams();
   const backHref = architectureListHref(businessId, search);
+  const backLabel = search.get("architectureOrigin") === "v2" ? "Web V2" : "Web Architecture";
   const title = search.get("title")?.trim().slice(0, 200);
   const runParam = search.get("run");
   const run = runParam === "generate" || runParam === "optimize" ? runParam : undefined;
@@ -33,7 +34,7 @@ export function WebsiteArchitecturePreview({ businessId, pageId }: { businessId:
         <PageHeader showAskMassic={false} breadcrumbs={[
           { label: "Home", href: "/" },
           { label: profileData?.Name || profileData?.DisplayName || "Business" },
-          { label: "Web Architecture", href: backHref },
+          { label: backLabel, href: backHref },
           { label: "Preview" },
         ]} />
       </div>

@@ -31,7 +31,7 @@ const KEYWORD_SCOPE_OPTIONS: { label: string; value: AnalyticsKeywordScope; desc
   { label: "Non-branded", value: "non-branded", description: "Only non-branded queries" },
 ];
 
-const DATA_READY_TOOLTIP = "Available once your data is ready";
+export const DATA_READY_TOOLTIP = "Available once your data is ready";
 
 function FilterIcon({ className }: { className?: string }) {
   return (
@@ -272,7 +272,7 @@ export function AnalyticsDisplayMenu({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="cursor-not-allowed">
+          <span className="cursor-not-allowed" tabIndex={0}>
             <Button
               variant="outline"
               size="sm"

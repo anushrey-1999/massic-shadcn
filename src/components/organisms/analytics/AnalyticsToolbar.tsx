@@ -10,11 +10,10 @@ import {
   AnalyticsDisplayMenu,
   AnalyticsFilterMenu,
   AnalyticsNavigationMenu,
+  DATA_READY_TOOLTIP,
   type AnalyticsKeywordScope,
 } from "@/components/molecules/analytics/AnalyticsHeaderActions";
 import { type AnalyticsMetricKey } from "@/utils/analytics-metrics";
-
-const DATA_READY_TOOLTIP = "Available once your data is ready";
 
 const TAB_TRIGGER_CLASS =
   "text-general-foreground h-auto min-h-8 min-w-[72px] flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
@@ -53,9 +52,9 @@ interface AnalyticsToolbarProps {
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
 
-  /** Search Console or GA4 import in flight — blocks data-dependent controls. */
+  /** Search Console is importing or GA4 is blocked — disables shared data actions. */
   isIngestionActive?: boolean;
-  /** GA4 dataset unavailable — blocks chart display controls. */
+  /** The tab's dataset is unavailable — blocks the period and display controls. */
   isDataBlocked?: boolean;
   showDisplay?: boolean;
 }
@@ -126,9 +125,12 @@ export function AnalyticsToolbar({
               <span className="truncate">GA4 · {ga4ScopePath}</span>
             </Badge>
           ) : null}
-          <Tooltip>
+          <Tooltip key={scope}>
             <TooltipTrigger asChild>
-              <span className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}>
+              <span
+                className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}
+                tabIndex={isIngestionActive ? 0 : undefined}
+              >
                 <Button
                   size="sm"
                   className="h-auto min-h-10 shrink-0 rounded-[8px] px-6 py-[9.5px] text-sm leading-[1.5] font-medium tracking-[0.07px]"
@@ -151,10 +153,17 @@ export function AnalyticsToolbar({
         <div className="flex shrink-0 items-center gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="inline-flex cursor-pointer items-center">{periodSelector}</div>
+              <div
+                className={isDataBlocked
+                  ? "inline-flex cursor-not-allowed items-center [&_button]:pointer-events-none"
+                  : "inline-flex cursor-pointer items-center"}
+                tabIndex={isDataBlocked ? 0 : undefined}
+              >
+                {periodSelector}
+              </div>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={8}>
-              Period and grouping
+              {isDataBlocked ? DATA_READY_TOOLTIP : "Period and grouping"}
             </TooltipContent>
           </Tooltip>
           {showKeywordScope ? (

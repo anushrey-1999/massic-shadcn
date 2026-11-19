@@ -325,6 +325,7 @@ export function FreeBusinessConnectionPanel({
       {isOnboarding && (
         <SignupStepHeader
           step={SIGNUP_PROGRESS_STEPS.connectData}
+          completedLabel="Business created"
           title="Connect your data"
           description={selection.gsc
             ? "Add Analytics and Business Profile now, or later from Analytics."

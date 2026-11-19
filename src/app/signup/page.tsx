@@ -13,6 +13,7 @@ import {
   GoogleSignupStep,
 } from "@/components/organisms/signup/FreeBusinessSignupSteps";
 import { FreeBusinessSignupTemplate } from "@/components/templates/FreeBusinessSignupTemplate";
+import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { useGoogleLogin, useSignup } from "@/hooks/use-auth";
 import { useBusinessCreation } from "@/hooks/use-business-creation";
 import { useLocations } from "@/hooks/use-locations";
@@ -28,6 +29,7 @@ import { useSignupStore } from "@/store/signup-store";
 import { profileFormDefaults } from "@/utils/profile-form-mappers";
 
 const AGENCY_CONTACT_URL = "https://massic.io/contact";
+const BUSINESS_SETUP_ERROR_TOAST = "free-business-signup-error";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -50,6 +52,9 @@ export default function SignupPage() {
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const googleLogin = useGoogleLogin();
   const signup = useSignup();
+  const [ready, setReady] = useState(false);
+  const [redirectDestination, setRedirectDestination] = useState<string | null>(null);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [creationProgress, setCreationProgress] = useState<CreationProgress>(
     emptyCreationProgress,
   );
@@ -66,40 +71,45 @@ export default function SignupPage() {
   const profileBuild = useProfileAnalysis(businessId || "");
   const creatingRef = useRef(false);
   const buildRef = useRef(false);
+  const redirectHome =
+    ready &&
+    isAuthenticated &&
+    (step === "initial" || (user && user.roleid !== USER_ROLE_IDS.BUSINESS));
+  const redirectTo = redirectDestination ?? (redirectHome ? "/" : null);
+  const resetSignedOutDraft =
+    ready &&
+    !isAuthenticated &&
+    step !== "initial" &&
+    step !== "googleSignIn" &&
+    !userSignupData.googleToken;
+  const canSetUpBusiness =
+    ready && !redirectTo && isAuthenticated && user?.roleid === USER_ROLE_IDS.BUSINESS;
 
   useEffect(() => {
-    // Account choice and Google sign-in can resume without credentials. Later
-    // signed-out steps need the in-memory Google token from this tab.
-    // AuthProvider may not be hydrated yet, so check the cookie-backed store.
-    if (!isAuthenticated) {
-      useAuthStore.getState().hydrate();
-      if (useAuthStore.getState().isAuthenticated) return;
-      const canResumeSignedOut =
-        step === "initial" ||
-        step === "googleSignIn" ||
-        Boolean(userSignupData.googleToken);
-      if (!canResumeSignedOut) reset();
-      return;
-    }
-    if (!user) return;
-    if (user.roleid !== USER_ROLE_IDS.BUSINESS) {
-      if (step !== "initial") reset();
-      router.replace("/");
-      return;
-    }
-    if (step === "initial") router.replace("/");
-  }, [isAuthenticated, reset, router, step, user, userSignupData.googleToken]);
+    // The server renders before the saved signup step and auth cookies are available.
+    const auth = useAuthStore.getState();
+    if (!auth.isAuthenticated) auth.hydrate();
+    setReady(true);
+  }, []);
 
   useEffect(() => {
-    if (
-      step !== "creatingBusiness" ||
-      !isAuthenticated ||
-      !user ||
-      creatingRef.current ||
-      businessId
-    ) {
+    if (resetSignedOutDraft) reset();
+  }, [resetSignedOutDraft, reset]);
+
+  useEffect(() => {
+    if (!redirectTo) return;
+    // The redirect screen is already active before resetting the signup step.
+    reset();
+    router.replace(redirectTo);
+  }, [redirectTo, reset, router]);
+
+  useEffect(() => {
+    if (!canSetUpBusiness || step !== "creatingBusiness") return;
+    if (businessId) {
+      setStep("connectSources");
       return;
     }
+    if (creatingRef.current) return;
 
     creatingRef.current = true;
     const values = {
@@ -115,11 +125,11 @@ export default function SignupPage() {
       .then(({ business }) => {
         setBusinessId(business.UniqueId);
         setStep("connectSources");
-        toast.success("Your business is ready");
       })
       .catch((error) => {
         creatingRef.current = false;
         toast.error("We couldn't finish business setup", {
+          id: BUSINESS_SETUP_ERROR_TOAST,
           description: apiErrorMessage(error),
         });
         setStep("businessDetails");
@@ -128,15 +138,15 @@ export default function SignupPage() {
     businessCreation,
     businessData,
     businessId,
-    isAuthenticated,
+    canSetUpBusiness,
     setBusinessId,
     setStep,
     step,
-    user,
   ]);
 
   useEffect(() => {
     if (
+      !canSetUpBusiness ||
       !businessId ||
       profileBuildRequested ||
       buildRef.current
@@ -156,6 +166,7 @@ export default function SignupPage() {
       });
   }, [
     businessId,
+    canSetUpBusiness,
     profileBuild,
     profileBuildRequested,
     setProfileBuildRequested,
@@ -171,8 +182,7 @@ export default function SignupPage() {
       try {
         await googleLogin.mutateAsync({ token: googleToken });
         toast.success("Welcome back");
-        reset();
-        router.replace("/");
+        setRedirectDestination("/");
       } catch (error: unknown) {
         const signupError = error as {
           userNotFound?: boolean;
@@ -197,10 +207,11 @@ export default function SignupPage() {
         setStep("businessDetails");
       }
     },
-    [googleLogin, reset, router, setStep, setUserSignupData],
+    [googleLogin, setStep, setUserSignupData],
   );
 
   const createAccount = useCallback(async () => {
+    toast.dismiss(BUSINESS_SETUP_ERROR_TOAST);
     if (isAuthenticated && user?.roleid === USER_ROLE_IDS.BUSINESS) {
       setStep("creatingBusiness");
       return;
@@ -210,6 +221,7 @@ export default function SignupPage() {
       setStep("googleSignIn");
       return;
     }
+    setCreatingAccount(true);
     try {
       await signup.mutateAsync({
         email: userSignupData.email,
@@ -225,8 +237,11 @@ export default function SignupPage() {
       setStep("creatingBusiness");
     } catch (error) {
       toast.error("Account creation failed", {
+        id: BUSINESS_SETUP_ERROR_TOAST,
         description: apiErrorMessage(error),
       });
+    } finally {
+      setCreatingAccount(false);
     }
   }, [
     businessData.businessName,
@@ -240,14 +255,29 @@ export default function SignupPage() {
   ]);
 
   const pending =
-    googleLogin.isPending || signup.isPending || businessCreation.isPending;
+    googleLogin.isPending || creatingAccount || businessCreation.isPending;
+  const settingUpBusiness =
+    step === "creatingBusiness" || (step === "businessDetails" && creatingAccount);
 
   const finishOnboarding = useCallback(() => {
-    if (!businessId) return;
-    const analyticsPath = `/business/${businessId}/analytics`;
-    reset();
-    router.replace(analyticsPath);
-  }, [businessId, reset, router]);
+    if (businessId) setRedirectDestination(`/business/${businessId}/analytics`);
+  }, [businessId]);
+
+  if (!ready || resetSignedOutDraft) return <FreeBusinessSignupTemplate />;
+
+  if (redirectTo) {
+    return (
+      <FreeBusinessSignupTemplate>
+        <div
+          role="status"
+          className="flex flex-col items-center gap-3 px-5 py-8 text-sm text-general-muted-foreground"
+        >
+          <MassicAmoebaLoader size={36} label={null} />
+          <p>Opening Massic…</p>
+        </div>
+      </FreeBusinessSignupTemplate>
+    );
+  }
 
   return (
     <FreeBusinessSignupTemplate>
@@ -275,25 +305,32 @@ export default function SignupPage() {
         />
       ) : null}
       {step === "businessDetails" ? (
-        <BusinessDetailsStep
-          value={businessData}
-          locationOptions={locationOptions}
-          locationsLoading={locationsLoading}
-          pending={pending}
-          onChange={setBusinessData}
-          onBack={() => setStep("googleSignIn")}
-          onContinue={() => void createAccount()}
-        />
+        <div hidden={creatingAccount}>
+          <BusinessDetailsStep
+            value={businessData}
+            locationOptions={locationOptions}
+            locationsLoading={locationsLoading}
+            pending={pending}
+            onChange={setBusinessData}
+            onBack={() => setStep("googleSignIn")}
+            onContinue={() => void createAccount()}
+          />
+        </div>
       ) : null}
-      {step === "creatingBusiness" ? (
-        <CreatingBusinessStep progress={creationProgress} />
+      {settingUpBusiness ? (
+        <CreatingBusinessStep
+          creatingAccount={step === "businessDetails"}
+          progress={creationProgress}
+        />
       ) : null}
       {step === "connectSources" && businessId ? (
-        <FreeBusinessConnectionPanel
-          businessId={businessId}
-          website={businessData.website}
-          onContinue={finishOnboarding}
-        />
+        <div className="motion-safe:animate-in motion-safe:fade-in-50 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-safe:ease-out">
+          <FreeBusinessConnectionPanel
+            businessId={businessId}
+            website={businessData.website}
+            onContinue={finishOnboarding}
+          />
+        </div>
       ) : null}
     </FreeBusinessSignupTemplate>
   );

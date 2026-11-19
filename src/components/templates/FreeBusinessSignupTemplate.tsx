@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 export function FreeBusinessSignupTemplate({
   children,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <main className="min-h-svh bg-general-primary-foreground px-4 py-8 sm:px-6 sm:py-12">
@@ -20,9 +20,11 @@ export function FreeBusinessSignupTemplate({
           />
         </div>
 
-        <Card className="gap-0 overflow-hidden rounded-lg border-general-border-three bg-white py-0 shadow-xs">
-          {children}
-        </Card>
+        {children ? (
+          <Card className="gap-0 overflow-hidden rounded-lg border-general-border-three bg-white py-0 shadow-xs">
+            {children}
+          </Card>
+        ) : null}
       </div>
     </main>
   );

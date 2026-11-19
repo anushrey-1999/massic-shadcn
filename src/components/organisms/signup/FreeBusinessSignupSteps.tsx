@@ -31,7 +31,14 @@ export const SIGNUP_PROGRESS_STEPS = {
 
 const SIGNUP_PROGRESS_TOTAL = Object.keys(SIGNUP_PROGRESS_STEPS).length;
 
-function SignupProgress({ step }: { step: number }) {
+function SignupProgress({
+  step,
+  completedLabel,
+}: {
+  step: number;
+  completedLabel?: string;
+}) {
+  const stepLabel = `Step ${step} of ${SIGNUP_PROGRESS_TOTAL}`;
   return (
     <div
       className="flex items-center gap-2.5"
@@ -40,20 +47,26 @@ function SignupProgress({ step }: { step: number }) {
       aria-valuemin={1}
       aria-valuemax={SIGNUP_PROGRESS_TOTAL}
       aria-valuenow={step}
+      aria-valuetext={completedLabel ? `${completedLabel}. ${stepLabel}` : stepLabel}
     >
-      <div className="flex gap-1" aria-hidden="true">
-        {Array.from({ length: SIGNUP_PROGRESS_TOTAL }, (_, index) => (
-          <span
-            key={index}
-            className={cn(
-              "h-1 w-7 rounded-full",
-              index < step ? "bg-general-primary" : "bg-general-border",
-            )}
-          />
-        ))}
-      </div>
+      {completedLabel ? (
+        <Check className="size-3.5 text-general-primary" aria-hidden="true" />
+      ) : (
+        <div className="flex gap-1" aria-hidden="true">
+          {Array.from({ length: SIGNUP_PROGRESS_TOTAL }, (_, index) => (
+            <span
+              key={index}
+              className={cn(
+                "h-1 w-7 rounded-full",
+                index < step ? "bg-general-primary" : "bg-general-border",
+              )}
+            />
+          ))}
+        </div>
+      )}
       <span className="text-xs text-general-unofficial-foreground-alt">
-        Step {step} of {SIGNUP_PROGRESS_TOTAL}
+        {completedLabel ? `${completedLabel} · ` : null}
+        {stepLabel}
       </span>
     </div>
   );
@@ -63,16 +76,18 @@ export function SignupStepHeader({
   title,
   description,
   step,
+  completedLabel,
 }: {
   title: string;
   description: string;
   step?: number;
+  completedLabel?: string;
 }) {
   return (
     <div className="space-y-1 border-b border-general-border px-5 py-5 sm:px-6">
       {step ? (
         <div className="pb-2">
-          <SignupProgress step={step} />
+          <SignupProgress step={step} completedLabel={completedLabel} />
         </div>
       ) : null}
       <h1 className="text-xl font-medium tracking-[-0.01em] text-general-foreground">
@@ -254,7 +269,7 @@ export function BusinessDetailsStep({
       <SignupStepHeader
         step={SIGNUP_PROGRESS_STEPS.business}
         title="Tell us about your business"
-        description="Four quick details help us set up your analytics."
+        description="Use these details to create your business profile."
       />
       <form
         className="space-y-5 px-5 py-6 sm:px-6"
@@ -274,7 +289,7 @@ export function BusinessDetailsStep({
             disabled={pending}
           />
           <p className="text-xs text-general-muted-foreground">
-            We use your website to identify your business and set up analytics.
+            Use the main website for your business.
           </p>
         </div>
         <div className="space-y-2">
@@ -345,92 +360,47 @@ export function BusinessDetailsStep({
   );
 }
 
-const BUSINESS_SETUP_STEPS = [
-  {
-    label: "Creating business",
-    message: "Creating your business record.",
-  },
-  {
-    label: "Saving details",
-    message: "Saving your location and service details.",
-  },
-  {
-    label: "Starting analytics",
-    message: "Starting your analytics workspace.",
-  },
-] as const;
-
 export function CreatingBusinessStep({
+  creatingAccount,
   progress,
 }: {
+  creatingAccount: boolean;
   progress: CreationProgress;
 }) {
-  const activeStep = progress.business ? (progress.profileSaved ? 2 : 1) : 0;
+  let message = "Creating your business profile…";
+  if (creatingAccount) {
+    message = "Creating your account…";
+  } else if (progress.profileSaved) {
+    message = "Finishing business setup…";
+  } else if (progress.business) {
+    message = "Saving your location and service area…";
+  }
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300"
-    >
-      <div className="px-5 py-5 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-general-secondary">
-            <MassicAmoebaLoader size={22} label={null} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="text-sm font-medium text-general-foreground">
-              Setting up your business
-            </h1>
-            <p className="text-xs text-general-muted-foreground">
-              {BUSINESS_SETUP_STEPS[activeStep].message}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-hidden="true">
-          {BUSINESS_SETUP_STEPS.map((setupStep, index) => {
-            const complete = index < activeStep;
-            const active = index === activeStep;
-
-            return (
-              <div key={setupStep.label} className="min-w-0">
-                <div
-                  className={cn(
-                    "mb-2 h-1 overflow-hidden rounded-full",
-                    complete ? "bg-general-primary" : "bg-general-border",
-                  )}
-                >
-                  {active ? (
-                    <span className="block h-full w-1/3 rounded-full bg-general-primary motion-safe:animate-progress-indeterminate motion-reduce:w-full" />
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  {complete ? (
-                    <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-general-primary text-general-primary-foreground">
-                      <Check className="size-2.5" strokeWidth={2} />
-                    </span>
-                  ) : active ? (
-                    <MassicAmoebaLoader size={16} label={null} />
-                  ) : (
-                    <span className="size-2 shrink-0 rounded-full bg-general-border" />
-                  )}
-                  <span
-                    className={cn(
-                      "truncate text-xs",
-                      complete || active
-                        ? "text-general-foreground"
-                        : "text-general-muted-foreground",
-                    )}
-                  >
-                    {setupStep.label}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <div className="px-5 py-6 text-center motion-safe:animate-in motion-safe:fade-in-50 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-safe:ease-out sm:px-6">
+      <p className="text-xs text-general-muted-foreground">
+        Step {SIGNUP_PROGRESS_STEPS.business} of {SIGNUP_PROGRESS_TOTAL} · Business details
+      </p>
+      <div className="mx-auto mt-4 grid size-14 place-items-center rounded-lg bg-general-primary/10">
+        <MassicAmoebaLoader size={30} label={null} />
       </div>
+      <h1 className="mt-3 text-xl font-medium tracking-[-0.01em] text-general-foreground">
+        Setting up your business
+      </h1>
+      <p
+        role="status"
+        className="mt-1 min-h-10 text-sm text-general-muted-foreground sm:min-h-5"
+      >
+        <span
+          key={message}
+          className="inline-block motion-safe:animate-in motion-safe:fade-in-50 motion-safe:duration-200 motion-safe:ease-out"
+        >
+          {message}
+        </span>
+      </p>
+      <p className="mt-3 text-xs text-general-muted-foreground sm:mt-5">
+        Up next · Connect your Google data
+      </p>
     </div>
   );
 }

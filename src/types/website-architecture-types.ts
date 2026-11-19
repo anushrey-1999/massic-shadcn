@@ -1,5 +1,6 @@
 export interface WebsiteArchitecturePage {
   page_id: string;
+  status?: string;
   name: string;
   title: string;
   page_type: string;

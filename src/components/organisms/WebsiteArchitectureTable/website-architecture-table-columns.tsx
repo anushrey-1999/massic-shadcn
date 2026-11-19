@@ -8,6 +8,7 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Typography } from "@/components/ui/typography";
 import { formatVolume } from "@/lib/format";
 import type { WebsiteArchitecturePage } from "@/types/website-architecture-types";
+import { WebsiteArchitectureActionCell } from "./website-architecture-content-actions";
 import {
   parseWebPageType,
   WEB_PAGE_TYPE_LABELS,
@@ -48,7 +49,7 @@ export function getWebsiteArchitectureColumns(): ColumnDef<WebsiteArchitecturePa
     enableSorting: false,
     enableColumnFilter: false,
     size,
-    minSize: size,
+    minSize: Math.ceil(size * 0.75),
   });
 
   const facet = (
@@ -132,5 +133,15 @@ export function getWebsiteArchitectureColumns(): ColumnDef<WebsiteArchitecturePa
       size: 200,
       minSize: 200,
     })),
+    {
+      id: "actions",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Actions" />,
+      cell: ({ row }) => <WebsiteArchitectureActionCell page={row.original} />,
+      enableHiding: false,
+      enableSorting: false,
+      enableColumnFilter: false,
+      size: 148,
+      minSize: 148,
+    },
   ];
 }

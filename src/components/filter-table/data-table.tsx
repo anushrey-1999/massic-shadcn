@@ -1,4 +1,4 @@
-import { flexRender, type Table as TanstackTable } from "@tanstack/react-table";
+import { flexRender, type Column, type Table as TanstackTable } from "@tanstack/react-table";
 import * as React from "react";
 
 import { DataTablePagination } from "./data-table-pagination";
@@ -13,6 +13,7 @@ import {
 import { getCommonPinningStyles, formatSizeValue } from "../../utils/data-table-utils";
 import { cn } from "../../lib/utils";
 import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper function to get alignment class from column meta
 // Always returns left alignment as per requirement
@@ -26,6 +27,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   pageSizeOptions?: number[];
   isLoading?: boolean;
   isFetching?: boolean;
+  loadingRowCount?: number;
   emptyMessage?: string;
   onRowClick?: (row: TData) => void;
   selectedRowId?: string | null;
@@ -33,6 +35,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   showPagination?: boolean;
   hideRowsPerPage?: boolean;
   disableHorizontalScroll?: boolean;
+  fitToWidth?: boolean;
   paginationAlign?: "left" | "right" | "between";
   toolbarPosition?: "beforeTable" | "belowHeader";
 }
@@ -45,18 +48,35 @@ export function DataTable<TData>({
   pageSizeOptions,
   isLoading = false,
   isFetching = false,
+  loadingRowCount,
   emptyMessage = "No results found.",
   onRowClick,
   selectedRowId,
   showPagination = true,
   hideRowsPerPage = false,
   disableHorizontalScroll = false,
+  fitToWidth = false,
   paginationAlign = "between",
   toolbarPosition = "beforeTable",
   highlightSelectedRow = true,
   ...props
 }: DataTableProps<TData>) {
-  const showLoading = isLoading && table.getRowModel().rows.length === 0;
+  const showLoading = isLoading && (loadingRowCount != null || table.getRowModel().rows.length === 0);
+  const fitColumns = fitToWidth && !disableHorizontalScroll;
+  const visibleColumns = table.getVisibleLeafColumns();
+  const minTableWidth = fitColumns
+    ? visibleColumns.reduce((width, column) => width + (column.columnDef.minSize ?? column.getSize()), 0)
+    : 1000;
+
+  const fittedColumnStyles = (column: Column<TData>): React.CSSProperties => ({
+    ...getCommonPinningStyles({ column }),
+    position: undefined,
+    width: column.columnDef.minSize ?? column.getSize(),
+    opacity: 1,
+  });
+  const fittedPinningClass = (column: Column<TData>) =>
+    fitColumns && column.getIsPinned() && "relative @min-[20rem]:sticky";
+
   return (
     <div
       className={cn(
@@ -84,6 +104,7 @@ export function DataTable<TData>({
         )}
         <div className={cn(
           "h-full w-full overflow-y-auto",
+          fitColumns && "@container",
           disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto"
         )}>
           <TableElement
@@ -91,7 +112,7 @@ export function DataTable<TData>({
               "w-full",
               disableHorizontalScroll ? "table-auto max-w-full" : "table-fixed"
             )}
-            style={disableHorizontalScroll ? {} : { minWidth: "1000px", tableLayout: "fixed" }}
+            style={disableHorizontalScroll ? {} : { minWidth: minTableWidth, tableLayout: "fixed" }}
           >
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -112,9 +133,12 @@ export function DataTable<TData>({
                           ),
                           canSort && "p-0",
                           sortState && "bg-accent",
+                          fittedPinningClass(header.column),
                         )}
                         style={
-                          disableHorizontalScroll
+                          fitColumns
+                            ? fittedColumnStyles(header.column)
+                            : disableHorizontalScroll
                             ? {
                               minWidth:
                                 formatSizeValue(
@@ -164,7 +188,21 @@ export function DataTable<TData>({
                   </TableCell>
                 </TableRow>
               )}
-              {showLoading ? (
+              {showLoading && loadingRowCount ? (
+                Array.from({ length: loadingRowCount }, (_, index) => (
+                  <TableRow key={index} aria-hidden>
+                    {visibleColumns.map((column) => (
+                      <TableCell
+                        key={column.id}
+                        className={cn("h-11", fittedPinningClass(column))}
+                        style={fitColumns ? fittedColumnStyles(column) : undefined}
+                      >
+                        <Skeleton className="h-4 w-3/4 max-w-40 motion-reduce:animate-none" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : showLoading ? (
                 <TableRow>
                   <TableCell
                     colSpan={table.getVisibleLeafColumns().length}
@@ -210,9 +248,10 @@ export function DataTable<TData>({
                           key={cell.id}
                           className={cn(
                             "overflow-hidden",
+                            fittedPinningClass(cell.column),
                             getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                           )}
-                          style={disableHorizontalScroll ? {
+                          style={fitColumns ? fittedColumnStyles(cell.column) : disableHorizontalScroll ? {
                             minWidth: formatSizeValue(cell.column.columnDef.minSize) || cell.column.getSize(),
                             maxWidth: formatSizeValue(cell.column.columnDef.maxSize),
                             ...getCommonPinningStyles({ column: cell.column }),

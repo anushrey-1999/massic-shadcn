@@ -33,6 +33,7 @@ export default function LayoutWrapper({
   if (!freeBusinessPathAllowed) return null
 
   const fillViewport = isAgentRoute(pathname) || isBusinessProfileRoute(pathname)
+  const isArchitecturePreview = /^\/business\/[^/]+\/web\/architecture\/[^/]+\/view\/?$/.test(pathname)
   const shouldUseEmptyLayout =
     routesWithoutSidebar.includes(pathname) ||
     routePrefixesWithoutSidebar.some((prefix) => pathname.startsWith(prefix))
@@ -41,5 +42,5 @@ export default function LayoutWrapper({
     return <EmptyLayout>{children}</EmptyLayout>
   }
 
-  return <Layout fill={fillViewport}>{children}</Layout>
+  return <Layout fill={fillViewport} hideSidebarOnMobile={isArchitecturePreview}>{children}</Layout>
 }

@@ -229,6 +229,7 @@ export function AnalyticsTemplate() {
   const [selectedTab, setSelectedTab] = useState<AnalyticsScope>(
     searchParams.get("tab") === "ai-traffic" ? "ai-traffic" : searchParams.get("tab") === "organic" ? "organic" : "all"
   );
+  const isAiTab = selectedTab === "ai-traffic";
   const ga4TrafficScope = selectedTab === "organic" ? "organic" : "all";
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
   const [availableGroupByOptions, setAvailableGroupByOptions] =
@@ -305,6 +306,9 @@ export function AnalyticsTemplate() {
     !connections.isGa4Connected;
   const showGa4ConnectOnly =
     isFreeBusinessMissingGa4 && selectedTab !== "organic";
+  const ga4Unlocks = isAiTab
+    ? "visits from AI assistants"
+    : "traffic sources, conversions and tracked actions";
   // Business users get the toolbar only once Search Console backs it.
   const showToolbar = !isFreeBusinessAccount || connections.isGscConnected;
   const canOpenBusinessPage = (segment: string) =>
@@ -346,6 +350,8 @@ export function AnalyticsTemplate() {
   const isGa4DataBlocked =
     isGa4ScopeReplacementPending && ga4IngestionStatus === "failed";
   const isToolbarDataBlocked = isGscIngestionActive || isGa4DataBlocked;
+  const areChartControlsDisabled =
+    isGa4DataBlocked || showGa4ConnectOnly || (isAiTab && !isGa4Connected);
   const { prefetchPage1 } = usePrefetchAnalyticsPages(businessId);
   const { fetchStrategyTopicKeywords } = useStrategy(businessId || "");
   const urlTopicName = searchParams.get("topicName")?.trim() || "";
@@ -645,8 +651,8 @@ export function AnalyticsTemplate() {
                   (option) => !availableGroupByOptions.includes(option)
                 )}
                 className="w-auto cursor-pointer"
-                ingestionActive={selectedTab !== "ai-traffic" && isGscIngestionActive}
-                disabled={isGa4DataBlocked}
+                ingestionActive={!isAiTab && isGscIngestionActive}
+                disabled={areChartControlsDisabled}
               />
             }
             filterChips={
@@ -711,8 +717,8 @@ export function AnalyticsTemplate() {
             metricLabels={selectedTab === "ai-traffic" ? { clicks: "AI Assistant sessions", sessions: "Organic Search sessions" } : undefined}
             visibleLines={selectedTab === "ai-traffic" ? aiVisibleLines : visibleLines}
             onLineToggle={selectedTab === "ai-traffic" ? handleAILineToggle : handleChartLineToggle}
-            isIngestionActive={selectedTab === "ai-traffic" ? isGa4DataBlocked : isToolbarDataBlocked}
-            isDataBlocked={isGa4DataBlocked}
+            isIngestionActive={isToolbarDataBlocked}
+            isDataBlocked={areChartControlsDisabled}
           />
         ) : null}
       </div>
@@ -720,18 +726,17 @@ export function AnalyticsTemplate() {
       {/* Tab Content */}
       <GoogleSourceGateProvider value={sourceGate}>
         <div className="w-full max-w-[1224px] flex flex-col">
-          {isFreeBusinessLoading || isFreeBusinessEmpty ? null : (
+          {!isAiTab && !isFreeBusinessLoading && !isFreeBusinessEmpty ? (
             <GoogleSourceNotices
-              sources={selectedTab === "ai-traffic" ? ["ga4"] : GOOGLE_SOURCE_ORDER}
+              sources={showGa4ConnectOnly
+                ? GOOGLE_SOURCE_ORDER.filter((source) => source !== "ga4")
+                : GOOGLE_SOURCE_ORDER}
               unlocks={{
-                ga4:
-                  selectedTab === "ai-traffic"
-                    ? "visits from AI assistants"
-                    : "traffic sources, conversions and tracked actions",
+                ga4: ga4Unlocks,
                 gbp: "how your locations perform in local search",
               }}
             />
-          )}
+          ) : null}
           {isFreeBusinessLoading ? (
             <Loader className="min-h-[420px]" />
           ) : isFreeBusinessEmpty && businessId ? (
@@ -744,7 +749,7 @@ export function AnalyticsTemplate() {
             <div className="p-7">
               <GoogleSourceEmptyState
                 source="ga4"
-                unlocks="traffic sources, conversions and tracked actions"
+                unlocks={ga4Unlocks}
                 className="min-h-[420px] rounded-lg border border-general-border bg-white"
               >
                 {null}

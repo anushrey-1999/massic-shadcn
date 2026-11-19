@@ -62,6 +62,55 @@ export function GoogleSourceGate({
   return missing ? null : <>{children}</>;
 }
 
+/**
+ * Replaces a source-specific empty region for opted-in business accounts.
+ * Agencies and connected businesses keep the caller's existing empty state.
+ */
+export function GoogleSourceEmptyState({
+  source,
+  unlocks,
+  children,
+  className,
+}: {
+  source: GoogleIntegration;
+  unlocks?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const gate = useContext(GoogleSourceGateContext);
+  const missing = useMissingGoogleSources([source]).length > 0;
+  if (!gate || !missing) return <>{children}</>;
+
+  const config = GOOGLE_SOURCES[source];
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-[200px] w-full flex-col items-center justify-center p-6 text-center",
+        className,
+      )}
+    >
+      <span className="mb-5 flex size-16 shrink-0 items-center justify-center rounded-lg bg-general-secondary">
+        <ProductIcon product={source} size={32} />
+      </span>
+      <p className="text-lg font-medium text-general-foreground">
+        {config.label} is not connected
+      </p>
+      <p className="mt-2 max-w-md text-sm leading-6 text-general-muted-foreground">
+        Connect it to see {unlocks ?? config.unlocks}.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-5"
+        onClick={() => gate.onConnect(source)}
+      >
+        <GoogleIcon className="size-4" />
+        Connect
+      </Button>
+    </div>
+  );
+}
+
 /** One connect notice per missing source, meant to sit above gated content. */
 export function GoogleSourceNotices({
   sources,

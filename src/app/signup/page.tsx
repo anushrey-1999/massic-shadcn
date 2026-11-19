@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CredentialResponse } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -8,19 +8,20 @@ import { toast } from "sonner";
 import { FreeBusinessConnectionPanel } from "@/components/organisms/signup/FreeBusinessConnectionPanel";
 import {
   AccountTypeStep,
-  BusinessCategoriesStep,
   BusinessDetailsStep,
   CreatingBusinessStep,
   GoogleSignupStep,
-  ProfileReviewStep,
 } from "@/components/organisms/signup/FreeBusinessSignupSteps";
 import { FreeBusinessSignupTemplate } from "@/components/templates/FreeBusinessSignupTemplate";
 import { useGoogleLogin, useSignup } from "@/hooks/use-auth";
 import { useBusinessCreation } from "@/hooks/use-business-creation";
-import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useLocations } from "@/hooks/use-locations";
 import { useProfileAnalysis } from "@/hooks/use-profile-analysis";
 import { apiErrorMessage } from "@/lib/api-error";
+import {
+  emptyCreationProgress,
+  type CreationProgress,
+} from "@/lib/business-creation-draft";
 import { USER_ROLE_IDS } from "@/lib/user-roles";
 import { useAuthStore } from "@/store/auth-store";
 import { useSignupStore } from "@/store/signup-store";
@@ -49,25 +50,35 @@ export default function SignupPage() {
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
   const googleLogin = useGoogleLogin();
   const signup = useSignup();
+  const [creationProgress, setCreationProgress] = useState<CreationProgress>(
+    emptyCreationProgress,
+  );
+  const handleCreationProgress = useCallback(
+    (progress: CreationProgress) => setCreationProgress({ ...progress }),
+    [],
+  );
   const businessCreation = useBusinessCreation({
     isPitch: false,
     locationOptions,
-    includeCategories: true,
+    includeCategories: false,
+    onProgress: handleCreationProgress,
   });
   const profileBuild = useProfileAnalysis(businessId || "");
-  const jobQuery = useJobByBusinessId(businessId);
   const creatingRef = useRef(false);
   const buildRef = useRef(false);
 
   useEffect(() => {
-    // A signed-out visitor can only resume with the Google token from this
-    // tab; anything else is stale progress from a previous session. This
-    // effect runs before AuthProvider hydrates, so read the session cookie
-    // first instead of trusting the initial signed-out state.
+    // Account choice and Google sign-in can resume without credentials. Later
+    // signed-out steps need the in-memory Google token from this tab.
+    // AuthProvider may not be hydrated yet, so check the cookie-backed store.
     if (!isAuthenticated) {
       useAuthStore.getState().hydrate();
       if (useAuthStore.getState().isAuthenticated) return;
-      if (step !== "initial" && !userSignupData.googleToken) reset();
+      const canResumeSignedOut =
+        step === "initial" ||
+        step === "googleSignIn" ||
+        Boolean(userSignupData.googleToken);
+      if (!canResumeSignedOut) reset();
       return;
     }
     if (!user) return;
@@ -97,9 +108,6 @@ export default function SignupPage() {
       businessName: businessData.businessName,
       primaryLocation: businessData.primaryLocation,
       serviceAreaType: businessData.serviceAreaType,
-      primaryCategory: businessData.primaryCategory,
-      secondaryCategory: businessData.secondaryCategory,
-      categoriesTagged: businessData.categoriesTagged,
     };
 
     void businessCreation
@@ -114,7 +122,7 @@ export default function SignupPage() {
         toast.error("We couldn't finish business setup", {
           description: apiErrorMessage(error),
         });
-        setStep("businessCategories");
+        setStep("businessDetails");
       });
   }, [
     businessCreation,
@@ -131,26 +139,18 @@ export default function SignupPage() {
     if (
       !businessId ||
       profileBuildRequested ||
-      buildRef.current ||
-      [
-        "initial",
-        "userTypeSelection",
-        "businessDetails",
-        "businessCategories",
-        "creatingBusiness",
-      ].includes(
-        step,
-      )
+      buildRef.current
     ) {
       return;
     }
     buildRef.current = true;
+    setProfileBuildRequested(true);
     void profileBuild
       .mutateAsync("context")
-      .then(() => setProfileBuildRequested(true))
       .catch((error) => {
         buildRef.current = false;
-        toast.error("Profile preparation will continue from Profile", {
+        setProfileBuildRequested(false);
+        toast.error("We couldn't finish automatic profile setup", {
           description: apiErrorMessage(error),
         });
       });
@@ -159,7 +159,6 @@ export default function SignupPage() {
     profileBuild,
     profileBuildRequested,
     setProfileBuildRequested,
-    step,
   ]);
 
   const handleGoogleSuccess = useCallback(
@@ -172,6 +171,7 @@ export default function SignupPage() {
       try {
         await googleLogin.mutateAsync({ token: googleToken });
         toast.success("Welcome back");
+        reset();
         router.replace("/");
       } catch (error: unknown) {
         const signupError = error as {
@@ -194,10 +194,10 @@ export default function SignupPage() {
           lastName: signupError.googleUserDetails?.lastName || "",
           googleToken,
         });
-        setStep("userTypeSelection");
+        setStep("businessDetails");
       }
     },
-    [googleLogin, router, setStep, setUserSignupData],
+    [googleLogin, reset, router, setStep, setUserSignupData],
   );
 
   const createAccount = useCallback(async () => {
@@ -207,7 +207,7 @@ export default function SignupPage() {
     }
     if (!userSignupData.googleToken) {
       toast.error("Continue with Google again to finish creating your account.");
-      setStep("initial");
+      setStep("googleSignIn");
       return;
     }
     try {
@@ -239,36 +239,39 @@ export default function SignupPage() {
     userSignupData,
   ]);
 
-  const profileReady =
-    jobQuery.data?.has_build_completed === true ||
-    jobQuery.data?.profile_status === "success";
   const pending =
     googleLogin.isPending || signup.isPending || businessCreation.isPending;
+
+  const finishOnboarding = useCallback(() => {
+    if (!businessId) return;
+    const analyticsPath = `/business/${businessId}/analytics`;
+    reset();
+    router.replace(analyticsPath);
+  }, [businessId, reset, router]);
 
   return (
     <FreeBusinessSignupTemplate>
       {step === "initial" ? (
-        <GoogleSignupStep
-          onSuccess={handleGoogleSuccess}
-          onError={() => toast.error("Google sign-in failed. Please try again.")}
-          pending={pending}
-        />
-      ) : null}
-      {step === "userTypeSelection" ? (
         <AccountTypeStep
-          email={userSignupData.email}
-          onBack={() => {
-            reset();
-            setStep("initial");
-          }}
           onBusiness={() => {
             setUserType("BUSINESS");
-            setStep("businessDetails");
+            setStep("googleSignIn");
           }}
           onAgency={() => {
             setUserType("AGENCY");
             window.location.assign(AGENCY_CONTACT_URL);
           }}
+        />
+      ) : null}
+      {step === "googleSignIn" ? (
+        <GoogleSignupStep
+          onSuccess={handleGoogleSuccess}
+          onError={() => toast.error("Google sign-in failed. Please try again.")}
+          onBack={() => {
+            setUserType(null);
+            setStep("initial");
+          }}
+          pending={pending}
         />
       ) : null}
       {step === "businessDetails" ? (
@@ -278,40 +281,18 @@ export default function SignupPage() {
           locationsLoading={locationsLoading}
           pending={pending}
           onChange={setBusinessData}
-          onBack={() => setStep("userTypeSelection")}
-          onContinue={() => setStep("businessCategories")}
-        />
-      ) : null}
-      {step === "businessCategories" ? (
-        <BusinessCategoriesStep
-          value={businessData}
-          pending={pending}
-          onChange={setBusinessData}
-          onBack={() => setStep("businessDetails")}
+          onBack={() => setStep("googleSignIn")}
           onContinue={() => void createAccount()}
         />
       ) : null}
       {step === "creatingBusiness" ? (
-        <CreatingBusinessStep message="Creating your profile. This only takes a few seconds." />
+        <CreatingBusinessStep progress={creationProgress} />
       ) : null}
       {step === "connectSources" && businessId ? (
         <FreeBusinessConnectionPanel
           businessId={businessId}
           website={businessData.website}
-          onContinue={() => setStep("profileReview")}
-        />
-      ) : null}
-      {step === "profileReview" && businessId ? (
-        <ProfileReviewStep
-          ready={profileReady}
-          businessName={businessData.businessName}
-          onReview={() =>
-            router.push(`/business/${businessId}/profile?onboarding=1`)
-          }
-          onFinish={() => {
-            reset();
-            router.replace(`/business/${businessId}/analytics`);
-          }}
+          onContinue={finishOnboarding}
         />
       ) : null}
     </FreeBusinessSignupTemplate>

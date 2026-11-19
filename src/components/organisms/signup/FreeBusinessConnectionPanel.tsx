@@ -3,6 +3,7 @@
 // Hallmark · component: connection panel · genre: modern-minimal · theme: Massic · v2.0.0
 import { useId, useState } from "react";
 import { Check, Loader2, LockKeyhole } from "lucide-react";
+import { toast } from "sonner";
 
 import { ProductIcon } from "@/components/organisms/access-request/ProductIcon";
 import { GoogleIcon } from "@/components/organisms/access-request/GoogleIcon";
@@ -252,7 +253,7 @@ export function FreeBusinessConnectionPanel({
         ga4: selectionAuthId(previous.ga4) === authId ? "" : previous.ga4,
         gbp: previous.gbp.filter(key => selectionAuthId(key) !== authId),
       });
-      setStatus("Google account disconnected.");
+      toast.success("Google account disconnected.");
       setDisconnectAccount(null);
     } catch (disconnectFailure) {
       setDisconnectError(apiErrorMessage(disconnectFailure, "Couldn’t disconnect this account. Try again."));

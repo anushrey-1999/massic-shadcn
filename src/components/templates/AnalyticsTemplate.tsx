@@ -57,6 +57,7 @@ import {
 import { FreeBusinessConnectionState } from "@/components/organisms/signup/FreeBusinessConnectionState";
 import {
   GoogleSourceGate,
+  GoogleSourceEmptyState,
   GoogleSourceGateProvider,
   GoogleSourceNotices,
 } from "@/components/molecules/analytics/GoogleSourceGate";
@@ -297,6 +298,13 @@ export function AnalyticsTemplate() {
   const isFreeBusinessLoading = isFreeBusinessAccount && !connections.isResolved;
   const isFreeBusinessEmpty =
     isFreeBusinessAccount && connections.isResolved && !hasAnyGoogleConnection;
+  const isFreeBusinessMissingGa4 =
+    isFreeBusinessAccount &&
+    connections.isResolved &&
+    hasAnyGoogleConnection &&
+    !connections.isGa4Connected;
+  const showGa4ConnectOnly =
+    isFreeBusinessMissingGa4 && selectedTab !== "organic";
   // Business users get the toolbar only once Search Console backs it.
   const showToolbar = !isFreeBusinessAccount || connections.isGscConnected;
   const canOpenBusinessPage = (segment: string) =>
@@ -719,6 +727,16 @@ export function AnalyticsTemplate() {
               businessName={businessName}
               onConnect={() => setConnectionsOpen(true)}
             />
+          ) : showGa4ConnectOnly ? (
+            <div className="p-7">
+              <GoogleSourceEmptyState
+                source="ga4"
+                unlocks="traffic sources, conversions and tracked actions"
+                className="min-h-[420px] rounded-lg border border-general-border bg-white"
+              >
+                {null}
+              </GoogleSourceEmptyState>
+            </div>
           ) : isGa4DataBlocked ? (
             <Ga4IngestionPanel
               status={ga4IngestionStatus}

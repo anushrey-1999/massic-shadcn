@@ -3,12 +3,10 @@ import { persist } from "zustand/middleware";
 
 export type SignupStep =
   | "initial"
-  | "userTypeSelection"
+  | "googleSignIn"
   | "businessDetails"
-  | "businessCategories"
   | "creatingBusiness"
-  | "connectSources"
-  | "profileReview";
+  | "connectSources";
 
 export type UserType = "AGENCY" | "BUSINESS";
 export type SignupDataSource = "ga4" | "gsc" | "gbp";
@@ -25,9 +23,6 @@ interface BusinessData {
   website: string;
   primaryLocation: string;
   serviceAreaType: string;
-  primaryCategory: string;
-  secondaryCategory: string;
-  categoriesTagged: string[];
 }
 
 interface SignupState {
@@ -59,10 +54,36 @@ const initialBusinessData: BusinessData = {
   website: "",
   primaryLocation: "",
   serviceAreaType: "",
-  primaryCategory: "",
-  secondaryCategory: "",
-  categoriesTagged: [],
 };
+
+function normalizeSignupStep(step: unknown): SignupStep {
+  switch (step) {
+    case "googleSignIn":
+    case "businessDetails":
+    case "creatingBusiness":
+    case "connectSources":
+      return step;
+    case "businessCategories":
+      return "businessDetails";
+    case "profileReview":
+      return "initial";
+    case "initial":
+    case "userTypeSelection":
+    default:
+      return "initial";
+  }
+}
+
+function normalizeBusinessData(
+  data: Partial<BusinessData> | undefined,
+): BusinessData {
+  return {
+    businessName: data?.businessName ?? "",
+    website: data?.website ?? "",
+    primaryLocation: data?.primaryLocation ?? "",
+    serviceAreaType: data?.serviceAreaType ?? "",
+  };
+}
 
 export const useSignupStore = create<SignupState>()(
   persist(
@@ -111,7 +132,8 @@ export const useSignupStore = create<SignupState>()(
         return {
           ...current,
           ...saved,
-          businessData: { ...initialBusinessData, ...saved.businessData },
+          step: normalizeSignupStep(saved.step),
+          businessData: normalizeBusinessData(saved.businessData),
         };
       },
     },

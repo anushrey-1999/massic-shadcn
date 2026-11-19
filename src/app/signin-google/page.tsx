@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle, CheckCircle } from "lucide-react";
+import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
 import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
@@ -141,8 +142,12 @@ function GoogleCallbackContent() {
     <div className="max-w-md w-full mx-auto p-8 text-center">
       {status === "loading" && (
         <>
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2">
+          <MassicAmoebaLoader
+            size={52}
+            label="Connecting your Google account"
+            className="mx-auto mb-6"
+          />
+          <h1 className="mb-2 text-xl font-medium">
             Connecting your Google account...
           </h1>
           <p className="text-muted-foreground text-sm mb-4">
@@ -157,7 +162,7 @@ function GoogleCallbackContent() {
       {status === "success" && (
         <>
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2">
+          <h1 className="mb-2 text-xl font-medium">
             Connection Successful!
           </h1>
           <p className="text-muted-foreground text-sm">
@@ -169,7 +174,7 @@ function GoogleCallbackContent() {
       {status === "error" && (
         <>
           <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-6" />
-          <h1 className="text-xl font-semibold mb-2 text-destructive">
+          <h1 className="mb-2 text-xl font-medium text-destructive">
             Connection Failed
           </h1>
           <p className="text-muted-foreground text-sm mb-4">
@@ -192,8 +197,12 @@ function GoogleCallbackContent() {
 function LoadingFallback() {
   return (
     <div className="max-w-md w-full mx-auto p-8 text-center">
-      <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-6" />
-      <h1 className="text-xl font-semibold mb-2">Loading...</h1>
+      <MassicAmoebaLoader
+        size={52}
+        label="Loading Google connection"
+        className="mx-auto mb-6"
+      />
+      <h1 className="mb-2 text-xl font-medium">Loading...</h1>
     </div>
   );
 }

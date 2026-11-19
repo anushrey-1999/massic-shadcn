@@ -23,7 +23,7 @@ function useSingleBusinessRedirect() {
   const router = useRouter()
   const { user, isAuthenticated } = useAuthStore()
   const { profiles, sidebarDataLoading } = useBusinessProfiles()
-  const { step, setStep, setBusinessId } = useSignupStore()
+  const { step, setStep, setBusinessId, reset } = useSignupStore()
 
   const isSingleBusinessUser = user?.roleid === USER_ROLE_IDS.BUSINESS
   const isReady = isAuthenticated && !sidebarDataLoading
@@ -35,7 +35,14 @@ function useSingleBusinessRedirect() {
     if (onboardingActive) {
       if (profiles[0]?.UniqueId) {
         setBusinessId(profiles[0].UniqueId)
-        if (step === 'creatingBusiness') setStep('connectSources')
+        if (step === 'creatingBusiness') {
+          setStep('connectSources')
+        } else if (step !== 'connectSources') {
+          const analyticsPath = `/business/${profiles[0].UniqueId}/analytics`
+          reset()
+          router.replace(analyticsPath)
+          return
+        }
       } else if (step !== 'businessDetails' && step !== 'creatingBusiness') {
         setStep('businessDetails')
       }
@@ -54,6 +61,7 @@ function useSingleBusinessRedirect() {
     isReady,
     isSingleBusinessUser,
     profiles,
+    reset,
     router,
     setBusinessId,
     setStep,

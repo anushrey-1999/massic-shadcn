@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import type { CredentialResponse } from "@react-oauth/google";
 import { GoogleLogin } from "@react-oauth/google";
 import {
@@ -103,11 +103,13 @@ export function GoogleSignupStep({
   onError,
   onBack,
   pending,
+  googleSignupRef,
 }: {
   onSuccess: (response: CredentialResponse) => void;
   onError: () => void;
   onBack: () => void;
   pending: boolean;
+  googleSignupRef: Ref<HTMLDivElement>;
 }) {
   return (
     <>
@@ -116,7 +118,14 @@ export function GoogleSignupStep({
         description="Use Google to create your free business account."
       />
       <div className="space-y-5 px-5 py-6 sm:px-6">
-        <div className={cn("flex justify-center", pending && "pointer-events-none opacity-60")}>
+        <div
+          ref={googleSignupRef}
+          tabIndex={-1}
+          role="group"
+          aria-label="Google signup"
+          inert={pending}
+          className={cn("mx-auto flex w-fit max-w-full justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-general-primary", pending && "opacity-60")}
+        >
           <GoogleLogin
             onSuccess={onSuccess}
             onError={onError}
@@ -126,9 +135,9 @@ export function GoogleSignupStep({
           />
         </div>
         {pending ? (
-          <div className="flex items-center justify-center gap-2 text-sm text-general-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Signing you in…
+          <div role="status" className="flex items-center justify-center gap-2 text-sm text-general-muted-foreground">
+            <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />
+            Checking your Google account…
           </div>
         ) : null}
         <Button

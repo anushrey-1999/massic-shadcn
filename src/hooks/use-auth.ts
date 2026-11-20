@@ -12,6 +12,32 @@ export interface GoogleLoginCredentials {
   token: string;
 }
 
+type GoogleSignupCheckResult =
+  | { accountExists: true }
+  | { accountExists: false; email: string; firstName: string; lastName: string };
+
+export function useGoogleSignupCheck() {
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async (googleToken: string) => {
+      const response = await api.post<{
+        success: boolean;
+        data?: GoogleSignupCheckResult;
+      }>(
+        "/auth/google-signup-check",
+        "node",
+        { googleToken },
+        { skipAuth: true, suppressUnauthorizedSession: true }
+      );
+
+      if (!response.success || typeof response.data?.accountExists !== "boolean") {
+        throw new Error("Unable to check Google account.");
+      }
+      return response.data;
+    },
+  });
+}
+
 interface ApiLoginResponse {
   success: boolean;
   message: string;
@@ -308,11 +334,13 @@ export function useSignup() {
   const setAuth = useAuthStore((state) => state.setAuth);
 
   return useMutation<SignupResponse, Error, SignupCredentials>({
+    gcTime: 0,
     mutationFn: async (data: SignupCredentials) => {
       const response = await api.post<ApiSignupResponse>(
         "/signup-with-type",
         "node",
-        data
+        data,
+        { skipAuth: true, suppressUnauthorizedSession: true }
       );
 
       if (!response.success) {

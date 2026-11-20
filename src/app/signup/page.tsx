@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CredentialResponse } from "@react-oauth/google";
+import { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -13,8 +14,18 @@ import {
   GoogleSignupStep,
 } from "@/components/organisms/signup/FreeBusinessSignupSteps";
 import { FreeBusinessSignupTemplate } from "@/components/templates/FreeBusinessSignupTemplate";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MassicAmoebaLoader } from "@/components/ui/massic-amoeba-loader";
-import { useGoogleLogin, useSignup } from "@/hooks/use-auth";
+import { useGoogleSignupCheck, useSignup } from "@/hooks/use-auth";
 import { useBusinessCreation } from "@/hooks/use-business-creation";
 import { useLocations } from "@/hooks/use-locations";
 import { useProfileAnalysis } from "@/hooks/use-profile-analysis";
@@ -50,11 +61,14 @@ export default function SignupPage() {
     reset,
   } = useSignupStore();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
-  const googleLogin = useGoogleLogin();
+  const googleSignupCheck = useGoogleSignupCheck();
   const signup = useSignup();
   const [ready, setReady] = useState(false);
   const [redirectDestination, setRedirectDestination] = useState<string | null>(null);
   const [creatingAccount, setCreatingAccount] = useState(false);
+  const [existingAccountOpen, setExistingAccountOpen] = useState(false);
+  const signupInFlight = useRef(false);
+  const googleSignupRef = useRef<HTMLDivElement>(null);
   const [creationProgress, setCreationProgress] = useState<CreationProgress>(
     emptyCreationProgress,
   );
@@ -172,45 +186,49 @@ export default function SignupPage() {
     setProfileBuildRequested,
   ]);
 
+  const showExistingAccount = useCallback(() => {
+    setStep("googleSignIn");
+    setUserSignupData({ googleToken: "", email: "", firstName: "", lastName: "" });
+    setExistingAccountOpen(true);
+  }, [setStep, setUserSignupData]);
+
   const handleGoogleSuccess = useCallback(
     async (credentialResponse: CredentialResponse) => {
+      if (signupInFlight.current || existingAccountOpen) return;
+      toast.dismiss(BUSINESS_SETUP_ERROR_TOAST);
       const googleToken = credentialResponse.credential;
       if (!googleToken) {
-        toast.error("Google did not return a sign-in credential.");
+        toast.error("Google did not return a signup credential. Please try again.");
         return;
       }
+      signupInFlight.current = true;
       try {
-        await googleLogin.mutateAsync({ token: googleToken });
-        toast.success("Welcome back");
-        setRedirectDestination("/");
-      } catch (error: unknown) {
-        const signupError = error as {
-          userNotFound?: boolean;
-          googleUserDetails?: {
-            email?: string;
-            firstName?: string;
-            lastName?: string;
-          };
-        };
-        if (!signupError.userNotFound) {
-          toast.error("Google sign-in failed", {
-            description: apiErrorMessage(error),
-          });
+        const result = await googleSignupCheck.mutateAsync(googleToken);
+        if (result.accountExists) {
+          showExistingAccount();
           return;
         }
         setUserSignupData({
-          email: signupError.googleUserDetails?.email || "",
-          firstName: signupError.googleUserDetails?.firstName || "",
-          lastName: signupError.googleUserDetails?.lastName || "",
+          email: result.email,
+          firstName: result.firstName,
+          lastName: result.lastName,
           googleToken,
         });
         setStep("businessDetails");
+      } catch {
+        toast.error("Couldn't check your Google account. Please try again.", {
+          id: BUSINESS_SETUP_ERROR_TOAST,
+        });
+      } finally {
+        googleSignupCheck.reset();
+        signupInFlight.current = false;
       }
     },
-    [googleLogin, setStep, setUserSignupData],
+    [existingAccountOpen, googleSignupCheck, setStep, setUserSignupData, showExistingAccount],
   );
 
   const createAccount = useCallback(async () => {
+    if (signupInFlight.current) return;
     toast.dismiss(BUSINESS_SETUP_ERROR_TOAST);
     if (isAuthenticated && user?.roleid === USER_ROLE_IDS.BUSINESS) {
       setStep("creatingBusiness");
@@ -221,6 +239,7 @@ export default function SignupPage() {
       setStep("googleSignIn");
       return;
     }
+    signupInFlight.current = true;
     setCreatingAccount(true);
     try {
       await signup.mutateAsync({
@@ -236,11 +255,21 @@ export default function SignupPage() {
       setUserSignupData({ googleToken: "" });
       setStep("creatingBusiness");
     } catch (error) {
+      if (
+        isAxiosError<{ data?: { userExists?: boolean } }>(error) &&
+        error.response?.status === 409 &&
+        error.response.data?.data?.userExists === true
+      ) {
+        showExistingAccount();
+        return;
+      }
       toast.error("Account creation failed", {
         id: BUSINESS_SETUP_ERROR_TOAST,
         description: apiErrorMessage(error),
       });
     } finally {
+      signup.reset();
+      signupInFlight.current = false;
       setCreatingAccount(false);
     }
   }, [
@@ -249,13 +278,14 @@ export default function SignupPage() {
     isAuthenticated,
     setStep,
     setUserSignupData,
+    showExistingAccount,
     signup,
     user?.roleid,
     userSignupData,
   ]);
 
   const pending =
-    googleLogin.isPending || creatingAccount || businessCreation.isPending;
+    googleSignupCheck.isPending || creatingAccount || businessCreation.isPending;
   const settingUpBusiness =
     step === "creatingBusiness" || (step === "businessDetails" && creatingAccount);
 
@@ -296,14 +326,42 @@ export default function SignupPage() {
       {step === "googleSignIn" ? (
         <GoogleSignupStep
           onSuccess={handleGoogleSuccess}
-          onError={() => toast.error("Google sign-in failed. Please try again.")}
+          onError={() => toast.error("Google signup failed. Please try again.")}
           onBack={() => {
             setUserType(null);
             setStep("initial");
           }}
           pending={pending}
+          googleSignupRef={googleSignupRef}
         />
       ) : null}
+      <AlertDialog open={existingAccountOpen} onOpenChange={setExistingAccountOpen}>
+        <AlertDialogContent
+          className="w-[calc(100%-2rem)] max-w-[400px] rounded-lg motion-reduce:animate-none"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            googleSignupRef.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-medium">Account already exists</AlertDialogTitle>
+            <AlertDialogDescription>
+              This Google account is already registered with Massic. Log in to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 min-h-11 sm:min-h-9">
+              Use a different Google account
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-11 sm:min-h-9"
+              onClick={() => setRedirectDestination("/login")}
+            >
+              Go to login
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {step === "businessDetails" ? (
         <div hidden={creatingAccount}>
           <BusinessDetailsStep

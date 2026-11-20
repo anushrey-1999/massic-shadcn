@@ -1,4 +1,5 @@
 "use client";
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import {
   createContext,
   useContext,
@@ -247,7 +248,7 @@ function DownloadOriginalButton({ url, filename }: { url: string; filename: stri
     request.current = controller;
     setDownloading(true);
     try {
-      const response = await fetch(url, { credentials: "omit", signal: controller.signal });
+      const response = await appFetch(url, { credentials: "omit", signal: controller.signal });
       if (!response.ok) throw new Error();
       const blob = await response.blob();
       controller.signal.throwIfAborted();

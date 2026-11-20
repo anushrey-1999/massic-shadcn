@@ -1,4 +1,4 @@
-import axios from "axios";
+import { appAxios } from "@/lib/developer-mode/axios-capture";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
@@ -312,7 +312,7 @@ export function useUploadCmsFeaturedImage() {
         throw new Error(sessionRes?.message || "Failed to create featured image upload session");
       }
 
-      await axios.put(sessionRes.data.upload.uploadUrl, file, {
+      await appAxios.put(sessionRes.data.upload.uploadUrl, file, {
         headers: sessionRes.data.upload.uploadHeaders,
         onUploadProgress: (progressEvent) => {
           if (!onProgress || !progressEvent.total) return;

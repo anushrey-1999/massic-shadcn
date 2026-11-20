@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import Cookies from "js-cookie";
 import { apiErrorMessage } from "@/lib/api-error";
 import { api, getBaseURLByPlatform } from "@/hooks/use-api";
@@ -287,7 +288,7 @@ export async function startChatStream(
       "Your session has expired. Sign in again to continue.",
     );
   const base = getBaseURLByPlatform("python").replace(/\/$/, "");
-  const response = await fetch(
+  const response = await appFetch(
     `${base}/agent/chat?${new URLSearchParams(tenant(business))}`,
     {
       method: "POST",

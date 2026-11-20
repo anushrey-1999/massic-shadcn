@@ -5,6 +5,7 @@ import { isTokenExpired } from "@/utils/jwt";
 import { useAuthStore } from "@/store/auth-store";
 import { useSessionStore } from "@/store/session-store";
 import { shouldRefreshSession } from "@/lib/session-refresh";
+import { appAxios, observeAxiosRequests } from "@/lib/developer-mode/axios-capture";
 
 export type ApiPlatform = "node" | "python";
 export interface AppAxiosRequestConfig extends AxiosRequestConfig {
@@ -40,7 +41,7 @@ async function refreshNodeAccessToken(currentToken: string): Promise<string | nu
   const baseURL = getBaseURLByPlatform("node");
 
   try {
-    const response = await axios.post(
+    const response = await appAxios.post(
       `${baseURL}/auth/refresh-token`,
       { type: "REFRESH_TOKEN" },
       {
@@ -92,6 +93,8 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
       "Pragma": "no-cache",
     },
   });
+
+  observeAxiosRequests(instance);
 
   instance.interceptors.request.use(
     async (config) => {

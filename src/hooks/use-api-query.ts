@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import React, { useMemo } from "react"
 import { useInfiniteQuery, UseInfiniteQueryOptions, InfiniteData } from "@tanstack/react-query"
 
@@ -112,7 +113,7 @@ export function useApiQuery<T>({
           } else if (resource) {
             // Fallback to DummyJSON
             const url = `${DUMMYJSON_BASE_URL}/${resource}`
-            const response = await fetch(url)
+            const response = await appFetch(url)
             if (!response.ok) {
               throw new Error(`API error: ${response.statusText}`)
             }
@@ -222,7 +223,7 @@ export function useApiQuery<T>({
         
         // First, fetch one request to get the total count
         const fetchLimit = 100 // DummyJSON max per request
-        const firstResponse = await fetch(`${DUMMYJSON_BASE_URL}/${resource}?limit=${fetchLimit}&skip=0`)
+        const firstResponse = await appFetch(`${DUMMYJSON_BASE_URL}/${resource}?limit=${fetchLimit}&skip=0`)
         if (!firstResponse.ok) {
           throw new Error(`DummyJSON API error: ${firstResponse.statusText}`)
         }
@@ -243,7 +244,7 @@ export function useApiQuery<T>({
         for (let i = 0; i < totalRequests; i++) {
           const skip = i * fetchLimit
           const url = `${DUMMYJSON_BASE_URL}/${resource}?limit=${fetchLimit}&skip=${skip}`
-          fetchPromises.push(fetch(url))
+          fetchPromises.push(appFetch(url))
         }
         
         const responses = await Promise.all(fetchPromises)
@@ -309,7 +310,7 @@ export function useApiQuery<T>({
         // Use regular endpoint: /RESOURCE?limit=10&skip=0
         const url = `${DUMMYJSON_BASE_URL}/${resource}?limit=${limit}&skip=${skip}`
         
-        const response = await fetch(url)
+        const response = await appFetch(url)
         if (!response.ok) {
           throw new Error(`DummyJSON API error: ${response.statusText}`)
         }

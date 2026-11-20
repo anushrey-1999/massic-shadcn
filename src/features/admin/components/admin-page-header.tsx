@@ -8,6 +8,7 @@ export function AdminPageHeader({
   cacheState,
   actions,
   icon,
+  readOnly = true,
 }: {
   title: string;
   description: string;
@@ -16,6 +17,7 @@ export function AdminPageHeader({
   cacheState?: AdminCacheState;
   actions?: React.ReactNode;
   icon?: React.ReactNode;
+  readOnly?: boolean;
 }) {
   return (
     <div className="relative mb-5 flex flex-col gap-4 border-b border-general-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between">
@@ -34,12 +36,14 @@ export function AdminPageHeader({
           <h1 className="text-[18px] font-medium leading-7 text-general-foreground">
             {title}
           </h1>
-          <Badge
-            variant="outline"
-            className="rounded border-general-primary/15 bg-general-primary/5 text-[11px] font-normal text-general-primary"
-          >
-            Read-only
-          </Badge>
+          {readOnly && (
+            <Badge
+              variant="outline"
+              className="rounded border-general-primary/15 bg-general-primary/5 text-[11px] font-normal text-general-primary"
+            >
+              Read-only
+            </Badge>
+          )}
         </div>
         <p className="mt-1 max-w-2xl text-sm leading-5 text-general-muted-foreground">
           {description}

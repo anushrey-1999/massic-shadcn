@@ -21,6 +21,11 @@ export const routePrefixesWithoutSidebar: string[] = [
   '/admin'
 ]
 
+export function usesEmptyLayout(pathname: string) {
+  return routesWithoutSidebar.includes(pathname) ||
+    routePrefixesWithoutSidebar.some(prefix => pathname.startsWith(prefix))
+}
+
 const AGENT_PATH = /^\/business\/[^/]+\/agent\/?$/
 const BUSINESS_PROFILE_PATH = /^\/business\/[^/]+\/profile\/?$/
 

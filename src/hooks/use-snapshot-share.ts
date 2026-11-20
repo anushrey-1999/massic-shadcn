@@ -1,5 +1,6 @@
 "use client";
 
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -26,7 +27,7 @@ async function copyShareUrl(value: string): Promise<void> {
 export function useSnapshotShare() {
   return useMutation<string, Error, { businessId: string }>({
     mutationFn: async ({ businessId }) => {
-      const response = await fetch("/api/snapshot-shares", {
+      const response = await appFetch("/api/snapshot-shares", {
         method: "POST",
         credentials: "same-origin",
         headers: {

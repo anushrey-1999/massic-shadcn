@@ -133,6 +133,8 @@ export const adminClient = {
     request<T>(url, { ...config, method: "GET" }),
   post: <T>(url: string, body?: unknown, config: AdminRequestConfig = {}) =>
     request<T>(url, { ...config, method: "POST", data: body }),
+  put: <T>(url: string, body: unknown, config: AdminRequestConfig = {}) =>
+    request<T>(url, { ...config, method: "PUT", data: body }),
   download: <T = Blob>(
     url: string,
     config: AdminRequestConfig = {},

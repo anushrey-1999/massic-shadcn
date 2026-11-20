@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import { appAxios } from "@/lib/developer-mode/axios-capture";
 import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
@@ -204,7 +204,7 @@ export function useUploadLogo() {
         throw new Error(sessionRes?.message || "Failed to create logo upload session");
       }
 
-      await axios.put(sessionRes.data.upload.uploadUrl, file, {
+      await appAxios.put(sessionRes.data.upload.uploadUrl, file, {
         headers: sessionRes.data.upload.uploadHeaders,
       });
 

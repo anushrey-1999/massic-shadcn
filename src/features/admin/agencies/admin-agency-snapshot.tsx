@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminAgency, getAdminIntelligence } from "../api/admin-api";
 import { AdminBenchmarkCard } from "../components/admin-benchmark-card";
+import { AdminDeveloperMode } from "../components/admin-developer-mode";
 import { AdminBusinessTable } from "../businesses/admin-business-table";
 import { AdminKpiGrid } from "../components/admin-kpi-card";
 import { AdminPageHeader } from "../components/admin-page-header";
@@ -57,7 +58,8 @@ export function AdminAgencySnapshot({ id }: { id: string }) {
       </Button>
       <AdminPageHeader
         title={data.agency.name}
-        description={`${data.businesses.length} businesses · agency-scoped network view with read-only access.`}
+        description={`${data.businesses.length} businesses`}
+        readOnly={false}
         freshnessDate={network?.meta.freshnessDate}
         sourceFreshness={network?.meta.sourceFreshness}
         cacheState={network?.meta.cacheState}
@@ -69,6 +71,7 @@ export function AdminAgencySnapshot({ id }: { id: string }) {
           />
         }
       />
+      <AdminDeveloperMode target="agencies" id={id} />
       <section aria-labelledby="agency-performance">
         <h2 id="agency-performance" className="mb-3 text-sm font-medium">
           Performance

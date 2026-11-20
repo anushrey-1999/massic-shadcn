@@ -1,5 +1,6 @@
 "use client";
 
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import {
   tablePaginate,
   tableSort,
@@ -79,7 +80,7 @@ export async function fetchTasks(params: GetTasksSchema): Promise<{
 }> {
   // Fetch all posts from DummyJSON (we'll filter/paginate client-side for now)
   // In production, you'd want server-side filtering/pagination
-  const response = await fetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
+  const response = await appFetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch tasks from DummyJSON API");
@@ -169,7 +170,7 @@ export async function fetchTaskCounts(): Promise<{
   };
 }> {
   // Fetch posts from DummyJSON
-  const response = await fetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
+  const response = await appFetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch task counts from DummyJSON API");

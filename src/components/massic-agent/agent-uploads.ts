@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import { api } from "@/hooks/use-api";
 
 export const MAX_AGENT_FILES = 5;
@@ -94,7 +95,7 @@ export async function putAgentUpload(
       ([key]) => key.toLowerCase() !== "content-length",
     ),
   );
-  const response = await fetch(ticket.upload_url, {
+  const response = await appFetch(ticket.upload_url, {
     method: "PUT",
     headers,
     body: file,
@@ -161,7 +162,7 @@ export async function loadAgentFilePreview(
 ): Promise<{ text?: string; truncated?: boolean; blob?: Blob; docx?: Blob }> {
   const isDocx = contentType === AGENT_FILE_TYPES.docx;
   if (isDocx && !inlineDocx) return {};
-  const response = await fetch(url, { signal, credentials: "omit" });
+  const response = await appFetch(url, { signal, credentials: "omit" });
   if (!response.ok)
     throw new Error("Couldn't load the file preview.");
   if (isDocx) return { docx: await response.blob() };

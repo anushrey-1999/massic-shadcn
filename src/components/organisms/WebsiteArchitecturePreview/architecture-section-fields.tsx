@@ -119,7 +119,7 @@ export function AssetView({
         preload="none"
         aria-label={asset?.alt || undefined}
         onError={() => setFailedUrl(url)}
-        className="h-auto max-h-[32rem] w-full rounded-md bg-foreground object-contain"
+        className="h-auto max-h-128 w-full rounded-md bg-foreground object-contain"
       />
     );
   }
@@ -133,7 +133,7 @@ export function AssetView({
       onError={() => setFailedUrl(url)}
       className={layout === "inline"
         ? "inline-block h-auto max-h-16 w-auto max-w-full rounded-md object-contain align-middle"
-        : cn("h-auto max-h-[32rem] w-full rounded-md", layout === "contain" ? "object-contain" : "object-cover")}
+        : cn("h-auto max-h-128 w-full rounded-md", layout === "contain" ? "object-contain" : "object-cover")}
     />
   );
 }

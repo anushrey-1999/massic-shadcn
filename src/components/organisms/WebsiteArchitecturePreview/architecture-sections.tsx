@@ -205,11 +205,11 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
       <Heading text={textOf(section.fields, 'heading')} className="text-2xl" />
       <ol className="space-y-4">
         {records(section.fields, 'items').map((item, index) => (
-          <li key={index} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground font-sans text-sm text-background">
+          <li key={index} className="flex gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground font-sans text-sm text-background">
               {index + 1}
             </span>
-            <div>
+            <div className="min-w-0 flex-1">
               <h3 className="font-medium">{textOf(item, 'title')}</h3>
               <p className="text-muted-foreground">{textOf(item, 'description')}</p>
             </div>
@@ -411,8 +411,8 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
   ),
   'hero.full_media': (section) => (
     <div className="grid overflow-hidden rounded-xl">
-      <div className="min-w-0 [grid-area:1/1]"><AssetView asset={assetOf(section.fields.media_ref)} /></div>
-      <div className="z-10 flex min-w-0 flex-col items-start justify-end gap-2 bg-black/60 p-6 text-white [grid-area:1/1]">
+      <div className="col-start-1 row-start-1 min-w-0"><AssetView asset={assetOf(section.fields.media_ref)} /></div>
+      <div className="z-10 col-start-1 row-start-1 flex min-w-0 flex-col items-start justify-end gap-2 bg-black/60 p-6 text-white">
         <Heading text={textOf(section.fields, 'heading')} className="text-3xl sm:text-4xl" />
         <p>{textOf(section.fields, 'description')}</p>
         <CtaView cta={ctaOf(section.fields.cta_ref)} />
@@ -516,9 +516,9 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
       <Heading text={textOf(section.fields, 'heading')} className="text-2xl" />
       <div className="space-y-4">
         {records(section.fields, 'items').map((item, index) => (
-          <article key={index} className="grid items-center gap-4 sm:grid-cols-[8rem_1fr]">
-            <AssetView asset={assetOf(item.image_ref)} />
-            <div>
+          <article key={index} className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="min-w-0 sm:w-32 sm:shrink-0"><AssetView asset={assetOf(item.image_ref)} /></div>
+            <div className="min-w-0 flex-1">
               <h3 className="font-medium">{textOf(item, 'title')}</h3>
               <p className="text-muted-foreground">{textOf(item, 'description')}</p>
             </div>
@@ -577,9 +577,9 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
       <Heading text={textOf(section.fields, 'heading')} className="text-2xl" />
       <ol className="space-y-3">
         {records(section.fields, 'items').map((item, index) => (
-          <li key={index} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-2">
-            <span className="font-medium text-muted-foreground">{index + 1}</span>
-            <div>
+          <li key={index} className="flex gap-2">
+            <span className="w-8 shrink-0 font-medium text-muted-foreground">{index + 1}</span>
+            <div className="min-w-0 flex-1">
               <h3 className="font-medium">{textOf(item, 'title')}</h3>
               <p className="text-muted-foreground">{textOf(item, 'description')}</p>
             </div>
@@ -627,9 +627,9 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
     </div>
   ),
   'people.featured': (section) => (
-    <div className="grid items-center gap-6 sm:grid-cols-[12rem_1fr]">
-      <AssetView asset={assetOf(section.fields.photo_ref)} />
-      <div className="space-y-2">
+    <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+      <div className="min-w-0 sm:w-48 sm:shrink-0"><AssetView asset={assetOf(section.fields.photo_ref)} /></div>
+      <div className="min-w-0 flex-1 space-y-2">
         <Heading text={textOf(section.fields, 'name')} className="text-3xl" />
         <p className="text-sm text-muted-foreground">{textOf(section.fields, 'role')}</p>
         <Markdown text={textOf(section.fields, 'biography')} />
@@ -697,9 +697,9 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
       <Heading text={textOf(section.fields, 'heading')} className="text-2xl" />
       <dl className="divide-y divide-border border-y border-border">
         {records(section.fields, 'rows').map((row, index) => (
-          <div key={index} className="grid gap-1 py-2 sm:grid-cols-[10rem_1fr]">
-            <dt className="font-medium">{textOf(row, 'label')}</dt>
-            <dd className="text-muted-foreground">{textOf(row, 'value')}</dd>
+          <div key={index} className="flex flex-col gap-1 py-2 sm:flex-row">
+            <dt className="font-medium sm:w-40 sm:shrink-0">{textOf(row, 'label')}</dt>
+            <dd className="min-w-0 flex-1 text-muted-foreground">{textOf(row, 'value')}</dd>
           </div>
         ))}
       </dl>
@@ -732,15 +732,15 @@ const RENDERERS: Record<string, (section: ArchitectureAssemblySection) => ReactN
           {points.map((point, index) => {
             const value = Number(numberOf(point, 'value')) || 0
             return (
-              <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,3rem)] items-center gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)_3rem]">
-                <span>{textOf(point, 'label')}</span>
-                <span className="h-3 rounded bg-muted">
+              <div key={index} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 break-words sm:w-28 sm:flex-none">{textOf(point, 'label')}</span>
+                <span className="h-3 min-w-0 flex-1 rounded bg-muted">
                   <span
                     className={`block h-3 rounded ${value < 0 ? 'ml-auto bg-muted-foreground' : 'bg-primary'}`}
                     style={{ width: `${(Math.abs(value) / max) * 100}%` }}
                   />
                 </span>
-                <span className="text-right">{numberOf(point, 'value')}</span>
+                <span className="w-12 shrink-0 text-right">{numberOf(point, 'value')}</span>
               </div>
             )
           })}

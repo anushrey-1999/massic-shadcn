@@ -71,7 +71,9 @@ export function WebsiteArchitectureRenderer({
       <article
         ref={exportRef}
         aria-label="Generated website page"
-        className="w-full min-w-0 break-words rounded-lg border bg-background px-4 py-6 sm:px-8"
+        className={exportRef
+          ? "@container mx-auto w-full max-w-4xl min-w-0 break-words text-neutral-900"
+          : "w-full min-w-0 break-words rounded-lg border bg-background px-4 py-6 sm:px-8"}
       >
         {title && !titleInAssembly && !titleInDraft && (
           <h1 className="mb-4 text-3xl font-medium tracking-tight sm:text-4xl">{title}</h1>
@@ -123,7 +125,7 @@ function CopyArchitectureHtml(props: RendererProps) {
         }
       }
       if (!copied) copied = await copyToClipboard(html);
-      if (copied) toast.success("HTML copied with styles");
+      if (copied) toast.success("HTML copied with Tailwind classes");
       else toast.error("Couldn’t copy HTML");
     } catch {
       toast.error("Couldn’t copy HTML");

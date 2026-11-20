@@ -54,18 +54,19 @@ export function WebsiteArchitectureActionCell({ page }: { page: WebsiteArchitect
   const query = actions.byPageId.get(page.page_id);
   const status = query?.data === undefined ? page.status : query.data?.request_status;
   const inFlight = status === "processing" || status === "pending";
+  const paused = query?.data?.current?.status === "needs_answers";
   const action = getArchitectureAction(page);
   const hasError = Boolean(query?.isError);
   if (hasError || inFlight || status === "success") {
-    const label = hasError ? "Check status" : !inFlight ? "View" : action === "Optimize" ? "Optimizing…" : "Generating…";
+    const label = hasError ? "Check status" : paused ? "Answer questions" : !inFlight ? "View" : action === "Optimize" ? "Optimizing…" : "Generating…";
     return (
-      <Button asChild size="sm" variant={inFlight ? "ghost" : "outline"} className="transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none">
+      <Button asChild size="sm" variant={inFlight && !paused ? "ghost" : "outline"} className="transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none">
         <Link
           href={actions.href(page, inFlight)}
           prefetch={false}
           aria-label={label === "View" ? "View Page" : label}
         >
-          <PreviewLinkLabel label={label} inFlight={inFlight} hasError={hasError} />
+          <PreviewLinkLabel label={label} inFlight={inFlight && !paused} hasError={hasError} />
         </Link>
       </Button>
     );

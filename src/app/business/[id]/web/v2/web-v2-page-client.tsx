@@ -4,6 +4,7 @@ import * as React from "react";
 import { parseAsStringEnum, useQueryStates } from "nuqs";
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { PageHeader } from "@/components/molecules/PageHeader";
+import { WebsiteArchitectureNewPage } from "@/components/organisms/WebsiteArchitectureTable/website-architecture-new-page";
 import { WebsiteArchitectureTableClient } from "@/components/organisms/WebsiteArchitectureTable/website-architecture-table-client";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Typography } from "@/components/ui/typography";
@@ -69,14 +70,17 @@ export function WebV2PageClient({ businessId }: { businessId: string }) {
                 <TabsTrigger value="optimize">Optimize</TabsTrigger>
                 <TabsTrigger value="all">All Pages</TabsTrigger>
               </TabsList>
-              {totalCount !== null && (
-                <Typography
-                  variant="p"
-                  className="ml-auto text-right text-sm font-mono text-general-muted-foreground"
-                >
-                  {formatVolume(totalCount)} Pages
-                </Typography>
-              )}
+              <div className="ml-auto flex items-center gap-3">
+                {totalCount !== null && (
+                  <Typography
+                    variant="p"
+                    className="text-right text-sm tabular-nums text-general-muted-foreground"
+                  >
+                    {formatVolume(totalCount)} Pages
+                  </Typography>
+                )}
+                <WebsiteArchitectureNewPage key={businessId} businessId={businessId} scope={tab} />
+              </div>
             </div>
             <div className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <WebsiteArchitectureTableClient

@@ -32,15 +32,37 @@ export function architecturePreviewHref(
   inFlight = false,
   v2Scope?: WebsiteArchitectureScope,
 ) {
-  const params = tableParams(search);
   const title = page.title?.trim() || page.name?.trim();
+  const run = inFlight ? getArchitectureAction(page).toLowerCase() : undefined;
+  return architectureRequestHref(businessId, page.page_id, search, { title, run, v2Scope });
+}
+
+export function architectureRequestHref(
+  businessId: string,
+  pageId: string,
+  search: Pick<URLSearchParams, "get">,
+  { title, run, v2Scope, handoff }: {
+    title?: string;
+    run?: string;
+    v2Scope?: WebsiteArchitectureScope;
+    handoff?: boolean;
+  },
+) {
+  const params = tableParams(search);
   if (title) params.set("title", title.slice(0, 200));
-  if (inFlight) params.set("run", getArchitectureAction(page).toLowerCase());
+  if (run) params.set("run", run);
   if (v2Scope) {
     params.set("architectureOrigin", "v2");
     params.set("architectureTab", v2Scope);
   }
-  const path = `/business/${encodeURIComponent(businessId)}/web/architecture/${encodeURIComponent(page.page_id)}/view`;
+  if (handoff) {
+    params.set("architectureHandoff", "1");
+    for (const key of ["architectureOrigin", "architectureTab"]) {
+      const value = search.get(key);
+      if (value) params.set(key, value);
+    }
+  }
+  const path = `/business/${encodeURIComponent(businessId)}/web/architecture/${encodeURIComponent(pageId)}/view`;
   return params.size ? `${path}?${params}` : path;
 }
 

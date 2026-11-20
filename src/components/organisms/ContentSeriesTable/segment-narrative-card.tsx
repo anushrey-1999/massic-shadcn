@@ -16,7 +16,7 @@ import {
   type SegmentNarrativeResponse,
 } from "@/hooks/use-segment-narrative";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import { ArrowLeft, Eye, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, Eye, Sparkles } from "lucide-react";
 
 function getStatusLowercase(value: unknown): string {
   return (value || "").toString().toLowerCase();
@@ -233,10 +233,26 @@ export function SegmentNarrativeCard({ businessId, row }: SegmentNarrativeCardPr
     setPanelOpen(true);
   }, []);
 
+  const canDownload = status === "success" && !isGenerating && !contentQuery.isError &&
+    narrativePayload && Object.keys(narrativePayload).length > 0;
+
+  const handleDownload = () => {
+    const slug = row.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const blob = new Blob([JSON.stringify(narrativePayload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slug || "segment-narrative"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
   if (panelOpen) {
     return (
       <div className="bg-background border border-general-border flex flex-col gap-6 overflow-hidden p-6 rounded-xl w-full">
-        <div>
+        <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
             variant="secondary"
@@ -246,6 +262,19 @@ export function SegmentNarrativeCard({ businessId, row }: SegmentNarrativeCardPr
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
+          {canDownload && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="text-general-muted-foreground hover:bg-accent"
+              aria-label="Download JSON"
+              title="Download JSON"
+              onClick={handleDownload}
+            >
+              <Download strokeWidth={1.5} />
+            </Button>
+          )}
         </div>
 
         {contentQuery.isLoading ? (

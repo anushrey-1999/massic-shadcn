@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -46,8 +46,9 @@ export function WebsiteArchitectureRenderer({
   const assembly = artifact.assembly;
   const sections = Array.isArray(assembly?.sections) ? assembly.sections.filter(isAssemblySection) : [];
   const showAssembly = sections.some(hasSectionRenderer);
-  const draft = artifact.package?.draft?.trim();
-  const written = artifact.package?.sections?.filter((section) => section.heading?.trim() || section.markdown?.trim()) ?? [];
+  const legacyPackage = artifact.schema_version === 2 ? undefined : artifact.package;
+  const draft = legacyPackage?.draft?.trim();
+  const written = legacyPackage?.sections?.filter((section) => section.heading?.trim() || section.markdown?.trim()) ?? [];
   const writtenById = new Map(written.map((section) => [section.id, section]));
   if (!showAssembly && !draft && !written.length) {
     return (
@@ -59,7 +60,7 @@ export function WebsiteArchitectureRenderer({
   }
 
   const title = (showAssembly ? assembly?.page?.h1?.trim() : undefined) ||
-    artifact.package?.page?.h1?.trim() || artifact.package?.page?.title_tag?.trim() || pageTitle;
+    legacyPackage?.page?.h1?.trim() || legacyPackage?.page?.title_tag?.trim() || pageTitle;
   const firstSection = sections[0];
   const titleInAssembly = Boolean(showAssembly && title && firstSection && hasSectionRenderer(firstSection) &&
     /^(hero|header)\./.test(firstSection.registry_id) && textOf(firstSection.fields, "heading").trim() === title);
@@ -71,7 +72,9 @@ export function WebsiteArchitectureRenderer({
       <article
         ref={exportRef}
         aria-label="Generated website page"
-        className="w-full min-w-0 break-words rounded-lg border bg-background px-4 py-6 sm:px-8"
+        className={exportRef
+          ? "@container mx-auto w-full max-w-4xl min-w-0 break-words text-neutral-900"
+          : "w-full min-w-0 break-words rounded-lg border bg-background px-4 py-6 sm:px-8"}
       >
         {title && !titleInAssembly && !titleInDraft && (
           <h1 className="mb-4 text-3xl font-medium tracking-tight sm:text-4xl">{title}</h1>
@@ -97,49 +100,63 @@ export function WebsiteArchitectureRenderer({
 }
 
 function CopyArchitectureHtml(props: RendererProps) {
-  const [copying, setCopying] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">("idle");
   const [renderExport, setRenderExport] = useState(false);
   const exportRef = useRef<HTMLElement>(null);
+  const copied = copyState === "copied";
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopyState("idle"), 2500);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   const copyHtml = async () => {
-    if (copying) return;
-    setCopying(true);
+    if (copyState !== "idle") return;
+    setCopyState("copying");
     try {
       flushSync(() => setRenderExport(true));
       if (!exportRef.current) throw new Error("No preview content to copy.");
       const html = websiteArchitectureHtml(exportRef.current);
       setRenderExport(false);
 
-      let copied = false;
+      let wroteClipboard = false;
       if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
         try {
           await navigator.clipboard.write([new ClipboardItem({
             "text/html": new Blob([html], { type: "text/html" }),
             "text/plain": new Blob([html], { type: "text/plain" }),
           })]);
-          copied = true;
+          wroteClipboard = true;
         } catch {
           // Editors and browsers with restricted rich clipboard access can use the HTML source.
         }
       }
-      if (!copied) copied = await copyToClipboard(html);
-      if (copied) toast.success("HTML copied with styles");
-      else toast.error("Couldn’t copy HTML");
+      if (!wroteClipboard && !await copyToClipboard(html)) throw new Error("Couldn’t copy HTML");
+      setCopyState("copied");
     } catch {
+      setCopyState("idle");
       toast.error("Couldn’t copy HTML");
     } finally {
       setRenderExport(false);
-      setCopying(false);
     }
   };
 
   return (
     <>
       <div className="flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={() => void copyHtml()} disabled={copying}>
-          <Copy aria-hidden />
-          {copying ? "Copying…" : "Copy HTML"}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void copyHtml()}
+          aria-disabled={copyState !== "idle"}
+          className="min-w-28 transition-colors aria-disabled:cursor-default aria-disabled:hover:bg-background motion-reduce:transition-none"
+        >
+          {copied ? <Check aria-hidden className="text-general-primary" /> : <Copy aria-hidden />}
+          {copied ? "Copied" : copyState === "copying" ? "Copying…" : "Copy HTML"}
         </Button>
+        <span role="status" className="sr-only">{copied ? "HTML copied to clipboard" : ""}</span>
       </div>
       {renderExport && createPortal(
         <div aria-hidden className="invisible pointer-events-none fixed top-0 -left-[10000px] w-[56rem]">

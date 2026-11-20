@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 const MASSIC_BLOG_PAGE_CSS_PUBLIC_PATH = "/massic-blog-page.css";
 
 const cssTextCache = new Map<string, string>();
@@ -15,7 +16,7 @@ async function getPublicCssText(path: string): Promise<string> {
   const existingPromise = cssTextPromiseCache.get(path);
   if (existingPromise) return existingPromise;
 
-  const nextPromise = fetch(path, { method: "GET" })
+  const nextPromise = appFetch(path, { method: "GET" })
     .then(async (response) => {
       if (!response.ok) return "";
       return response.text();

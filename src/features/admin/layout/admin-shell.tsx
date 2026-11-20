@@ -305,6 +305,7 @@ function breadcrumbItems(pathname: string) {
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const hasDeveloperMode = /^\/admin\/(?:agencies|businesses)\/[^/]+\/?$/.test(pathname);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -391,7 +392,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               ))}
             </div>
             <div className="ml-auto flex items-center gap-2 text-xs text-general-muted-foreground">
-              <span className="hidden sm:inline">Read-only</span>
+              {!hasDeveloperMode && <span className="hidden sm:inline">Read-only</span>}
               <span
                 className="admin-live-dot size-2 rounded-full bg-emerald-500"
                 aria-label="Admin access active"

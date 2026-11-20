@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import { parsePerformanceReport } from "@/utils/performance-report-v2";
 import type { PerformanceReportV2TemplateContext } from "@/utils/performance-report-v2-template";
 import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
@@ -7,7 +8,7 @@ import type { WebsiteSnapshotReport } from "@/utils/website-snapshot-report";
 export async function generatePdfFromMarkdown(markdown: string, filename: string): Promise<void> {
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ markdown, title: filename.replace(".pdf", "") }),
@@ -34,7 +35,7 @@ export async function generatePdfFromWebsiteSnapshotReport(args: {
   const { report, filename } = args;
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -71,7 +72,7 @@ export async function generatePdfFromPerformanceReportV2(
 
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -109,7 +110,7 @@ export async function generatePdfFromSnapshotTemplate(args: {
   const { expressPitch, quickEvaluation, profileTags, competitors, footerSummary, poweredByName, filename, generatedAt } = args;
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -147,7 +148,7 @@ export async function generatePdfFromSeoSnapshotReport(args: {
   const { report, filename, poweredByName } = args;
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -178,7 +179,7 @@ export async function generatePdfFromBillingReconciliation(
 ): Promise<void> {
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
-  const response = await fetch("/api/generate-pdf", {
+  const response = await appFetch("/api/generate-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

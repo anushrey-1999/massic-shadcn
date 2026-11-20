@@ -1,5 +1,6 @@
 "use client";
 
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import { useCallback } from "react";
 import { useApi, api, type ApiPlatform } from "./use-api";
 import type {
@@ -400,7 +401,7 @@ export function useSocial(businessId: string, strategyType: SocialStrategyType =
   );
 
   const fetchDownloadPayloadFromUrl = useCallback(async (downloadUrl: string) => {
-    const downloadResponse = await fetch(downloadUrl);
+    const downloadResponse = await appFetch(downloadUrl);
     if (!downloadResponse.ok) {
       throw new Error(
         `Failed to fetch from download URL: ${downloadResponse.statusText}`

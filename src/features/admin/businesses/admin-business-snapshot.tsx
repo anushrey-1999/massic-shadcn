@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { getAdminBusiness, getAdminIntelligence } from "../api/admin-api";
 import { AdminBusinessFavicon } from "../components/admin-business-favicon";
 import { AdminBenchmarkCard } from "../components/admin-benchmark-card";
+import { AdminDeveloperMode } from "../components/admin-developer-mode";
 import { AdminKpiGrid } from "../components/admin-kpi-card";
 import { AdminPageHeader } from "../components/admin-page-header";
 import { AdminRangeSelect } from "../components/admin-range-select";
@@ -126,6 +127,7 @@ export function AdminBusinessSnapshot({ id }: { id: string }) {
       </Button>
       <AdminPageHeader
         title={dimension.business_name}
+        readOnly={false}
         description={`${dimension.agency_name || "Unknown agency"} · ${dimension.website || "No website"}`}
         freshnessDate={analytics.meta.freshnessDate}
         sourceFreshness={analytics.meta.sourceFreshness}
@@ -164,6 +166,7 @@ export function AdminBusinessSnapshot({ id }: { id: string }) {
           </>
         }
       />
+      <AdminDeveloperMode target="businesses" id={id} />
       <AdminKpiGrid kpis={kpis} />
       <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <section

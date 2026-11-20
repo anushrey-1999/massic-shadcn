@@ -1,3 +1,4 @@
+import { appFetch } from "@/lib/developer-mode/app-fetch";
 import type {
   ChatMessage,
   ConversationListResponse,
@@ -42,7 +43,7 @@ export async function sendChatbotMessage(
   businessId: string,
   conversationId?: string
 ): Promise<ChatbotResponse> {
-  const response = await fetch(
+  const response = await appFetch(
     `/api/chatbot/talk?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "POST",
@@ -111,7 +112,7 @@ export async function sendPlannerMessage(
   businessId: string,
   conversationId?: string
 ): Promise<ChatbotResponse> {
-  const response = await fetch(
+  const response = await appFetch(
     `/api/chatbot/planner?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "POST",
@@ -308,7 +309,7 @@ export async function getConversationList(
   businessId: string
 ): Promise<ConversationListResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  const response = await fetch(
+  const response = await appFetch(
     `${baseUrl}/chatbot/conversation/history?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "GET",
@@ -332,7 +333,7 @@ export async function getPlannerConversationList(
   businessId: string
 ): Promise<ConversationListResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  const response = await fetch(
+  const response = await appFetch(
     `${baseUrl}/chatbot/planner/history?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "GET",
@@ -363,7 +364,7 @@ export async function getChatHistory(
     ...(nextId ? { next_id: nextId } : {}),
   });
 
-  const response = await fetch(
+  const response = await appFetch(
     `${baseUrl}/chatbot/conversation/history?${params.toString()}`,
     {
       method: "GET",
@@ -395,7 +396,7 @@ export async function getPlannerHistory(
     ...(nextId ? { next_id: nextId } : {}),
   });
 
-  const response = await fetch(
+  const response = await appFetch(
     `${baseUrl}/chatbot/planner/history?${params.toString()}`,
     {
       method: "GET",

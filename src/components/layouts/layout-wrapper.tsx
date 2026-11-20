@@ -3,7 +3,8 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useRouter } from 'next/navigation'
-import { routesWithoutSidebar, routePrefixesWithoutSidebar, isAgentRoute, isBusinessProfileRoute } from '@/lib/layout-config'
+import { isAgentRoute, isBusinessProfileRoute, usesEmptyLayout } from '@/lib/layout-config'
+import { DeveloperModeProvider } from '@/features/developer-mode/developer-mode-provider'
 import Layout from './layout'
 import EmptyLayout from './empty-layout'
 import { useIsFreeBusinessAccount } from '@/hooks/use-is-free-business-account'
@@ -34,13 +35,14 @@ export default function LayoutWrapper({
 
   const fillViewport = isAgentRoute(pathname) || isBusinessProfileRoute(pathname)
   const isArchitecturePreview = /^\/business\/[^/]+\/web\/architecture\/[^/]+\/view\/?$/.test(pathname)
-  const shouldUseEmptyLayout =
-    routesWithoutSidebar.includes(pathname) ||
-    routePrefixesWithoutSidebar.some((prefix) => pathname.startsWith(prefix))
 
-  if (shouldUseEmptyLayout) {
+  if (usesEmptyLayout(pathname)) {
     return <EmptyLayout>{children}</EmptyLayout>
   }
 
-  return <Layout fill={fillViewport} hideSidebarOnMobile={isArchitecturePreview}>{children}</Layout>
+  return (
+    <DeveloperModeProvider pathname={pathname}>
+      <Layout fill={fillViewport} hideSidebarOnMobile={isArchitecturePreview}>{children}</Layout>
+    </DeveloperModeProvider>
+  )
 }

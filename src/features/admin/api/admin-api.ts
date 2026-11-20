@@ -139,6 +139,24 @@ export async function getAdminAgency(id: string, query: AdminQuery) {
   >(`/admin/agencies/${id}${queryString(query)}`);
 }
 
+export type DeveloperModeTarget = "agencies" | "businesses";
+
+interface DeveloperModeSettings {
+  enabled: boolean;
+  accountEnabled: boolean;
+  effectiveEnabled: boolean;
+}
+
+export async function getAdminDeveloperMode(target: DeveloperModeTarget, id: string) {
+  const url = ["/admin", target, encodeURIComponent(id), "developer-mode"].join("/");
+  return (await adminClient.get<Envelope<DeveloperModeSettings>>(url)).data;
+}
+
+export async function setAdminDeveloperMode(target: DeveloperModeTarget, id: string, enabled: boolean) {
+  const url = ["/admin", target, encodeURIComponent(id), "developer-mode"].join("/");
+  return (await adminClient.put<Envelope<DeveloperModeSettings>>(url, { enabled })).data;
+}
+
 export async function getAdminIntelligence(query: AdminQuery) {
   return adminClient.get<
     Envelope<{

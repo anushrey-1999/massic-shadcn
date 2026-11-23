@@ -67,7 +67,21 @@ export function AccentColorField({
             </button>
           </Hint>
         ))}
-        <div className="flex items-center gap-2 pl-1">
+        <div className="relative ml-1">
+          <Hint label="Pick a custom color">
+            <label
+              className="absolute top-1/2 left-2 z-10 size-4 -translate-y-1/2 cursor-pointer rounded-full border border-black/10 focus-within:ring-2 focus-within:ring-ring/50"
+              style={{ background: HEX.test(value) ? value : "transparent" }}
+            >
+              <input
+                type="color"
+                value={HEX.test(value) ? value.toLowerCase() : "#000000"}
+                aria-label="Pick a custom color"
+                onChange={(event) => commit(event.target.value)}
+                className="sr-only"
+              />
+            </label>
+          </Hint>
           <Input
             id={inputId}
             value={draft}
@@ -75,7 +89,7 @@ export function AccentColorField({
             spellCheck={false}
             aria-invalid={Boolean(error)}
             onChange={(event) => commit(event.target.value)}
-            className={cn("h-8 w-[104px] font-mono text-xs uppercase")}
+            className="h-8 w-[112px] pl-8 font-mono text-xs uppercase"
           />
         </div>
       </div>

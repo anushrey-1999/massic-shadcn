@@ -19,6 +19,7 @@ import {
   type CustomerAgentConfig,
 } from "@/types/customer-agent";
 import { AccentColorField } from "./AccentColorField";
+import { DisplayModePicker } from "./DisplayModePicker";
 import { FieldRow, Hint, RadioOptions, SECONDARY_BUTTON_CLASS, fieldError } from "./controls";
 import { StepFooter } from "./onboarding/StepLayout";
 import { PreviewPanel } from "./PreviewPanel";
@@ -125,6 +126,19 @@ export function AppearanceTab({
             }
           >
             <div className="space-y-5">
+              <form.Field name="theme.display_mode">
+                {(field) => (
+                  <FieldRow label="Open as">
+                    <DisplayModePicker
+                      value={field.state.value}
+                      accent={values.theme.accent}
+                      side={values.theme.launcher.position}
+                      onChange={field.handleChange}
+                    />
+                  </FieldRow>
+                )}
+              </form.Field>
+
               <form.Field name="theme.preset">
                 {(field) => (
                   <FieldRow label="Style">
@@ -217,9 +231,12 @@ export function AppearanceTab({
               <div className="grid gap-5 sm:grid-cols-2">
                 <form.Field name="theme.launcher.position">
                   {(field) => (
-                    <FieldRow label="Chat button position">
+                    <FieldRow
+                      label="Position"
+                      hint={values.theme.display_mode === "sidebar" ? "The sidebar opens on this side." : undefined}
+                    >
                       <RadioOptions
-                        label="Chat button position"
+                        label="Position"
                         value={field.state.value}
                         onChange={field.handleChange}
                         options={[
@@ -366,6 +383,8 @@ export function AppearanceTab({
           config={widgetConfig}
           siteId={config.site_id}
           pageUrl={businessPageUrl(config.business.website)}
+          displayMode={previewValues.theme.display_mode}
+          side={previewValues.theme.launcher.position}
           showDeviceToggle
           showTest={!setup}
         />

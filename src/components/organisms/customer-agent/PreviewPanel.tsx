@@ -5,9 +5,12 @@ import { Loader2, MessageSquareText, Monitor, Moon, Smartphone, Sun } from "luci
 import { Button } from "@/components/ui/button";
 import { useVisitorAgentInstall } from "@/hooks/use-customer-agent";
 import { cn } from "@/lib/utils";
+import type { DisplayMode } from "@/types/customer-agent";
 import { ChoiceGroup, Hint, SECONDARY_BUTTON_CLASS } from "./controls";
 import { TestAgentDialog } from "./TestAgentDialog";
 import { WidgetPreview, type PreviewLayout, type PreviewScheme } from "./WidgetPreview";
+
+type PreviewDevice = "desktop" | "mobile";
 
 interface PreviewPanelProps {
   businessId: string;
@@ -15,6 +18,9 @@ interface PreviewPanelProps {
   config: unknown;
   siteId: string;
   pageUrl: string;
+  /** How the widget opens on desktop; phones always use the full-screen sheet. */
+  displayMode?: DisplayMode;
+  side?: "left" | "right";
   showDeviceToggle?: boolean;
   /** Hidden during setup, where testing has its own step. */
   showTest?: boolean;
@@ -26,10 +32,13 @@ export function PreviewPanel({
   config,
   siteId,
   pageUrl,
+  displayMode = "bubble",
+  side = "right",
   showDeviceToggle = false,
   showTest = true,
 }: PreviewPanelProps) {
-  const [layout, setLayout] = useState<PreviewLayout>("panel");
+  const [device, setDevice] = useState<PreviewDevice>("desktop");
+  const layout: PreviewLayout = device === "mobile" ? "sheet" : displayMode === "sidebar" ? "sidebar" : "panel";
   const [scheme, setScheme] = useState<PreviewScheme>("light");
   const [testOpen, setTestOpen] = useState(false);
   const install = useVisitorAgentInstall(businessId);
@@ -53,16 +62,16 @@ export function PreviewPanel({
         {showDeviceToggle && (
           <ChoiceGroup
             label="Preview device"
-            value={layout}
-            onChange={setLayout}
+            value={device}
+            onChange={setDevice}
             options={[
-              { value: "panel", label: <Monitor className="size-4" aria-hidden />, ariaLabel: "Desktop" },
-              { value: "sheet", label: <Smartphone className="size-4" aria-hidden />, ariaLabel: "Mobile" },
+              { value: "desktop", label: <Monitor className="size-4" aria-hidden />, ariaLabel: "Desktop" },
+              { value: "mobile", label: <Smartphone className="size-4" aria-hidden />, ariaLabel: "Mobile" },
             ]}
           />
         )}
       </div>
-      <WidgetPreview config={config} view="welcome" layout={layout} scheme={scheme} />
+      <WidgetPreview config={config} view="welcome" layout={layout} side={side} scheme={scheme} />
       {showTest && (
         <>
           <Hint

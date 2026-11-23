@@ -8,7 +8,7 @@ import { WIDGET_FRAME_URL, WIDGET_ORIGIN, readWidgetMessage, widgetMessage } fro
 import { cn } from "@/lib/utils";
 
 export type PreviewView = "welcome" | "conversation";
-export type PreviewLayout = "panel" | "sheet";
+export type PreviewLayout = "panel" | "sidebar" | "sheet";
 export type PreviewScheme = "light" | "dark";
 
 interface WidgetPreviewProps {
@@ -16,6 +16,8 @@ interface WidgetPreviewProps {
   config: unknown;
   view: PreviewView;
   layout: PreviewLayout;
+  /** Side the sidebar docks to; ignored by the other layouts. */
+  side?: "left" | "right";
   /** Preview-only colour mode; customers on the live site follow their device. */
   scheme: PreviewScheme;
 }
@@ -23,10 +25,30 @@ interface WidgetPreviewProps {
 const READY_TIMEOUT_MS = 10_000;
 const SIZES: Record<PreviewLayout, string> = {
   panel: "h-[580px] w-[380px]",
+  sidebar: "h-[640px] w-[380px]",
   sheet: "h-[640px] w-[340px]",
 };
 
-export function WidgetPreview({ config, view, layout, scheme }: WidgetPreviewProps) {
+/** Stand-in for the customer's page so the sidebar reads as docked beside it. */
+function PageStub({ side }: { side: "left" | "right" }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "absolute inset-y-0 flex w-[60px] flex-col gap-2 bg-general-primary-foreground p-3",
+        side === "right" ? "left-0" : "right-0"
+      )}
+    >
+      <span className="h-1.5 w-full rounded-full bg-general-border" />
+      <span className="h-1.5 w-3/4 rounded-full bg-general-border" />
+      <span className="mt-2 h-10 w-full rounded bg-general-border/70" />
+      <span className="h-1.5 w-2/3 rounded-full bg-general-border" />
+    </div>
+  );
+}
+
+export function WidgetPreview({ config, view, layout, side = "right", scheme }: WidgetPreviewProps) {
+  const sidebar = layout === "sidebar";
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -61,14 +83,24 @@ export function WidgetPreview({ config, view, layout, scheme }: WidgetPreviewPro
         SIZES[layout]
       )}
     >
-      <iframe
-        key={attempt}
-        ref={frameRef}
-        src={`${WIDGET_FRAME_URL}?preview=1`}
-        title="Customer Agent preview"
-        sandbox="allow-scripts allow-same-origin"
-        className={cn("size-full border-0", status !== "ready" && "invisible")}
-      />
+      {sidebar && <PageStub side={side} />}
+      <div
+        className={cn(
+          "absolute inset-y-0",
+          sidebar
+            ? cn("w-[320px] border-general-border", side === "right" ? "right-0 border-l" : "left-0 border-r")
+            : "inset-x-0"
+        )}
+      >
+        <iframe
+          key={attempt}
+          ref={frameRef}
+          src={`${WIDGET_FRAME_URL}?preview=1`}
+          title="Customer Agent preview"
+          sandbox="allow-scripts allow-same-origin"
+          className={cn("size-full border-0", status !== "ready" && "invisible")}
+        />
+      </div>
       {status !== "ready" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
           {status === "loading" ? (

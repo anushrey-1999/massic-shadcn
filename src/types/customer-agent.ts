@@ -8,9 +8,11 @@ export const CORNER_STYLES = ["sharp", "rounded", "soft"] as const;
 export const THEME_FONTS = ["system", "inter", "source-sans-3", "atkinson", "lora"] as const;
 export const MOTION_LEVELS = ["subtle", "expressive", "off"] as const;
 export const LAUNCHER_STYLES = ["icon", "logo", "pill"] as const;
+export const DISPLAY_MODES = ["bubble", "sidebar"] as const;
 export const SUGGESTED_QUESTIONS_MAX = 4;
 
 export type ThemePreset = (typeof THEME_PRESETS)[number];
+export type DisplayMode = (typeof DISPLAY_MODES)[number];
 export type ThemeFont = (typeof THEME_FONTS)[number];
 
 const hexColor = z
@@ -31,6 +33,7 @@ export const launcherSchema = z.object({
 export const themeConfigSchema = z.object({
   preset: z.enum(THEME_PRESETS),
   mode: z.enum(THEME_MODES),
+  display_mode: z.enum(DISPLAY_MODES),
   accent: hexColor,
   corners: z.enum(CORNER_STYLES).nullable(),
   font: z.enum(THEME_FONTS),

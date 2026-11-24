@@ -1,6 +1,6 @@
 import { formatDistanceToNowStrict, parseISO } from "date-fns"
 import type { PageCheck } from "@/hooks/use-smart-sitemap"
-import { formatDay, pageCheckDestination, pageCheckStatus } from "@/lib/smart-sitemap"
+import { formatDay, pageCheckDestination, pageCheckDue, pageCheckResult, pageCheckStatus } from "@/lib/smart-sitemap"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SmartSitemapPanel } from "./SmartSitemapPanel"
 
@@ -40,12 +40,15 @@ function TextField({ label, value, emptyLabel }: { label: string; value: string 
   )
 }
 
-export function SmartSitemapPageCheckCard({ check, path }: SmartSitemapPageCheckCardProps) {
+export function SmartSitemapPageCheckCard({ check: stored, path }: SmartSitemapPageCheckCardProps) {
+  const check = pageCheckResult(stored)
   if (!check) {
+    const firstCheck = pageCheckDue(stored?.nextCheckAt)
     return (
       <SmartSitemapPanel title="Live page">
         <p className="text-sm text-general-muted-foreground">
-          Not checked yet. Massic checks each page&apos;s status, title and meta description automatically.
+          Not checked yet{firstCheck ? `; first check ${firstCheck}` : ""}. Massic checks each page&apos;s status,
+          title and meta description automatically.
         </p>
       </SmartSitemapPanel>
     )

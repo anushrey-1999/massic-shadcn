@@ -1,4 +1,4 @@
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, format, formatDistanceToNowStrict, parseISO } from "date-fns";
 import { getBucketColor } from "@/lib/gsc-index-bucket";
 import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
 import type {
@@ -6,6 +6,7 @@ import type {
   Ga4Metrics,
   GscMetrics,
   PageCheck,
+  PageCheckResult,
   PageCheckFilter,
   SeriesPoint,
   SmartSitemapSort,
@@ -435,7 +436,7 @@ export const PAGE_CHECK_FILTER_LABELS: Record<
  * Tag label and dot color for the latest live check; colors reuse the indexing palette.
  * `detail` is the full wording for the hover when the tag is shortened.
  */
-export function pageCheckStatus(check: PageCheck): {
+export function pageCheckStatus(check: PageCheckResult): {
   label: string;
   detail?: string;
   color: string;
@@ -474,9 +475,26 @@ export function pageCheckStatus(check: PageCheck): {
   }
 }
 
+/** The stored result, or null while the page waits for its first check. */
+export function pageCheckResult(
+  check: PageCheck | null | undefined,
+): PageCheckResult | null {
+  return check && check.checkedAt !== null ? check : null;
+}
+
+/** "in 5 hours", or "due now" once the time has passed. */
+export function pageCheckDue(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = parseISO(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getTime() <= Date.now()
+    ? "due now"
+    : formatDistanceToNowStrict(date, { addSuffix: true });
+}
+
 /** Where the page ended up when that differs from the page itself, ignoring a trailing slash. */
 export function pageCheckDestination(
-  check: PageCheck,
+  check: PageCheckResult,
   path: string,
 ): string | null {
   if (!check.finalUrl) return null;

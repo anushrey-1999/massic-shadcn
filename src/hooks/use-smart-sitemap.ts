@@ -148,7 +148,7 @@ export type PageCheckOutcome =
   | "blocked_target";
 
 /** Latest live fetch of the page by Massic's background checker. */
-export interface PageCheck {
+export interface PageCheckResult {
   statusCode: number | null;
   finalUrl: string | null;
   outcome: PageCheckOutcome | null;
@@ -158,6 +158,14 @@ export interface PageCheck {
   checkedAt: string;
   nextCheckAt: string | null;
 }
+
+/** A page that has not been checked yet, with the time its first check is due. */
+export interface PageCheckScheduled {
+  checkedAt: null;
+  nextCheckAt: string;
+}
+
+export type PageCheck = PageCheckResult | PageCheckScheduled;
 
 export interface SmartSitemapPageResult {
   page: SitePageIdentity & {

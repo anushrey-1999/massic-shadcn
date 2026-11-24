@@ -10,6 +10,8 @@ import {
   discoverySources,
   formatInteger,
   pageCheckDestination,
+  pageCheckDue,
+  pageCheckResult,
   pageCheckStatus,
   statusColor,
   statusLabel,
@@ -101,18 +103,13 @@ function relativeTime(value: string | null | undefined): string | null {
 
 /** Live HTTP status as a tag; the hover card has the destination and check schedule. */
 export function SmartSitemapPageCheckCell({ check, path }: { check: PageCheck | null | undefined; path: string }) {
-  const status: ReturnType<typeof pageCheckStatus> = check
-    ? pageCheckStatus(check)
+  const result = pageCheckResult(check)
+  const status: ReturnType<typeof pageCheckStatus> = result
+    ? pageCheckStatus(result)
     : { label: "Not checked", color: statusColor("pending") }
-  const destination = check ? pageCheckDestination(check, path) : null
-  const lastChecked = relativeTime(check?.checkedAt)
-  const nextCheckAt = check?.nextCheckAt ? parseISO(check.nextCheckAt) : null
-  const nextCheck =
-    nextCheckAt && !Number.isNaN(nextCheckAt.getTime())
-      ? nextCheckAt.getTime() <= Date.now()
-        ? "due now"
-        : formatDistanceToNowStrict(nextCheckAt, { addSuffix: true })
-      : null
+  const destination = result ? pageCheckDestination(result, path) : null
+  const lastChecked = relativeTime(result?.checkedAt)
+  const nextCheck = pageCheckDue(check?.nextCheckAt)
   return (
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
@@ -130,13 +127,13 @@ export function SmartSitemapPageCheckCell({ check, path }: { check: PageCheck | 
         {destination ? (
           <p className="break-words opacity-70">Ends at {destination.replace(/^https?:\/\//, "")}</p>
         ) : null}
-        {check ? (
+        {result ? (
           <>
             {lastChecked ? <p className="opacity-70">Checked {lastChecked}</p> : null}
             {nextCheck ? <p className="opacity-70">Next check {nextCheck}</p> : null}
           </>
         ) : (
-          <p className="opacity-70">Checked automatically, usually within a day</p>
+          <p className="opacity-70">{nextCheck ? `First check ${nextCheck}` : "Checked automatically, usually within a day"}</p>
         )}
       </TooltipContent>
     </Tooltip>

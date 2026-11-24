@@ -99,8 +99,9 @@ export function pickAppearance({ appearance }: CustomerAgentConfig): AppearanceV
     theme: {
       ...appearance.theme,
       mode: "auto",
-      // Configs saved before sidebar mode existed open as a bubble.
+      // Configs saved before sidebar mode existed open as a bubble that never pushes.
       display_mode: appearance.theme.display_mode ?? "bubble",
+      sidebar_push: appearance.theme.sidebar_push ?? false,
       show_powered_by: true,
       launcher: {
         ...appearance.theme.launcher,

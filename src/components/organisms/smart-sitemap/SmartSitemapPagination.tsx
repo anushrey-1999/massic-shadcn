@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatInteger } from "@/lib/smart-sitemap"
 
 interface SmartSitemapPaginationProps {
@@ -8,79 +8,92 @@ interface SmartSitemapPaginationProps {
   totalPages: number
   total: number
   pageSize: number
+  pageSizeOptions: readonly number[]
   onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
   disabled?: boolean
 }
 
-/** Current page, first, last and neighbours; gaps collapse to an ellipsis. */
-function visiblePages(page: number, totalPages: number): Array<number | "gap"> {
-  const pages = new Set([1, totalPages, page - 1, page, page + 1])
-  const sorted = [...pages].filter((value) => value >= 1 && value <= totalPages).sort((a, b) => a - b)
-  return sorted.flatMap((value, index) =>
-    index > 0 && value - sorted[index - 1] > 1 ? (["gap", value] as const) : [value]
-  )
-}
-
+/** Same layout as the shared data-table pagination: rows per page on the left, page controls on the right. */
 export function SmartSitemapPagination({
   page,
   totalPages,
   total,
   pageSize,
+  pageSizeOptions,
   onPageChange,
+  onPageSizeChange,
   disabled = false,
 }: SmartSitemapPaginationProps) {
   if (!total) return null
-  const first = (page - 1) * pageSize + 1
-  const last = Math.min(page * pageSize, total)
+  const canPrevious = !disabled && page > 1
+  const canNext = !disabled && page < totalPages
 
   return (
-    <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-xs text-general-muted-foreground">
-        Showing {formatInteger(first)}–{formatInteger(last)} of {formatInteger(total)} pages
-      </p>
-      {totalPages > 1 ? (
-        <nav aria-label="Pagination" className="flex items-center gap-1">
+    <div className="flex w-full flex-col gap-4 p-1 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex shrink-0 items-center space-x-2">
+        <p className="whitespace-nowrap text-xs font-medium">Rows per page</p>
+        <Select value={`${pageSize}`} onValueChange={(value) => onPageSizeChange(Number(value))} disabled={disabled}>
+          <SelectTrigger size="sm" className="bg-white text-xs" aria-label="Rows per page">
+            <SelectValue placeholder={pageSize} />
+          </SelectTrigger>
+          <SelectContent side="top">
+            {pageSizeOptions.map((option) => (
+              <SelectItem key={option} value={`${option}`} className="text-xs">
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center whitespace-nowrap text-xs font-medium">
+          Page {formatInteger(page)} of {formatInteger(Math.max(totalPages, 1))}
+          <span className="ml-1.5 font-normal text-general-muted-foreground">({formatInteger(total)} pages)</span>
+        </div>
+        <nav aria-label="Pagination" className="flex items-center space-x-2">
           <Button
+            aria-label="Go to first page"
             variant="outline"
-            size="sm"
-            className="h-8 gap-1 px-2.5"
-            disabled={disabled || page <= 1}
-            onClick={() => onPageChange(page - 1)}
+            size="icon"
+            className="hidden size-8 lg:flex"
+            onClick={() => onPageChange(1)}
+            disabled={!canPrevious}
           >
-            <ChevronLeft className="size-4" />
-            Previous
+            <ChevronsLeft />
           </Button>
-          {visiblePages(page, totalPages).map((value, index) =>
-            value === "gap" ? (
-              <span key={`gap-${index}`} className="px-1 text-xs text-general-muted-foreground">
-                …
-              </span>
-            ) : (
-              <Button
-                key={value}
-                variant={value === page ? "secondary" : "ghost"}
-                size="sm"
-                aria-current={value === page ? "page" : undefined}
-                className={cn("h-8 min-w-8 px-2 tabular-nums", value === page && "bg-general-border")}
-                disabled={disabled && value !== page}
-                onClick={() => value !== page && onPageChange(value)}
-              >
-                {value}
-              </Button>
-            )
-          )}
           <Button
+            aria-label="Go to previous page"
             variant="outline"
-            size="sm"
-            className="h-8 gap-1 px-2.5"
-            disabled={disabled || page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
+            size="icon"
+            className="size-8"
+            onClick={() => onPageChange(page - 1)}
+            disabled={!canPrevious}
           >
-            Next
-            <ChevronRight className="size-4" />
+            <ChevronLeft />
+          </Button>
+          <Button
+            aria-label="Go to next page"
+            variant="outline"
+            size="icon"
+            className="size-8"
+            onClick={() => onPageChange(page + 1)}
+            disabled={!canNext}
+          >
+            <ChevronRight />
+          </Button>
+          <Button
+            aria-label="Go to last page"
+            variant="outline"
+            size="icon"
+            className="hidden size-8 lg:flex"
+            onClick={() => onPageChange(totalPages)}
+            disabled={!canNext}
+          >
+            <ChevronsRight />
           </Button>
         </nav>
-      ) : null}
+      </div>
     </div>
   )
 }

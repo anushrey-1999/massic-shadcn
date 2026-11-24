@@ -9,6 +9,10 @@ import {
   SmartSitemapKeywordCounts,
   SmartSitemapKeywordCountsNotice,
 } from "@/components/organisms/smart-sitemap/SmartSitemapKeywordCounts"
+import { SmartSitemapColumnOptions } from "@/components/organisms/smart-sitemap/SmartSitemapColumnOptions"
+import { SmartSitemapFilters } from "@/components/organisms/smart-sitemap/SmartSitemapFilters"
+import { SitemapColumnsProvider } from "@/components/organisms/smart-sitemap/SitemapColumnsContext"
+import { SITEMAP_COLUMNS } from "@/components/organisms/smart-sitemap/sitemapColumns"
 import { SmartSitemapOverview } from "@/components/organisms/smart-sitemap/SmartSitemapOverview"
 import { SmartSitemapPagination } from "@/components/organisms/smart-sitemap/SmartSitemapPagination"
 import { SmartSitemapTable } from "@/components/organisms/smart-sitemap/SmartSitemapTable"
@@ -24,10 +28,12 @@ import { Input } from "@/components/ui/input"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import {
+  PAGE_CHECK_FILTERS,
   SMART_SITEMAP_SORTS,
   SMART_SITEMAP_STATUSES,
   useSmartSitemapList,
   useSmartSitemapTree,
+  type PageCheckFilter,
   type SmartSitemapQueryParams,
   type SmartSitemapSort,
   type SmartSitemapStatus,
@@ -36,12 +42,15 @@ import {
 import { defaultSortOrder, siteHost } from "@/lib/smart-sitemap"
 import { resolveTimePeriodRange, type OptInTimePeriod, type TimePeriodValue } from "@/utils/analytics-period"
 
-const PAGE_SIZE = 50
+const DEFAULT_PAGE_SIZE = 50
+/** The list API returns at most 100 rows per request. */
+const PAGE_SIZE_OPTIONS = [10, 30, 50, 100] as const
 const DEFAULT_PERIOD: TimePeriodValue = "60 days"
 const DEFAULT_SORT: SmartSitemapSort = "gsc.clicks"
 const DEFAULT_VIEW: SitemapView = "table"
 const OPT_IN_PERIODS: readonly OptInTimePeriod[] = ["60 days"]
 const VIEW_STORAGE_KEY = "smart-sitemap-view"
+const HIDDEN_COLUMNS_STORAGE_KEY = "smart-sitemap-hidden-columns"
 
 function readPeriod(value: string | null): TimePeriodValue {
   return value && resolveTimePeriodRange(value as TimePeriodValue) ? (value as TimePeriodValue) : DEFAULT_PERIOD
@@ -65,6 +74,27 @@ function readStatuses(value: string | null): SmartSitemapStatus[] {
   return SMART_SITEMAP_STATUSES.filter((status) => wanted.has(status))
 }
 
+function readPageStatuses(value: string | null): PageCheckFilter[] {
+  if (!value) return []
+  const wanted = new Set(value.split(","))
+  return PAGE_CHECK_FILTERS.filter((status) => wanted.has(status))
+}
+
+function readPageSize(value: string | null): number {
+  const size = Number(value)
+  return PAGE_SIZE_OPTIONS.find((option) => option === size) ?? DEFAULT_PAGE_SIZE
+}
+
+function readHiddenColumns(value: string | null): string[] {
+  try {
+    const parsed: unknown = value ? JSON.parse(value) : []
+    if (!Array.isArray(parsed)) return []
+    return SITEMAP_COLUMNS.map((column) => column.id).filter((id) => parsed.includes(id))
+  } catch {
+    return []
+  }
+}
+
 function readPage(value: string | null): number {
   const page = Number(value)
   return Number.isSafeInteger(page) && page > 0 ? page : 1
@@ -83,7 +113,10 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   const sortOrder = readOrder(searchParams.get("order"), sortBy)
   const statusParam = searchParams.get("status")
   const statuses = useMemo(() => readStatuses(statusParam), [statusParam])
+  const pageStatusParam = searchParams.get("pageStatus")
+  const pageStatuses = useMemo(() => readPageStatuses(pageStatusParam), [pageStatusParam])
   const page = readPage(searchParams.get("page"))
+  const pageSize = readPageSize(searchParams.get("rows"))
   const urlSearch = searchParams.get("q") ?? ""
 
   // The URL wins so links are shareable; otherwise the last view picked on this device.
@@ -98,6 +131,26 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
     }
   }, [])
   const view = urlView ?? storedView ?? DEFAULT_VIEW
+
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
+  useEffect(() => {
+    try {
+      setHiddenColumns(readHiddenColumns(window.localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY)))
+    } catch {
+      // Without storage every column stays visible.
+    }
+  }, [])
+  const toggleColumn = (columnId: string) => {
+    const next = hiddenColumns.includes(columnId)
+      ? hiddenColumns.filter((id) => id !== columnId)
+      : [...hiddenColumns, columnId]
+    setHiddenColumns(next)
+    try {
+      window.localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // The choice still applies for this visit.
+    }
+  }
   const viewResolved = urlView !== null || storedView !== undefined
 
   const [searchInput, setSearchInput] = useState(urlSearch)
@@ -125,13 +178,20 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   }, [debouncedSearch, updateParams, urlSearch])
 
   const queryParams = useMemo<SmartSitemapQueryParams>(
-    () => ({ period, sortBy, sortOrder, search: urlSearch || undefined, indexingStatuses: statuses }),
-    [period, sortBy, sortOrder, urlSearch, statuses]
+    () => ({
+      period,
+      sortBy,
+      sortOrder,
+      search: urlSearch || undefined,
+      indexingStatuses: statuses,
+      pageStatuses,
+    }),
+    [period, sortBy, sortOrder, urlSearch, statuses, pageStatuses]
   )
 
   const listQuery = useSmartSitemapList(
     businessId,
-    { ...queryParams, page, limit: PAGE_SIZE },
+    { ...queryParams, page, limit: pageSize },
     { enabled: viewResolved && view === "table" }
   )
   const treeQuery = useSmartSitemapTree(businessId, queryParams, "/", { enabled: viewResolved && view === "tree" })
@@ -143,16 +203,23 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   const isEmpty = view === "table" ? listData?.pages.length === 0 : treeRoot?.nodes.length === 0
   const statusCounts = (view === "table" ? listData?.meta.indexing.statusCounts : treeRoot?.meta.indexing.statusCounts) ?? null
   const updating = active.isPlaceholderData || (active.isFetching && !active.isLoading && !treeQuery.isFetchingNextPage)
-  const hasFilters = Boolean(urlSearch || statuses.length)
+  const hasFilters = Boolean(urlSearch || statuses.length || pageStatuses.length)
 
   const toggleStatus = (status: SmartSitemapStatus) => {
     const next = statuses.includes(status) ? statuses.filter((value) => value !== status) : [...statuses, status]
     updateParams({ status: next.length ? next.join(",") : null })
   }
 
+  const togglePageStatus = (status: PageCheckFilter) => {
+    const next = pageStatuses.includes(status)
+      ? pageStatuses.filter((value) => value !== status)
+      : [...pageStatuses, status]
+    updateParams({ pageStatus: next.length ? next.join(",") : null })
+  }
+
   const clearFilters = () => {
     setSearchInput("")
-    updateParams({ q: null, status: null })
+    updateParams({ q: null, status: null, pageStatus: null })
   }
 
   const changeSort = ({ sortBy: nextSort, sortOrder: nextOrder }: SitemapSortState) => {
@@ -170,6 +237,10 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
       // Without storage the choice still lives in the URL.
     }
     updateParams({ view: next === DEFAULT_VIEW ? null : next })
+  }
+
+  const changePageSize = (nextSize: number) => {
+    updateParams({ rows: nextSize === DEFAULT_PAGE_SIZE ? null : String(nextSize) })
   }
 
   const changePage = (nextPage: number) => {
@@ -203,9 +274,10 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
   const sort: SitemapSortState = { sortBy, sortOrder }
 
   return (
-    <div className="flex min-h-screen flex-col bg-general-primary-foreground">
+    <div className="flex h-full min-h-0 flex-col bg-general-primary-foreground">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <main className="w-full max-w-[1224px] flex-1 px-5 py-6 md:px-7">
+      {/* Fixed height: only the table scrolls, so pagination stays in view. On very short screens the page scrolls instead. */}
+      <main className="flex min-h-0 w-full max-w-[1224px] flex-1 flex-col overflow-y-auto px-5 py-6 md:px-7">
         <div className="mb-5">
           <h1 className="text-xl font-medium text-general-foreground">Sitemap</h1>
           <p className="mt-1 max-w-2xl text-sm text-general-muted-foreground">
@@ -237,6 +309,14 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
             <div className="mt-4 mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-1 flex-wrap items-center gap-2">
                 <SmartSitemapViewToggle value={view} onChange={changeView} />
+                <SmartSitemapFilters
+                  indexingStatuses={statuses}
+                  pageStatuses={pageStatuses}
+                  statusCounts={statusCounts}
+                  onToggleIndexing={toggleStatus}
+                  onTogglePageStatus={togglePageStatus}
+                  onReset={() => updateParams({ status: null, pageStatus: null })}
+                />
                 <div className="relative w-full sm:w-72">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-general-muted-foreground" />
                   <Input
@@ -271,6 +351,7 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
                     Updating
                   </span>
                 ) : null}
+                <SmartSitemapColumnOptions hidden={hiddenColumns} onToggle={toggleColumn} />
                 <PeriodSelector
                   value={period}
                   onValueChange={(value) => updateParams({ period: value === DEFAULT_PERIOD ? null : value })}
@@ -294,61 +375,67 @@ export function SmartSitemapTemplate({ businessId }: { businessId: string }) {
               </p>
             ) : null}
 
-            {isEmpty ? (
-              <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-general-border-three bg-white px-6 py-12 text-center">
-                <p className="text-sm font-medium text-general-foreground">
-                  {hasFilters ? "No pages match these filters" : "No pages found yet"}
-                </p>
-                <p className="max-w-md text-sm text-general-muted-foreground">
-                  {hasFilters
-                    ? "Try a shorter path or include more indexing statuses."
-                    : "Pages appear here once site discovery, Search Console or GA4 finds them."}
-                </p>
-                {hasFilters ? (
-                  <Button variant="outline" size="sm" className="mt-1" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                ) : null}
-              </div>
-            ) : view === "table" ? (
-              <SmartSitemapKeywordCounts
-                businessId={businessId}
-                period={period}
-                pageIds={listPageIds}
-                enabled={listSettled}
-              >
-                <SmartSitemapKeywordCountsNotice />
-                <SmartSitemapTable
-                  pages={listData?.pages ?? null}
-                  skeletonCount={12}
-                  updating={updating}
-                  sort={sort}
-                  onSort={changeSort}
-                  pageHref={pageHref}
-                />
-              </SmartSitemapKeywordCounts>
-            ) : (
-              <SmartSitemapTree
-                businessId={businessId}
-                params={queryParams}
-                rootQuery={treeQuery}
-                filtered={hasFilters}
-                sort={sort}
-                onSort={changeSort}
-                pageHref={pageHref}
-              />
-            )}
+            <div className="flex min-h-[320px] flex-1 flex-col">
+              <SitemapColumnsProvider hidden={hiddenColumns}>
+                {isEmpty ? (
+                  <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-general-border-three bg-white px-6 py-12 text-center">
+                    <p className="text-sm font-medium text-general-foreground">
+                      {hasFilters ? "No pages match these filters" : "No pages found yet"}
+                    </p>
+                    <p className="max-w-md text-sm text-general-muted-foreground">
+                      {hasFilters
+                        ? "Try a shorter path or remove some filters."
+                        : "Pages appear here once site discovery, Search Console or GA4 finds them."}
+                    </p>
+                    {hasFilters ? (
+                      <Button variant="outline" size="sm" className="mt-1" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : view === "table" ? (
+                  <SmartSitemapKeywordCounts
+                    businessId={businessId}
+                    period={period}
+                    pageIds={listPageIds}
+                    enabled={listSettled && !hiddenColumns.includes("keywords")}
+                  >
+                    <SmartSitemapKeywordCountsNotice />
+                    <SmartSitemapTable
+                      pages={listData?.pages ?? null}
+                      skeletonCount={12}
+                      updating={updating}
+                      sort={sort}
+                      onSort={changeSort}
+                      pageHref={pageHref}
+                    />
+                  </SmartSitemapKeywordCounts>
+                ) : (
+                  <SmartSitemapTree
+                    businessId={businessId}
+                    params={queryParams}
+                    rootQuery={treeQuery}
+                    filtered={hasFilters}
+                    sort={sort}
+                    onSort={changeSort}
+                    pageHref={pageHref}
+                  />
+                )}
+              </SitemapColumnsProvider>
 
-            {view === "table" && listData ? (
-              <SmartSitemapPagination
-                page={listData.pagination.page}
-                totalPages={listData.pagination.totalPages}
-                total={listData.total}
-                pageSize={PAGE_SIZE}
-                onPageChange={changePage}
-                disabled={updating}
-              />
-            ) : null}
+              {view === "table" && listData ? (
+                <SmartSitemapPagination
+                  page={listData.pagination.page}
+                  totalPages={listData.pagination.totalPages}
+                  total={listData.total}
+                  pageSize={pageSize}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={changePage}
+                  onPageSizeChange={changePageSize}
+                  disabled={updating}
+                />
+              ) : null}
+            </div>
           </>
         )}
       </main>

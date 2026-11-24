@@ -1,4 +1,5 @@
 import type { ReactElement } from "react"
+import { formatDistanceToNowStrict, parseISO } from "date-fns"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
@@ -8,10 +9,13 @@ import {
   decodePath,
   discoverySources,
   formatInteger,
+  pageCheckDestination,
+  pageCheckStatus,
   statusColor,
   statusLabel,
+  statusShortLabel,
 } from "@/lib/smart-sitemap"
-import type { FolderIndexing, IndexingSummary } from "@/hooks/use-smart-sitemap"
+import type { FolderIndexing, IndexingSummary, PageCheck } from "@/hooks/use-smart-sitemap"
 import { StatusDot, StatusReasonTooltip } from "./SmartSitemapStatusBadge"
 
 /**
@@ -75,12 +79,67 @@ export function SmartSitemapMetricCell({ value, muted = false }: { value: string
 
 export function SmartSitemapStatusCell({ indexing }: { indexing: IndexingSummary }) {
   return (
-    <StatusReasonTooltip status={indexing.status} reason={indexing.coverageState}>
+    <StatusReasonTooltip
+      status={indexing.status}
+      reason={indexing.coverageState}
+      showLabel={statusShortLabel(indexing.status) !== statusLabel(indexing.status)}
+    >
       <span className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm text-general-secondary-foreground">
         <StatusDot status={indexing.status} />
-        <span className="truncate">{statusLabel(indexing.status)}</span>
+        <span className="truncate">{statusShortLabel(indexing.status)}</span>
       </span>
     </StatusReasonTooltip>
+  )
+}
+
+function relativeTime(value: string | null | undefined): string | null {
+  if (!value) return null
+  const date = parseISO(value)
+  if (Number.isNaN(date.getTime())) return null
+  return formatDistanceToNowStrict(date, { addSuffix: true })
+}
+
+/** Live HTTP status as a tag; the hover card has the destination and check schedule. */
+export function SmartSitemapPageCheckCell({ check, path }: { check: PageCheck | null | undefined; path: string }) {
+  const status: ReturnType<typeof pageCheckStatus> = check
+    ? pageCheckStatus(check)
+    : { label: "Not checked", color: statusColor("pending") }
+  const destination = check ? pageCheckDestination(check, path) : null
+  const lastChecked = relativeTime(check?.checkedAt)
+  const nextCheckAt = check?.nextCheckAt ? parseISO(check.nextCheckAt) : null
+  const nextCheck =
+    nextCheckAt && !Number.isNaN(nextCheckAt.getTime())
+      ? nextCheckAt.getTime() <= Date.now()
+        ? "due now"
+        : formatDistanceToNowStrict(nextCheckAt, { addSuffix: true })
+      : null
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <span className="inline-flex h-6 min-w-0 max-w-full cursor-default items-center gap-1 rounded-[4px] border border-general-border bg-general-secondary px-1.5 text-xs font-medium text-general-secondary-foreground">
+          <span
+            aria-hidden="true"
+            className="inline-block size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: status.color }}
+          />
+          <span className="truncate">{status.label}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={8} className="max-w-[280px] text-center">
+        <p className="font-medium">{status.detail ?? status.label}</p>
+        {destination ? (
+          <p className="break-words opacity-70">Ends at {destination.replace(/^https?:\/\//, "")}</p>
+        ) : null}
+        {check ? (
+          <>
+            {lastChecked ? <p className="opacity-70">Checked {lastChecked}</p> : null}
+            {nextCheck ? <p className="opacity-70">Next check {nextCheck}</p> : null}
+          </>
+        ) : (
+          <p className="opacity-70">Checked automatically, usually within a day</p>
+        )}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -141,7 +200,7 @@ export function SmartSitemapStatusMix({ indexing, pageCount }: { indexing: Folde
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex min-w-0 max-w-full cursor-default items-center gap-2">
-          <span className="flex h-1.5 w-14 shrink-0 gap-px overflow-hidden rounded-[4px] bg-secondary" aria-hidden="true">
+          <span className="flex h-1.5 w-8 shrink-0 gap-px overflow-hidden rounded-[4px] bg-secondary" aria-hidden="true">
             {present.map((status) => (
               <span
                 key={status}
@@ -150,8 +209,11 @@ export function SmartSitemapStatusMix({ indexing, pageCount }: { indexing: Folde
               />
             ))}
           </span>
-          <span className="truncate text-xs tabular-nums text-general-unofficial-foreground-alt">
-            {formatInteger(indexing.indexedCount)}/{formatInteger(pageCount)} indexed
+          <span
+            className="truncate text-xs tabular-nums text-general-unofficial-foreground-alt"
+            aria-label={`${formatInteger(indexing.indexedCount)} of ${formatInteger(pageCount)} indexed`}
+          >
+            {formatInteger(indexing.indexedCount)}/{formatInteger(pageCount)}
           </span>
         </span>
       </TooltipTrigger>

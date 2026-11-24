@@ -14,7 +14,7 @@ import {
   type SitemapTreePage,
   type SmartSitemapQueryParams,
 } from "@/hooks/use-smart-sitemap"
-import { SITEMAP_COLUMNS } from "./sitemapColumns"
+import { useSitemapColumns } from "./SitemapColumnsContext"
 import { SmartSitemapPathTooltip } from "./SmartSitemapCells"
 import { SmartSitemapKeywordCounts } from "./SmartSitemapKeywordCounts"
 import {
@@ -97,6 +97,7 @@ function useExpandedFolders(businessId: string) {
 function PageRow({ node, parent, depth, stale }: { node: SitemapTreePage; parent: string; depth: number; stale: boolean }) {
   const router = useRouter()
   const { pageHref } = useTree()
+  const columns = useSitemapColumns()
   const href = pageHref(node.id)
   const label = node.isFolderIndex ? (node.path === "/" ? "Home page" : "This page") : relativeLabel(node.path, parent)
   return (
@@ -120,7 +121,7 @@ function PageRow({ node, parent, depth, stale }: { node: SitemapTreePage; parent
           </SmartSitemapPathTooltip>
         </div>
       }
-      cells={SITEMAP_COLUMNS.map((column) => column.page(node))}
+      cells={columns.map((column) => column.page(node))}
       trailing={<ChevronRight className="size-4" strokeWidth={1.5} />}
     />
   )
@@ -128,6 +129,7 @@ function PageRow({ node, parent, depth, stale }: { node: SitemapTreePage; parent
 
 function FolderRow({ node, depth, stale }: { node: SitemapTreeFolder; depth: number; stale: boolean }) {
   const { expanded, toggle, filtered } = useTree()
+  const columns = useSitemapColumns()
   const open = expanded.has(node.path)
   const Icon = open ? FolderOpen : Folder
   const count = `${formatInteger(node.pageCount)} ${filtered ? "matching" : node.pageCount === 1 ? "page" : "pages"}`
@@ -165,7 +167,7 @@ function FolderRow({ node, depth, stale }: { node: SitemapTreeFolder; depth: num
             </SmartSitemapPathTooltip>
           </div>
         }
-        cells={SITEMAP_COLUMNS.map((column) => column.folder(node))}
+        cells={columns.map((column) => column.folder(node))}
       />
       {open ? <FolderChildren parent={node.path} depth={depth + 1} /> : null}
     </>

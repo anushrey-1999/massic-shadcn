@@ -5,6 +5,8 @@ import type {
   FirstSeenSource,
   Ga4Metrics,
   GscMetrics,
+  PageCheck,
+  PageCheckFilter,
   SeriesPoint,
   SmartSitemapSort,
   SmartSitemapStatus,
@@ -24,6 +26,17 @@ export const STATUS_LABELS: Record<SmartSitemapStatus, string> = {
   pending: "Pending check",
   mixed: "Mixed",
 };
+
+/** Table-cell labels; the dot color and the hover keep the full status. */
+const STATUS_SHORT_LABELS: Partial<Record<SmartSitemapStatus, string>> = {
+  crawled_not_indexed: "Not indexed",
+  discovered_not_indexed: "Not indexed",
+  pending: "Pending",
+};
+
+export function statusShortLabel(status: string | null | undefined): string {
+  return STATUS_SHORT_LABELS[status as SmartSitemapStatus] ?? statusLabel(status);
+}
 
 /** Order of the overview status bar: healthy first, then problems, then missing knowledge. */
 export const STATUS_ORDER: SmartSitemapStatus[] = [
@@ -376,6 +389,104 @@ export function siteHost(website: string | null | undefined): string | null {
     return new URL(
       website.includes("://") ? website : `https://${website}`,
     ).host.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/** Tag text, at most 13 characters so the Page status column stays narrow. */
+const HTTP_STATUS_TEXT: Record<number, string> = {
+  200: "OK",
+  301: "Moved",
+  302: "Found",
+  307: "Redirect",
+  308: "Redirect",
+  401: "Login",
+  403: "Forbidden",
+  404: "Not found",
+  410: "Gone",
+  429: "Limited",
+};
+
+/** Full wording for the hover where the tag text is shortened. */
+const HTTP_STATUS_DETAIL: Record<number, string> = {
+  401: "Unauthorized",
+  429: "Too many requests",
+  500: "Server error",
+  502: "Bad gateway",
+  503: "Service unavailable",
+  504: "Gateway timeout",
+};
+
+export const PAGE_CHECK_FILTER_LABELS: Record<
+  PageCheckFilter,
+  { label: string; hint: string }
+> = {
+  ok: { label: "OK", hint: "Loads with a 2xx response" },
+  redirected: { label: "Redirects", hint: "Sends visitors to another page" },
+  broken: { label: "Broken", hint: "4xx such as 404 or 410, or a redirect to one" },
+  server_error: { label: "Server error", hint: "5xx response" },
+  unreachable: { label: "Unreachable", hint: "Timed out, failed to connect, or can't be checked" },
+  file: { label: "File", hint: "PDF, image or other non-HTML file" },
+  unchecked: { label: "Not checked yet", hint: "Waiting for the first check" },
+};
+
+/**
+ * Tag label and dot color for the latest live check; colors reuse the indexing palette.
+ * `detail` is the full wording for the hover when the tag is shortened.
+ */
+export function pageCheckStatus(check: PageCheck): {
+  label: string;
+  detail?: string;
+  color: string;
+} {
+  const code = check.statusCode;
+  const coded = (fallback: string) => {
+    if (!code) return { label: fallback };
+    const detail = HTTP_STATUS_DETAIL[code];
+    return {
+      label: `${code} ${HTTP_STATUS_TEXT[code] ?? "Error"}`,
+      detail: detail ? `${code} ${detail}` : HTTP_STATUS_TEXT[code] ? undefined : `${code} ${fallback}`,
+    };
+  };
+  switch (check.outcome) {
+    case "ok":
+      return { ...coded("OK"), color: statusColor("indexed") };
+    case "redirected":
+      return { ...coded("Redirect"), color: statusColor("mixed") };
+    case "client_error":
+      // A 3xx here means the redirect ends on a broken page.
+      return code && code < 400
+        ? { label: "Bad redirect", detail: "Redirect ends on a broken page", color: statusColor("error") }
+        : { ...coded("Client error"), color: statusColor("error") };
+    case "server_error":
+      return { ...coded("Server error"), color: statusColor("error") };
+    case "timeout":
+      return { label: "Timed out", color: statusColor("error") };
+    case "unreachable":
+      return { label: "Unreachable", color: statusColor("error") };
+    case "non_html":
+      return { label: code ? `${code} File` : "File", detail: "A file, not a web page", color: statusColor("excluded") };
+    case "blocked_target":
+      return { label: "Not checkable", detail: "This address can't be checked", color: statusColor("excluded") };
+    default:
+      return { label: "Unknown", color: statusColor("other") };
+  }
+}
+
+/** Where the page ended up when that differs from the page itself, ignoring a trailing slash. */
+export function pageCheckDestination(
+  check: PageCheck,
+  path: string,
+): string | null {
+  if (!check.finalUrl) return null;
+  if (check.outcome === "redirected") return check.finalUrl;
+  try {
+    const final = new URL(check.finalUrl);
+    const trim = (value: string) => value.replace(/\/+$/, "") || "/";
+    return trim(final.pathname) === trim(path) && !final.search
+      ? null
+      : check.finalUrl;
   } catch {
     return null;
   }

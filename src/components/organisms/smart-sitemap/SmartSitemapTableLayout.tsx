@@ -7,14 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { defaultSortOrder } from "@/lib/smart-sitemap"
 import type { SmartSitemapSort, SortOrder } from "@/hooks/use-smart-sitemap"
-import {
-  SITEMAP_ACTION_COLUMN_WIDTH,
-  SITEMAP_COLUMNS,
-  SITEMAP_GROUP_LABELS,
-  SITEMAP_TABLE_MIN_WIDTH,
-  type SitemapColumn,
-  type SitemapColumnGroup,
-} from "./sitemapColumns"
+import { SITEMAP_ACTION_COLUMN_WIDTH, sitemapTableMinWidth } from "./sitemapColumns"
+import { useSitemapColumns } from "./SitemapColumnsContext"
 
 export interface SitemapSortState {
   sortBy: SmartSitemapSort
@@ -25,6 +19,8 @@ export interface SitemapSortState {
 const STICKY = "sticky left-0 z-[1]"
 const STICKY_CELL = `${STICKY} bg-white group-hover/row:bg-secondary`
 const HEADER_BG = "bg-[#FAFAFA]"
+/** Header cells stick to the top of the scroll area; the inset shadow is the bottom border, which border-collapse would drop. */
+const HEADER_CELL = `sticky top-0 z-[2] ${HEADER_BG} shadow-[inset_0_-1px_0_var(--general-border)]`
 const CELL = "h-11 px-3 align-middle"
 
 function SortButton({
@@ -91,17 +87,6 @@ function ariaSort(column: { sortKey?: SmartSitemapSort }, sort: SitemapSortState
   return sort.sortOrder === "asc" ? "ascending" : "descending"
 }
 
-/** Consecutive columns of the same source share one group label above them. */
-function groupSpans(columns: SitemapColumn[]) {
-  const spans: Array<{ group?: SitemapColumnGroup; span: number }> = []
-  for (const column of columns) {
-    const last = spans[spans.length - 1]
-    if (last && last.group === column.group) last.span += 1
-    else spans.push({ group: column.group, span: 1 })
-  }
-  return spans
-}
-
 interface SitemapTableShellProps {
   pathLabel: string
   sort: SitemapSortState
@@ -113,51 +98,38 @@ interface SitemapTableShellProps {
 }
 
 export function SmartSitemapTableShell({ pathLabel, sort, onSort, updating = false, label, children }: SitemapTableShellProps) {
+  const columns = useSitemapColumns()
   return (
-    <div className="overflow-hidden rounded-lg border border-general-border bg-white">
-      <div className="overflow-x-auto">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-general-border bg-white">
+      <div className="min-h-0 overflow-auto">
         <table
           aria-label={label}
           aria-busy={updating}
           className="w-full table-fixed border-collapse text-sm"
-          style={{ minWidth: SITEMAP_TABLE_MIN_WIDTH }}
+          style={{ minWidth: sitemapTableMinWidth(columns) }}
         >
           <colgroup>
             <col />
-            {SITEMAP_COLUMNS.map((column) => (
+            {columns.map((column) => (
               <col key={column.id} style={{ width: column.width }} />
             ))}
             <col style={{ width: SITEMAP_ACTION_COLUMN_WIDTH }} />
           </colgroup>
-          <thead className={HEADER_BG}>
-            <tr className="border-b border-general-border">
-              <th className={cn("h-7", STICKY, HEADER_BG)} />
-              {groupSpans(SITEMAP_COLUMNS).map(({ group, span }, index) => (
-                <th
-                  key={`${group ?? "none"}-${index}`}
-                  colSpan={span}
-                  scope="colgroup"
-                  className="h-7 px-3 text-center text-[10px] font-medium uppercase tracking-[0.15px] text-general-muted-foreground"
-                >
-                  {group ? SITEMAP_GROUP_LABELS[group] : null}
-                </th>
-              ))}
-              <th />
-            </tr>
-            <tr className="border-b border-general-border">
+          <thead>
+            <tr>
               <th
                 scope="col"
                 aria-sort={ariaSort({ sortKey: "path" }, sort)}
-                className={cn("px-3 text-left", STICKY, HEADER_BG)}
+                className={cn("px-3 text-left", HEADER_CELL, "left-0 z-[3]")}
               >
                 <SortButton label={pathLabel} sortKey="path" align="left" sort={sort} onSort={onSort} />
               </th>
-              {SITEMAP_COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <th
                   key={column.id}
                   scope="col"
                   aria-sort={ariaSort(column, sort)}
-                  className={cn("px-3", column.align === "right" ? "text-right" : "text-left")}
+                  className={cn("px-3", HEADER_CELL, column.align === "right" ? "text-right" : "text-left")}
                 >
                   <SortButton
                     label={column.label}
@@ -169,7 +141,7 @@ export function SmartSitemapTableShell({ pathLabel, sort, onSort, updating = fal
                   />
                 </th>
               ))}
-              <th aria-hidden="true" />
+              <th aria-hidden="true" className={HEADER_CELL} />
             </tr>
           </thead>
           <tbody className={cn("transition-opacity", updating && "opacity-60")}>{children}</tbody>
@@ -194,6 +166,7 @@ interface SitemapRowProps {
 }
 
 export function SmartSitemapRow({ lead, cells, trailing, onActivate, className, ...aria }: SitemapRowProps) {
+  const columns = useSitemapColumns()
   const fromControl = (target: EventTarget) => target instanceof Element && Boolean(target.closest("a, button"))
   return (
     <tr
@@ -208,7 +181,7 @@ export function SmartSitemapRow({ lead, cells, trailing, onActivate, className, 
       )}
     >
       <td className={cn(CELL, STICKY_CELL)}>{lead}</td>
-      {SITEMAP_COLUMNS.map((column, index) => (
+      {columns.map((column, index) => (
         <td key={column.id} className={cn(CELL, "overflow-hidden", column.align === "right" ? "text-right" : "text-left")}>
           {cells[index]}
         </td>
@@ -220,9 +193,10 @@ export function SmartSitemapRow({ lead, cells, trailing, onActivate, className, 
 
 /** A full-width row inside the table for inline states (loading more, errors, empty folders). */
 export function SmartSitemapMessageRow({ children, indent = 0 }: { children: ReactNode; indent?: number }) {
+  const columns = useSitemapColumns()
   return (
     <tr className="border-b border-general-border last:border-b-0">
-      <td colSpan={SITEMAP_COLUMNS.length + 2} className="h-11 px-3">
+      <td colSpan={columns.length + 2} className="h-11 px-3">
         <div className="sticky left-3 flex w-fit items-center gap-2 text-sm" style={{ paddingLeft: indent }}>
           {children}
         </div>
@@ -232,6 +206,7 @@ export function SmartSitemapMessageRow({ children, indent = 0 }: { children: Rea
 }
 
 export function SmartSitemapSkeletonRows({ count, indent = 0 }: { count: number; indent?: number }) {
+  const columns = useSitemapColumns()
   return Array.from({ length: count }, (_, index) => (
     <tr key={index} className="border-b border-general-border last:border-b-0" aria-hidden="true">
       <td className={cn(CELL, STICKY, "bg-white")}>
@@ -239,7 +214,7 @@ export function SmartSitemapSkeletonRows({ count, indent = 0 }: { count: number;
           <Skeleton className="h-4 w-3/4" />
         </div>
       </td>
-      {SITEMAP_COLUMNS.map((column) => (
+      {columns.map((column) => (
         <td key={column.id} className={CELL}>
           <Skeleton className={cn("h-4", column.align === "right" ? "ml-auto w-10" : "w-24")} />
         </td>

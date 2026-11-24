@@ -23,6 +23,7 @@ export const routePrefixesWithoutSidebar: string[] = [
 
 const AGENT_PATH = /^\/business\/[^/]+\/agent\/?$/
 const BUSINESS_PROFILE_PATH = /^\/business\/[^/]+\/profile\/?$/
+const SMART_SITEMAP_PATH = /^\/business\/[^/]+\/analytics\/pages\/?$/
 
 export function isAgentRoute(pathname: string) {
   return AGENT_PATH.test(pathname)
@@ -30,4 +31,9 @@ export function isAgentRoute(pathname: string) {
 
 export function isBusinessProfileRoute(pathname: string) {
   return BUSINESS_PROFILE_PATH.test(pathname)
+}
+
+/** Sitemap list only; the page detail route below it scrolls normally. */
+export function isSmartSitemapRoute(pathname: string) {
+  return SMART_SITEMAP_PATH.test(pathname)
 }

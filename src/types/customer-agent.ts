@@ -34,6 +34,7 @@ export const themeConfigSchema = z.object({
   preset: z.enum(THEME_PRESETS),
   mode: z.enum(THEME_MODES),
   display_mode: z.enum(DISPLAY_MODES),
+  sidebar_push: z.boolean(),
   accent: hexColor,
   corners: z.enum(CORNER_STYLES).nullable(),
   font: z.enum(THEME_FONTS),

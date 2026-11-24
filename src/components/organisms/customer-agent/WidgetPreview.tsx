@@ -18,6 +18,8 @@ interface WidgetPreviewProps {
   layout: PreviewLayout;
   /** Side the sidebar docks to; ignored by the other layouts. */
   side?: "left" | "right";
+  /** Sidebar only: the page sits beside the sidebar instead of under it. */
+  push?: boolean;
   /** Preview-only colour mode; customers on the live site follow their device. */
   scheme: PreviewScheme;
 }
@@ -29,14 +31,16 @@ const SIZES: Record<PreviewLayout, string> = {
   sheet: "h-[640px] w-[340px]",
 };
 
-/** Stand-in for the customer's page so the sidebar reads as docked beside it. */
-function PageStub({ side }: { side: "left" | "right" }) {
+/** Stand-in for the customer's page: squeezed beside a pushing sidebar, full width under an overlay. */
+function PageStub({ side, push }: { side: "left" | "right"; push: boolean }) {
   return (
     <div
       aria-hidden
       className={cn(
-        "absolute inset-y-0 flex w-[60px] flex-col gap-2 bg-general-primary-foreground p-3",
-        side === "right" ? "left-0" : "right-0"
+        "absolute inset-y-0 flex flex-col gap-2 bg-general-primary-foreground p-3",
+        "transition-[width] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        side === "right" ? "left-0" : "right-0",
+        push ? "w-[60px]" : "w-full"
       )}
     >
       <span className="h-1.5 w-full rounded-full bg-general-border" />
@@ -47,7 +51,7 @@ function PageStub({ side }: { side: "left" | "right" }) {
   );
 }
 
-export function WidgetPreview({ config, view, layout, side = "right", scheme }: WidgetPreviewProps) {
+export function WidgetPreview({ config, view, layout, side = "right", push = false, scheme }: WidgetPreviewProps) {
   const sidebar = layout === "sidebar";
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
@@ -83,7 +87,7 @@ export function WidgetPreview({ config, view, layout, side = "right", scheme }: 
         SIZES[layout]
       )}
     >
-      {sidebar && <PageStub side={side} />}
+      {sidebar && <PageStub side={side} push={push} />}
       <div
         className={cn(
           "absolute inset-y-0",

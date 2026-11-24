@@ -21,6 +21,8 @@ interface PreviewPanelProps {
   /** How the widget opens on desktop; phones always use the full-screen sheet. */
   displayMode?: DisplayMode;
   side?: "left" | "right";
+  /** Sidebar only: the page moves aside instead of being covered. */
+  push?: boolean;
   showDeviceToggle?: boolean;
   /** Hidden during setup, where testing has its own step. */
   showTest?: boolean;
@@ -34,6 +36,7 @@ export function PreviewPanel({
   pageUrl,
   displayMode = "bubble",
   side = "right",
+  push = false,
   showDeviceToggle = false,
   showTest = true,
 }: PreviewPanelProps) {
@@ -71,7 +74,7 @@ export function PreviewPanel({
           />
         )}
       </div>
-      <WidgetPreview config={config} view="welcome" layout={layout} side={side} scheme={scheme} />
+      <WidgetPreview config={config} view="welcome" layout={layout} side={side} push={push} scheme={scheme} />
       {showTest && (
         <>
           <Hint

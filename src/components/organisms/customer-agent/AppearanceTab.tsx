@@ -135,6 +135,21 @@ export function AppearanceTab({
                       side={values.theme.launcher.position}
                       onChange={field.handleChange}
                     />
+                    {field.state.value === "sidebar" && (
+                      <form.Field name="theme.sidebar_push">
+                        {(push) => (
+                          <div className="space-y-1 pt-3">
+                            <label className="flex w-fit cursor-pointer items-center gap-3 text-sm text-general-foreground">
+                              <Switch checked={push.state.value} onCheckedChange={push.handleChange} />
+                              Push the page over
+                            </label>
+                            <p className="pl-12 text-xs text-general-muted-foreground">
+                              Moves your site aside instead of covering it. Pinned headers stay in place.
+                            </p>
+                          </div>
+                        )}
+                      </form.Field>
+                    )}
                   </FieldRow>
                 )}
               </form.Field>
@@ -384,6 +399,7 @@ export function AppearanceTab({
           siteId={config.site_id}
           pageUrl={businessPageUrl(config.business.website)}
           displayMode={previewValues.theme.display_mode}
+          push={previewValues.theme.sidebar_push}
           side={previewValues.theme.launcher.position}
           showDeviceToggle
           showTest={!setup}

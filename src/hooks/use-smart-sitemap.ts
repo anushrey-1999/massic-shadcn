@@ -19,6 +19,19 @@ export const SMART_SITEMAP_STATUSES = [
 ] as const;
 
 export type SmartSitemapStatus = (typeof SMART_SITEMAP_STATUSES)[number];
+
+/** Live page-check filter groups; the API maps stored outcomes onto these. */
+export const PAGE_CHECK_FILTERS = [
+  "ok",
+  "redirected",
+  "broken",
+  "server_error",
+  "unreachable",
+  "file",
+  "unchecked",
+] as const;
+
+export type PageCheckFilter = (typeof PAGE_CHECK_FILTERS)[number];
 export type InspectionFreshness =
   "fresh" | "due" | "overdue" | "pending" | "not_monitored" | "unknown";
 
@@ -92,6 +105,8 @@ export interface SmartSitemapListPage extends SitePageIdentity {
   gsc: GscMetrics | null;
   ga4: Ga4Metrics | null;
   indexing: IndexingSummary;
+  /** Null until the page is first checked. */
+  pageCheck?: PageCheck | null;
 }
 
 export interface SmartSitemapListResult {
@@ -122,9 +137,32 @@ export interface SeriesPoint {
 
 export type FirstSeenSource = "gsc" | "ga4" | "discovery";
 
+export type PageCheckOutcome =
+  | "ok"
+  | "redirected"
+  | "client_error"
+  | "server_error"
+  | "timeout"
+  | "unreachable"
+  | "non_html"
+  | "blocked_target";
+
+/** Latest live fetch of the page by Massic's background checker. */
+export interface PageCheck {
+  statusCode: number | null;
+  finalUrl: string | null;
+  outcome: PageCheckOutcome | null;
+  /** Present on the page detail only; list and tree rows omit them. */
+  title?: string | null;
+  metaDescription?: string | null;
+  checkedAt: string;
+  nextCheckAt: string | null;
+}
+
 export interface SmartSitemapPageResult {
   page: SitePageIdentity & {
     firstSeen: { date: string | null; source: FirstSeenSource };
+    pageCheck?: PageCheck | null;
   };
   gsc: GscMetrics | null;
   ga4: Ga4Metrics | null;
@@ -208,6 +246,7 @@ export interface SmartSitemapQueryParams {
   sortOrder: SortOrder;
   search?: string;
   indexingStatuses?: SmartSitemapStatus[];
+  pageStatuses?: PageCheckFilter[];
 }
 
 export interface SmartSitemapListParams extends SmartSitemapQueryParams {
@@ -290,6 +329,8 @@ function sitemapQueryString(
   if (params.search) search.set("search", params.search);
   if (params.indexingStatuses?.length)
     search.set("indexingStatuses", [...params.indexingStatuses].sort().join(","));
+  if (params.pageStatuses?.length)
+    search.set("pageStatuses", [...params.pageStatuses].sort().join(","));
   return search.toString();
 }
 

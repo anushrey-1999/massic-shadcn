@@ -9,6 +9,7 @@ import { PeriodSelector } from "@/components/molecules/analytics/PeriodSelector"
 import { ANALYTICS_TOOLBAR_BUTTON_CLASS } from "@/components/molecules/analytics/AnalyticsHeaderActions";
 import { SmartSitemapSourceTags } from "@/components/organisms/smart-sitemap/SmartSitemapCells";
 import { SmartSitemapEngagementCard } from "@/components/organisms/smart-sitemap/SmartSitemapEngagementCard";
+import { SmartSitemapPageCheckCard } from "@/components/organisms/smart-sitemap/SmartSitemapPageCheckCard";
 import { SmartSitemapAISection } from "@/components/organisms/smart-sitemap/SmartSitemapAISection";
 import { SmartSitemapIndexingPanel } from "@/components/organisms/smart-sitemap/SmartSitemapIndexingPanel";
 import { SmartSitemapKeywordsPanel } from "@/components/organisms/smart-sitemap/SmartSitemapKeywordsPanel";
@@ -392,13 +393,19 @@ export function SmartSitemapPageTemplate({
                         onRetry={() => keywordsQuery.refetch()}
                       />
                     </div>
-                    <SmartSitemapEngagementCard
-                      current={{ gsc: data.gsc, ga4: data.ga4 }}
-                      previous={{
-                        gsc: data.previous.gsc,
-                        ga4: data.previous.ga4,
-                      }}
-                    />
+                    <div className="min-w-0 space-y-4">
+                      <SmartSitemapPageCheckCard
+                        check={data.page.pageCheck}
+                        path={data.page.path}
+                      />
+                      <SmartSitemapEngagementCard
+                        current={{ gsc: data.gsc, ga4: data.ga4 }}
+                        previous={{
+                          gsc: data.previous.gsc,
+                          ga4: data.previous.ga4,
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (

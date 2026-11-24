@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useRouter } from 'next/navigation'
-import { isAgentRoute, isBusinessProfileRoute, usesEmptyLayout } from '@/lib/layout-config'
+import { isAgentRoute, isBusinessProfileRoute, isSmartSitemapRoute, usesEmptyLayout } from '@/lib/layout-config'
 import { DeveloperModeProvider } from '@/features/developer-mode/developer-mode-provider'
 import Layout from './layout'
 import EmptyLayout from './empty-layout'
@@ -33,7 +33,7 @@ export default function LayoutWrapper({
 
   if (!freeBusinessPathAllowed) return null
 
-  const fillViewport = isAgentRoute(pathname) || isBusinessProfileRoute(pathname)
+  const fillViewport = isAgentRoute(pathname) || isBusinessProfileRoute(pathname) || isSmartSitemapRoute(pathname)
   const isArchitecturePreview = /^\/business\/[^/]+\/web\/architecture\/[^/]+\/view\/?$/.test(pathname)
 
   if (usesEmptyLayout(pathname)) {

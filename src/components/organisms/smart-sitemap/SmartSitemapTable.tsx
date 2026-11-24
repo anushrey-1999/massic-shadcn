@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import type { SmartSitemapListPage } from "@/hooks/use-smart-sitemap"
-import { SITEMAP_COLUMNS } from "./sitemapColumns"
+import { useSitemapColumns } from "./SitemapColumnsContext"
 import { SmartSitemapPathCell, SmartSitemapPathTooltip } from "./SmartSitemapCells"
 import {
   SmartSitemapRow,
@@ -25,6 +25,7 @@ interface SmartSitemapTableProps {
 
 export function SmartSitemapTable({ pages, skeletonCount, updating, sort, onSort, pageHref }: SmartSitemapTableProps) {
   const router = useRouter()
+  const columns = useSitemapColumns()
   return (
     <SmartSitemapTableShell label="Site pages" pathLabel="Page" sort={sort} onSort={onSort} updating={updating}>
       {pages ? (
@@ -44,7 +45,7 @@ export function SmartSitemapTable({ pages, skeletonCount, updating, sort, onSort
                   </Link>
                 </SmartSitemapPathTooltip>
               }
-              cells={SITEMAP_COLUMNS.map((column) => column.page(page))}
+              cells={columns.map((column) => column.page(page))}
               trailing={<ChevronRight className="size-4" strokeWidth={1.5} />}
             />
           )

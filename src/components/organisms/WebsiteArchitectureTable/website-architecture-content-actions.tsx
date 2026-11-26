@@ -60,7 +60,7 @@ export function WebsiteArchitectureActionCell({ page }: { page: WebsiteArchitect
   if (hasError || inFlight || status === "success") {
     const label = hasError ? "Check status" : paused ? "Answer questions" : !inFlight ? "View" : action === "Optimize" ? "Optimizing…" : "Generating…";
     return (
-      <Button asChild size="sm" variant={inFlight && !paused ? "ghost" : "outline"} className="transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none">
+      <Button asChild size="sm" variant={inFlight && !paused ? "ghost" : "outline"} className="min-w-[100px] justify-center transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none">
         <Link
           href={actions.href(page, inFlight)}
           prefetch={false}
@@ -76,7 +76,7 @@ export function WebsiteArchitectureActionCell({ page }: { page: WebsiteArchitect
     <Button
       type="button"
       size="sm"
-      className="transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none"
+      className="min-w-[100px] justify-center transition-colors focus-visible:ring-2 focus-visible:ring-ring active:opacity-80 motion-reduce:transition-none"
       variant={status === "error" ? "outline" : "default"}
       aria-label={status === "error" ? `Retry ${action.toLowerCase()}` : `${action} Page`}
       aria-haspopup="dialog"

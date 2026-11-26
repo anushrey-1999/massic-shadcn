@@ -12,13 +12,20 @@ export const ARCHITECTURE_QUERY_KEYS = {
   joinOperator: "architectureJoinOperator",
 };
 
+export const OPTIMIZE_QUERY_KEYS = {
+  page: "optimizePage",
+  perPage: "optimizePerPage",
+  search: "optimizeSearch",
+  sort: "optimizeSort",
+};
+
 export function getArchitectureAction(page: WebsiteArchitecturePage) {
   return page.current_url?.trim() ? "Optimize" : "Generate";
 }
 
 function tableParams(search: Pick<URLSearchParams, "get">) {
   const params = new URLSearchParams();
-  for (const key of Object.values(ARCHITECTURE_QUERY_KEYS)) {
+  for (const key of [...Object.values(ARCHITECTURE_QUERY_KEYS), ...Object.values(OPTIMIZE_QUERY_KEYS)]) {
     const value = search.get(key);
     if (value) params.set(key, value);
   }
@@ -70,11 +77,8 @@ export function architectureListHref(businessId: string, search: Pick<URLSearchP
   const params = tableParams(search);
   const origin = search.get("architectureOrigin");
   const v2Tab = search.get("architectureTab");
-  if (
-    origin === "v2" &&
-    (v2Tab === "new-pages" || v2Tab === "optimize" || v2Tab === "all")
-  ) {
-    params.set("tab", v2Tab);
+  if (origin === "v2") {
+    params.set("tab", v2Tab === "optimize" ? "optimize" : "new-pages");
     return `/business/${encodeURIComponent(businessId)}/web/v2?${params}`;
   }
   params.set("tab", "web-architecture");

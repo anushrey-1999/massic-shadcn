@@ -47,7 +47,7 @@ export interface ArchitectureContentArtifact {
   request_status: ArchitectureRequestStatus;
   action?: "CREATE" | "OPTIMIZE" | "CONSOLIDATE" | null;
   mode?: ArchitectureContentMode;
-  origin?: "website_architecture" | "ad_hoc";
+  origin?: "website_architecture" | "ad_hoc" | "published_page";
   request?: {
     request?: string | null;
     instructions?: string | null;
@@ -84,3 +84,21 @@ export interface ArchitectureContentPostResponse {
   page_id: string;
   artifact: ArchitectureContentArtifact;
 }
+
+export type ArchitectureContentTagStatus =
+  | "new"
+  | "updated"
+  | "update_required"
+  | "stale"
+  | "pending"
+  | "processing"
+  | "success"
+  | "error";
+
+export interface ArchitectureContentTag {
+  url: string;
+  page_id: string | null;
+  status: ArchitectureContentTagStatus | null;
+  proposed: boolean;
+}
+

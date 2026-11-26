@@ -6,23 +6,24 @@ import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { WebsiteArchitectureNewPage } from "@/components/organisms/WebsiteArchitectureTable/website-architecture-new-page";
 import { WebsiteArchitectureTableClient } from "@/components/organisms/WebsiteArchitectureTable/website-architecture-table-client";
+import { WebV2OptimizeTableClient } from "@/components/organisms/WebsiteArchitectureTable/web-v2-optimize-table-client";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Typography } from "@/components/ui/typography";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { businessWebHref } from "@/lib/business-navigation";
 import { formatVolume } from "@/lib/format";
-import type { WebsiteArchitectureScope } from "@/types/website-architecture-types";
 
-const WEB_V2_TABS: WebsiteArchitectureScope[] = [
+type WebV2Tab = "new-pages" | "optimize";
+
+const WEB_V2_TABS: WebV2Tab[] = [
   "new-pages",
   "optimize",
-  "all",
 ];
 
 export function WebV2PageClient({ businessId }: { businessId: string }) {
   const [totalCount, setTotalCount] = React.useState<number | null>(null);
   const [{ tab }, setQuery] = useQueryStates({
-    tab: parseAsStringEnum(WEB_V2_TABS).withDefault("new-pages"),
+    tab: parseAsStringEnum<WebV2Tab>(WEB_V2_TABS).withDefault("new-pages"),
   });
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
@@ -31,7 +32,6 @@ export function WebV2PageClient({ businessId }: { businessId: string }) {
       { label: "Home", href: "/" },
       { label: businessName },
       { label: "Web", href: businessWebHref(businessId) },
-      { label: "V2" },
     ],
     [businessId, businessName],
   );
@@ -60,7 +60,7 @@ export function WebV2PageClient({ businessId }: { businessId: string }) {
             value={tab}
             onValueChange={(value) => {
               setTotalCount(null);
-              void setQuery({ tab: value as WebsiteArchitectureScope });
+              void setQuery({ tab: value as WebV2Tab });
             }}
             className="flex min-h-0 flex-1 flex-col"
           >
@@ -68,7 +68,6 @@ export function WebV2PageClient({ businessId }: { businessId: string }) {
               <TabsList className="max-w-full justify-start overflow-x-auto">
                 <TabsTrigger value="new-pages">New Pages</TabsTrigger>
                 <TabsTrigger value="optimize">Optimize</TabsTrigger>
-                <TabsTrigger value="all">All Pages</TabsTrigger>
               </TabsList>
               <div className="ml-auto flex items-center gap-3">
                 {totalCount !== null && (
@@ -83,15 +82,23 @@ export function WebV2PageClient({ businessId }: { businessId: string }) {
               </div>
             </div>
             <div className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              <WebsiteArchitectureTableClient
-                businessId={businessId}
-                scope={tab}
-                showQuickTypeFilter={false}
-                showDownload={tab === "all"}
-                showCount={false}
-                onTotalCountChange={setTotalCount}
-                returnToV2
-              />
+              {tab === "optimize" ? (
+                <WebV2OptimizeTableClient
+                  businessId={businessId}
+                  website={profileData?.Website}
+                  onTotalCountChange={setTotalCount}
+                />
+              ) : (
+                <WebsiteArchitectureTableClient
+                  businessId={businessId}
+                  scope="new-pages"
+                  showQuickTypeFilter={false}
+                  showDownload={false}
+                  showCount={false}
+                  onTotalCountChange={setTotalCount}
+                  returnToV2
+                />
+              )}
             </div>
           </Tabs>
         </div>

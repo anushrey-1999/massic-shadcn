@@ -255,6 +255,7 @@ export interface SmartSitemapQueryParams {
   search?: string;
   indexingStatuses?: SmartSitemapStatus[];
   pageStatuses?: PageCheckFilter[];
+  excludeStatusCodes?: number[];
 }
 
 export interface SmartSitemapListParams extends SmartSitemapQueryParams {
@@ -339,6 +340,11 @@ function sitemapQueryString(
     search.set("indexingStatuses", [...params.indexingStatuses].sort().join(","));
   if (params.pageStatuses?.length)
     search.set("pageStatuses", [...params.pageStatuses].sort().join(","));
+  if (params.excludeStatusCodes?.length)
+    search.set(
+      "excludeStatusCodes",
+      [...new Set(params.excludeStatusCodes)].sort((a, b) => a - b).join(","),
+    );
   return search.toString();
 }
 

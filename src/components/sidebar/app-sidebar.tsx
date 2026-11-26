@@ -13,7 +13,11 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
-import { isBusinessAnalyticsRoute, isBusinessProfileRoute } from '@/lib/business-navigation'
+import {
+  businessWebHref,
+  isBusinessAnalyticsRoute,
+  isBusinessProfileRoute,
+} from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -699,7 +703,9 @@ export default function AppSidebar() {
                               <CollapsibleContent>
                                 <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                                   {businessSubItems.map((subItem) => {
-                                    const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                                    const subItemHref = subItem.slug === 'web'
+                                      ? businessWebHref(business.UniqueId)
+                                      : `/business/${business.UniqueId}/${subItem.slug}`
                                     const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
                                     let isActive = false
                                     if (subItem.slug === 'analytics') {
@@ -818,7 +824,9 @@ export default function AppSidebar() {
               </div>
               <div className="h-px bg-general-border mx-2 mb-1 mt-1" />
               {businessSubItems.map((subItem) => {
-                const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                const subItemHref = subItem.slug === 'web'
+                  ? businessWebHref(business.UniqueId)
+                  : `/business/${business.UniqueId}/${subItem.slug}`
                 let isActive = false
                 if (subItem.slug === 'analytics') {
                   isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)

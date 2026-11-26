@@ -1,0 +1,86 @@
+import type {
+  WebsiteArchitecturePage,
+  WebsiteArchitectureScope,
+} from "@/types/website-architecture-types";
+
+export const ARCHITECTURE_QUERY_KEYS = {
+  page: "architecturePage",
+  perPage: "architecturePerPage",
+  search: "architectureSearch",
+  sort: "architectureSort",
+  filters: "architectureFilters",
+  joinOperator: "architectureJoinOperator",
+};
+
+export const OPTIMIZE_QUERY_KEYS = {
+  page: "optimizePage",
+  perPage: "optimizePerPage",
+  search: "optimizeSearch",
+  sort: "optimizeSort",
+};
+
+export function getArchitectureAction(page: WebsiteArchitecturePage) {
+  return page.current_url?.trim() ? "Optimize" : "Generate";
+}
+
+function tableParams(search: Pick<URLSearchParams, "get">) {
+  const params = new URLSearchParams();
+  for (const key of [...Object.values(ARCHITECTURE_QUERY_KEYS), ...Object.values(OPTIMIZE_QUERY_KEYS)]) {
+    const value = search.get(key);
+    if (value) params.set(key, value);
+  }
+  return params;
+}
+
+export function architecturePreviewHref(
+  businessId: string,
+  page: WebsiteArchitecturePage,
+  search: Pick<URLSearchParams, "get">,
+  inFlight = false,
+  v2Scope?: WebsiteArchitectureScope,
+) {
+  const title = page.title?.trim() || page.name?.trim();
+  const run = inFlight ? getArchitectureAction(page).toLowerCase() : undefined;
+  return architectureRequestHref(businessId, page.page_id, search, { title, run, v2Scope });
+}
+
+export function architectureRequestHref(
+  businessId: string,
+  pageId: string,
+  search: Pick<URLSearchParams, "get">,
+  { title, run, v2Scope, handoff }: {
+    title?: string;
+    run?: string;
+    v2Scope?: WebsiteArchitectureScope;
+    handoff?: boolean;
+  },
+) {
+  const params = tableParams(search);
+  if (title) params.set("title", title.slice(0, 200));
+  if (run) params.set("run", run);
+  if (v2Scope) {
+    params.set("architectureOrigin", "v2");
+    params.set("architectureTab", v2Scope);
+  }
+  if (handoff) {
+    params.set("architectureHandoff", "1");
+    for (const key of ["architectureOrigin", "architectureTab"]) {
+      const value = search.get(key);
+      if (value) params.set(key, value);
+    }
+  }
+  const path = `/business/${encodeURIComponent(businessId)}/web/architecture/${encodeURIComponent(pageId)}/view`;
+  return params.size ? `${path}?${params}` : path;
+}
+
+export function architectureListHref(businessId: string, search: Pick<URLSearchParams, "get">) {
+  const params = tableParams(search);
+  const origin = search.get("architectureOrigin");
+  const v2Tab = search.get("architectureTab");
+  if (origin === "v2") {
+    params.set("tab", v2Tab === "optimize" ? "optimize" : "new-pages");
+    return `/business/${encodeURIComponent(businessId)}/web/v2?${params}`;
+  }
+  params.set("tab", "web-architecture");
+  return `/business/${encodeURIComponent(businessId)}/web?${params}`;
+}

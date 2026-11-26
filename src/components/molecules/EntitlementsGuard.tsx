@@ -13,6 +13,7 @@ interface EntitlementsGuardProps {
   entitlement: EntitlementKey;
   businessId?: string;
   alertMessage?: string;
+  loadingFallback?: React.ReactNode;
 }
 
 export function EntitlementsGuard({
@@ -20,6 +21,7 @@ export function EntitlementsGuard({
   entitlement,
   businessId,
   alertMessage,
+  loadingFallback = null,
 }: EntitlementsGuardProps) {
   const [planModalDismissed, setPlanModalDismissed] = useState(false);
   const {
@@ -44,7 +46,7 @@ export function EntitlementsGuard({
 
   // Prevent modal flicker: don't render upgrade UI until we have resolved subscription/profile state.
   if (gateLoading) {
-    return null;
+    return <>{loadingFallback}</>;
   }
 
   const handleSubscribeWithClose = async (

@@ -1,5 +1,6 @@
 export interface WebsiteArchitecturePage {
   page_id: string;
+  status?: string;
   name: string;
   title: string;
   page_type: string;
@@ -25,6 +26,8 @@ export interface WebsiteArchitecturePage {
     service_area: string | null;
   } | null;
 }
+
+export type WebsiteArchitectureScope = "all" | "new-pages" | "optimize";
 
 export interface WebsiteArchitectureResponse {
   status: string;
@@ -55,6 +58,7 @@ export interface GetWebsiteArchitectureParams {
   sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{ field: string; value: string | string[]; operator: string }>;
   joinOperator: "and" | "or";
+  scope: WebsiteArchitectureScope;
 }
 
 export interface WebsiteArchitectureResult {

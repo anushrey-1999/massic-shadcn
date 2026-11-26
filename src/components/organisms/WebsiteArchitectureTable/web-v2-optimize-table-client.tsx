@@ -113,6 +113,7 @@ export function WebV2OptimizeTableClient({
       sortBy,
       sortOrder,
       search: debouncedSearch || undefined,
+      excludeStatusCodes: [404],
       page,
       limit: perPage,
     },

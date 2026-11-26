@@ -40,7 +40,7 @@ export function WebsiteArchitecturePreview({ businessId, pageId }: { businessId:
   const scrollRegion = useRef<HTMLDivElement>(null);
   const search = useSearchParams();
   const backHref = architectureListHref(businessId, search);
-  const backLabel = search.get("architectureOrigin") === "v2" ? "Web V2" : "Web Architecture";
+  const backLabel = search.get("architectureOrigin") === "v2" ? "Web" : "Web Architecture";
   const title = search.get("title")?.trim().slice(0, 200);
   const runParam = search.get("run");
   const run = runParam === "generate" || runParam === "optimize" ? runParam : undefined;
@@ -123,7 +123,10 @@ function PreviewContent({
   }, [paused, scrollRegion, status]);
 
   useEffect(() => {
-    if (shouldRefreshList) void client.invalidateQueries({ queryKey: ["website-architecture", businessId] });
+    if (shouldRefreshList) {
+      void client.invalidateQueries({ queryKey: ["website-architecture", businessId] });
+      void client.invalidateQueries({ queryKey: ["website-architecture-tags", businessId] });
+    }
   }, [businessId, client, shouldRefreshList, status]);
 
   useEffect(() => {

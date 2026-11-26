@@ -10,6 +10,7 @@ import { DataTableSearch } from "@/components/filter-table/data-table-search";
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list";
 import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
 import { getSortingStateParser } from "@/components/filter-table/parsers";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Typography } from "@/components/ui/typography";
@@ -168,17 +169,33 @@ export function WebV2OptimizeTableClient({
       cell: ({ row }) => {
         const displayPath = decodePath(row.original.path);
         const href = resolveExternalUrl(website, row.original);
-        if (!href) return <TextCell value={displayPath} />;
+        const isProposed = Boolean(tagsByUrl.get(row.original.path)?.proposed);
         return (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={href}
-            className="inline-block max-w-full rounded-[2px] break-words whitespace-normal text-sm text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {displayPath}
-          </a>
+          <div className="flex w-full min-w-0 items-center justify-between gap-2">
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={href}
+                className="min-w-0 flex-1 truncate rounded-[2px] text-sm text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {displayPath}
+              </a>
+            ) : (
+              <Typography variant="p" className="min-w-0 flex-1 truncate" title={displayPath}>
+                {displayPath}
+              </Typography>
+            )}
+            {isProposed ? (
+              <Badge
+                variant="secondary"
+                className="shrink-0 rounded-[4px] border border-general-border bg-secondary px-1.5 py-0 text-[11px] font-medium text-general-secondary-foreground"
+              >
+                Proposed
+              </Badge>
+            ) : null}
+          </div>
         );
       },
       meta: { label: "Page" },
@@ -240,7 +257,7 @@ export function WebV2OptimizeTableClient({
       size: 148,
       minSize: 148,
     },
-  ], [keywordCounts, keywordCountsLoading, website]);
+  ], [keywordCounts, keywordCountsLoading, tagsByUrl, website]);
 
   const { table } = useDataTable({
     data: pages,
